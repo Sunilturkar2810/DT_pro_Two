@@ -1,0 +1,62 @@
+[
+  {
+    "column_name": "id"
+  },
+  {
+    "column_name": "evidence_required"
+  },
+  {
+    "column_name": "revision_count"
+  },
+  {
+    "column_name": "created_at"
+  },
+  {
+    "column_name": "updated_at"
+  },
+  {
+    "column_name": "in_loop_ids"
+  },
+  {
+    "column_name": "tags"
+  },
+  {
+    "column_name": "group_id"
+  },
+  {
+    "column_name": "checklist_items"
+  },
+  {
+    "column_name": "assigner_id"
+  },
+  {
+    "column_name": "doer_id"
+  },
+  {
+    "column_name": "due_date"
+  },
+  {
+    "column_name": "task_title"
+  },
+  {
+    "column_name": "description"
+  },
+  {
+    "column_name": "voice_note_url"
+  },
+  {
+    "column_name": "reference_docs"
+  },
+  {
+    "column_name": "category"
+  },
+  {
+    "column_name": "priority"
+  },
+  {
+    "column_name": "status"
+  },
+  {
+    "column_name": "evidence_url"
+  }
+]

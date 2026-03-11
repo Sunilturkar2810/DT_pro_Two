@@ -1,0 +1,34 @@
+﻿[dotenv@17.3.1] injecting env (8) from .env -- tip: ≡ƒöÉ prevent building .env in docker: https://dotenvx.com/prebuild
+
+=== LATEST 3 DELEGATIONS ===
+
+--- Task 1 ---
+id: 18892e3e-5b29-46bd-a64e-2fbd92813ae9
+taskTitle: hi
+voiceNoteUrl: null
+referenceDocs: null
+tags: { reminderAt: '2026-03-11T10:50:00.000' }
+status: Pending
+
+--- Task 2 ---
+id: 173dfe9d-c630-45fd-a9ff-ec4d0f9c8603
+taskTitle: for user1
+voiceNoteUrl: null
+referenceDocs: null
+tags: { reminderAt: '2026-03-11T10:50:00.000' }
+status: Pending
+
+--- Task 3 ---
+id: 22c136fd-b387-4a43-aea5-fcb1e39b5471
+taskTitle: Task demo by user 2
+voiceNoteUrl: null
+referenceDocs: null
+tags: { reminderAt: '2026-03-11T10:25:00.000' }
+status: Pending
+
+=== LATEST 5 REMARKS ===
+Remark 1: delegationId=18892e3e-5b29-46bd-a64e-2fbd92813ae9, userId=d90f4828-0bce-4911-b566-a64245dcfe66, remark=hi
+Remark 2: delegationId=22c136fd-b387-4a43-aea5-fcb1e39b5471, userId=76392452-4e02-4aee-a459-6c39d6cbf422, remark=hi
+Remark 3: delegationId=22c136fd-b387-4a43-aea5-fcb1e39b5471, userId=76392452-4e02-4aee-a459-6c39d6cbf422, remark=hi
+Remark 4: delegationId=22c136fd-b387-4a43-aea5-fcb1e39b5471, userId=d90f4828-0bce-4911-b566-a64245dcfe66, remark=hi
+Remark 5: delegationId=8e8584ec-7a8d-4a1d-9775-711970925680, userId=76392452-4e02-4aee-a459-6c39d6cbf422, remark=hi

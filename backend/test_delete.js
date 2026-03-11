@@ -1,0 +1,1 @@
+import { db } from './src/db/index.js'; import { users } from './src/db/schema.js'; import { eq } from 'drizzle-orm'; async function run() { try { await db.delete(users).where(eq(users.userId, 'd90f4828-0bce-4911-b566-a64245dcfe66')); console.log('OK'); } catch (e) { console.error('ERR:', e.message); } process.exit(0); } run();
