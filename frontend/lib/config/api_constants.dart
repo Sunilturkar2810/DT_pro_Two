@@ -1,5 +1,5 @@
 class ApiConstants {
-  static const String baseUrl = "http://192.168.1.23:5000/api";
+  static const String baseUrl = "https://dt-pro-two.onrender.com/api";
 
   // -- Auth ----------------------
   static const String login = '/auth/login';
