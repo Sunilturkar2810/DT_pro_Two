@@ -278,3 +278,41 @@ export const resetPassword = async (request, reply) => {
         return reply.code(400).send({ message: 'Invalid or expired token' });
     }
 };
+
+export const updateProfile = async (request, reply) => {
+    try {
+        const userId = request.user.id;
+        const updates = request.body;
+
+        const allowedUpdates = {};
+        const updatableFields = ['firstName', 'lastName', 'mobileNumber', 'profilePhotoUrl', 'theme'];
+        
+        for (const field of updatableFields) {
+            if (updates[field] !== undefined) {
+                allowedUpdates[field] = updates[field];
+            }
+        }
+
+        if (Object.keys(allowedUpdates).length === 0) {
+            return reply.code(400).send({ message: 'No valid fields provided to update.' });
+        }
+
+        allowedUpdates.updatedAt = new Date();
+
+        const [updatedUser] = await db.update(users)
+            .set(allowedUpdates)
+            .where(eq(users.userId, userId))
+            .returning();
+
+        if (!updatedUser) {
+            return reply.code(404).send({ message: 'User not found' });
+        }
+
+        const { password, ...safeUser } = updatedUser;
+        return reply.send({ message: 'Profile updated successfully', data: safeUser });
+    } catch (error) {
+        request.log.error(error);
+        return reply.code(500).send({ message: 'Internal Server Error' });
+    }
+};
+
