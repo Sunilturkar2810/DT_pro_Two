@@ -6,19 +6,64 @@ export const getDashboardStats = async (request, reply) => {
     try {
         const userId = request.user.id;
         const role = request.user.role?.toLowerCase() || 'user';
-        const { filter = 'Today', startDate, endDate, category, tag, frequency, assignedTo } = request.query;
+        const { filter = 'All Time', filterStartDate, filterEndDate, category, tag, frequency, assignedTo, tab = 'My Report', search } = request.query;
 
         // Build base condition
-        // Default to showing tasks delegated to or by the user (unless admin)
         let conditions = [];
-        if (role !== 'admin' && role !== 'superadmin') {
-           conditions.push(sql`(${delegations.assignerId} = ${userId} OR ${delegations.doerId} = ${userId})`);
+
+        // Tab-specific filters
+        if (tab === 'My Report') {
+            conditions.push(eq(delegations.doerId, userId));
+        } else if (tab === 'Delegated') {
+            conditions.push(eq(delegations.assignerId, userId));
+        } else if (tab === 'Overdue') {
+            const todayStr = new Date().toISOString().split('T')[0];
+            conditions.push(and(
+                sql`${delegations.status} != 'Completed'`,
+                sql`${delegations.dueDate} < ${todayStr}`
+            ));
+        } else if (tab === 'Daily') {
+            const todayStr = new Date().toISOString().split('T')[0];
+            conditions.push(eq(delegations.dueDate, todayStr));
+        } else if (tab === 'Monthly') {
+            const now = new Date();
+            const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+            const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
+            conditions.push(and(gte(delegations.dueDate, firstDay), lte(delegations.dueDate, lastDay)));
         }
 
-        // We can add time filtering using `startDate` and `endDate` here by adding to conditions array,
-        // but for simplicity, let's aggregate all currently matching tasks.
+        // Apply global filters (Role based)
+        if (role !== 'admin' && role !== 'superadmin' && tab !== 'My Report' && tab !== 'Delegated') {
+            conditions.push(sql`(${delegations.assignerId} = ${userId} OR ${delegations.doerId} = ${userId} OR ${delegations.inLoopIds}::jsonb @> ${JSON.stringify([userId])}::jsonb)`);
+        }
 
-        const baseWhere = conditions.length > 0 ? sql.join(conditions, sql` AND `) : sql`1=1`;
+        // Time Filtering (Today, Yesterday, etc.)
+        const today = new Date();
+        let start, end;
+        if (filter === 'Today') {
+            start = new Date(today.setHours(0,0,0,0));
+            end = new Date(today.setHours(23,59,59,999));
+        } else if (filter === 'Yesterday') {
+            const yesterday = new Date(today);
+            yesterday.setDate(yesterday.getDate() - 1);
+            start = new Date(yesterday.setHours(0,0,0,0));
+            end = new Date(yesterday.setHours(23,59,59,999));
+        }
+        // ... (Add other time filters if needed, or if frontend sends date range)
+        if (filterStartDate && filterEndDate) {
+            conditions.push(gte(delegations.dueDate, filterStartDate));
+            conditions.push(lte(delegations.dueDate, filterEndDate));
+        }
+
+        // Category/Tag Filters
+        if (category && category !== 'All' && category !== 'Category') {
+            conditions.push(eq(delegations.category, category));
+        }
+        if (search) {
+            conditions.push(sql`${delegations.taskTitle} ILIKE ${'%' + search + '%'}`);
+        }
+
+        const baseWhere = conditions.length > 0 ? and(...conditions) : sql`1=1`;
 
         // Get all delegations
         const allTasks = await db.select({
@@ -27,7 +72,8 @@ export const getDashboardStats = async (request, reply) => {
             dueDate: delegations.dueDate,
             assignerId: delegations.assignerId,
             doerId: delegations.doerId,
-            category: delegations.category
+            category: delegations.category,
+            taskTitle: delegations.taskTitle
         }).from(delegations).where(baseWhere);
 
         // Fetch users to map names
@@ -42,6 +88,7 @@ export const getDashboardStats = async (request, reply) => {
         });
 
         const stats = {
+            total: allTasks.length,
             overdue: 0,
             pending: 0,
             inProgress: 0,
@@ -50,33 +97,30 @@ export const getDashboardStats = async (request, reply) => {
             delayed: 0
         };
 
-        const employeeStats = {};
+        const resultStats = {};
 
         const currentDate = new Date();
+        const currentStr = currentDate.toISOString().split('T')[0];
 
         allTasks.forEach(task => {
             let s = task.status ? task.status.toLowerCase() : 'pending';
             
-            // Standardize status
             let mappedStatus = 'pending';
             if (s === 'completed' || s === 'done') {
                 mappedStatus = 'completed';
             } else if (s === 'in progress' || s === 'in-progress') {
                 mappedStatus = 'in_progress';
-            } else if (s === 'overdue') {
+            }
+
+            let dueDateStr = task.dueDate; // format YYYY-MM-DD
+            if (mappedStatus !== 'completed' && dueDateStr && dueDateStr < currentStr) {
                 mappedStatus = 'overdue';
             }
 
-            // Check for actual overdue if not completed
-            let dueDate = task.dueDate ? new Date(task.dueDate) : currentDate;
-            if (mappedStatus !== 'completed' && dueDate < currentDate) {
-                mappedStatus = 'overdue';
-            }
-
-            // Global stats
+            // Global stats based on currently filtered tasks
             if (mappedStatus === 'completed') {
                 stats.done++;
-                stats.onTime++; // Assumption for simplicity
+                stats.onTime++;
             } else if (mappedStatus === 'in_progress') {
                 stats.inProgress++;
             } else if (mappedStatus === 'overdue') {
@@ -86,41 +130,52 @@ export const getDashboardStats = async (request, reply) => {
                 stats.pending++;
             }
 
-            // Employee breakdown
-            let doerId = task.doerId || 'unassigned';
-            let doerName = userMap[doerId] || 'Unassigned';
+            // Grouping logic for the Table
+            let groupingKey, groupingName;
+            if (tab === 'Categories') {
+                groupingKey = task.category || 'General';
+                groupingName = groupingKey;
+            } else if (tab === 'Groups') {
+                // For now grouping by category as "Groups" if actual group entity not used
+                groupingKey = task.category || 'Unassigned';
+                groupingName = groupingKey;
+            } else {
+                // Default grouping by Employee
+                groupingKey = task.doerId || 'unassigned';
+                groupingName = userMap[groupingKey] || 'Unassigned';
+            }
             
-            if (!employeeStats[doerId]) {
-                employeeStats[doerId] = {
-                    id: doerId,
-                    name: doerName,
+            if (!resultStats[groupingKey]) {
+                resultStats[groupingKey] = {
+                    id: groupingKey,
+                    name: groupingName,
                     total: 0,
                     overdue: 0,
                     pending: 0,
                     in_progress: 0,
-                    in_time: 0, // In Time (matching Completed)
-                    delayed: 0, // Delayed (matching Overdue)
+                    in_time: 0,
+                    delayed: 0,
                     completed: 0
                 };
             }
             
-            let emp = employeeStats[doerId];
-            emp.total++;
+            let row = resultStats[groupingKey];
+            row.total++;
             
             if (mappedStatus === 'completed') {
-                emp.completed++;
-                emp.in_time++;
+                row.completed++;
+                row.in_time++;
             } else if (mappedStatus === 'overdue') {
-                emp.overdue++;
-                emp.delayed++;
+                row.overdue++;
+                row.delayed++;
             } else if (mappedStatus === 'in_progress') {
-                emp.in_progress++;
+                row.in_progress++;
             } else {
-                emp.pending++;
+                row.pending++;
             }
         });
 
-        const employeeList = Object.values(employeeStats).map(e => {
+        const tableList = Object.values(resultStats).map(e => {
             const score = e.total > 0 ? ((e.completed / e.total) * 100).toFixed(0) : '0';
             return {
                 ...e,
@@ -132,7 +187,7 @@ export const getDashboardStats = async (request, reply) => {
             success: true,
             stats,
             tableData: {
-                employees: employeeList
+                employees: tableList
             }
         });
 
