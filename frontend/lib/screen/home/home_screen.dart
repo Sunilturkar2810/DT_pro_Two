@@ -15,6 +15,7 @@ import 'package:d_table_delegate_system/widget/assign_task_sheet.dart';
 import 'package:d_table_delegate_system/widget/custom_drawer.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:fl_chart/fl_chart.dart';
 
 class DynamicDashboard extends StatefulWidget {
   const DynamicDashboard({super.key});
@@ -146,7 +147,7 @@ class _DynamicDashboardState extends State<DynamicDashboard> {
                     const SizedBox(height: 25),
                     _buildSubTabs(dashPro),
                     const SizedBox(height: 10),
-                    dashPro.isTableView ? _buildReportTable(isMobile) : _buildPlaceholderChart(),
+                    dashPro.isTableView ? _buildReportTable(isMobile) : _buildAnalyticsCharts(dashPro, isMobile),
                     const SizedBox(height: 40),
                   ],
                 ),
@@ -415,15 +416,41 @@ class _DynamicDashboardState extends State<DynamicDashboard> {
 
   Widget _buildSubTabs(DashboardProvider provider) {
     final ac = Theme.of(context).extension<AppColors>()!;
+
+    final List<Map<String, dynamic>> tabs = [
+      {"icon": Icons.people_outline, "label": "Employees"},
+      {"icon": Icons.folder_open_outlined, "label": "Groups"},
+      {"icon": Icons.check_circle_outline, "label": "My Report"},
+      {"icon": Icons.share_outlined, "label": "Delegated"},
+      {"icon": Icons.calendar_today_outlined, "label": "Daily"},
+      {"icon": Icons.calendar_month_outlined, "label": "Monthly"},
+      {"icon": Icons.schedule_outlined, "label": "Overdue"},
+      {"icon": Icons.local_offer_outlined, "label": "Tags"},
+      {"icon": Icons.category_outlined, "label": "Categories"},
+    ];
+
     return Container(
       decoration: BoxDecoration(border: Border(bottom: BorderSide(color: ac.divider, width: 1.5))),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: [
-          _subTabItem(Icons.analytics_outlined, "My Report", provider.selectedTab == "My Report", onTap: () => provider.setTab("My Report")),
-          _subTabItem(Icons.assignment_ind_outlined, "Delegated", provider.selectedTab == "Delegated", onTap: () => provider.setTab("Delegated")),
-          _subTabItem(Icons.group_work_outlined, "Group", provider.selectedTab == "Group", onTap: () => provider.setTab("Group")),
-        ],
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
+        child: Row(
+          children: tabs.map((tab) {
+            String label = tab["label"];
+            return Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4.0),
+              child: _subTabItem(
+                tab["icon"],
+                label,
+                provider.selectedTab == label,
+                onTap: () {
+                  provider.setTab(label);
+                  // Further Dynamic API calls can be triggered here based on the selected tab
+                },
+              ),
+            );
+          }).toList(),
+        ),
       ),
     );
   }
@@ -550,20 +577,144 @@ class _DynamicDashboardState extends State<DynamicDashboard> {
     );
   }
 
-  Widget _buildPlaceholderChart() {
-    final acChart = Theme.of(context).extension<AppColors>()!;
-    return Container(
-      height: 250,
-      margin: const EdgeInsets.only(top: 20),
-      decoration: BoxDecoration(color: acChart.cardBackground, borderRadius: BorderRadius.circular(16)),
-      child: Center(
-        child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-          Icon(Icons.bar_chart_rounded, size: 60, color: primaryColor.withValues(alpha: 0.2)),
+  Widget _buildAnalyticsCharts(DashboardProvider dashPro, bool isMobile) {
+    if (dashPro.isLoading) return const SizedBox(height: 300, child: Center(child: CircularProgressIndicator()));
+    final stats = dashPro.taskStats;
+    final ac = Theme.of(context).extension<AppColors>()!;
+
+    // 1. OVERDUE, PENDING & IN-PROGRESS
+    int overdue = stats["overdue"] ?? 0;
+    int pending = stats["pending"] ?? 0;
+    int inProgress = stats["inProgress"] ?? 0;
+    int total1 = overdue + pending + inProgress;
+
+    // 2. COMPLETED & NOT COMPLETED
+    int completed = stats["done"] ?? 0;
+    int notCompleted = (stats["total"] ?? 0) - completed;
+    if (notCompleted < 0) notCompleted = 0;
+    int total2 = completed + notCompleted;
+
+    // 3. IN-TIME & DELAYED
+    int onTime = stats["onTime"] ?? 0;
+    int delayed = stats["delayed"] ?? 0;
+    int total3 = onTime + delayed;
+
+    return Column(
+      children: [
+        if (!isMobile)
+          Row(
+            children: [
+              Expanded(child: _chartCard("OVERDUE, PENDING & IN-PROGRESS", total1, [
+                _chartSection(overdue, Colors.redAccent, "Overdue"),
+                _chartSection(pending, Colors.orangeAccent, "Pending"),
+                _chartSection(inProgress, Colors.blueAccent, "In Progress"),
+              ])),
+              const SizedBox(width: 16),
+              Expanded(child: _chartCard("COMPLETED & NOT COMPLETED", total2, [
+                _chartSection(completed, primaryColor, "Completed"),
+                _chartSection(notCompleted, Colors.grey.withOpacity(0.5), "Not Completed"),
+              ])),
+            ],
+          )
+        else ...[
+          _chartCard("OVERDUE, PENDING & IN-PROGRESS", total1, [
+            _chartSection(overdue, Colors.redAccent, "Overdue"),
+            _chartSection(pending, Colors.orangeAccent, "Pending"),
+            _chartSection(inProgress, Colors.blueAccent, "In Progress"),
+          ]),
           const SizedBox(height: 16),
-          Text("Analytics Visualization", style: TextStyle(fontWeight: FontWeight.bold, color: acChart.textSecondary)),
-          Text("Detailed charts are being generated...", style: TextStyle(color: acChart.textMuted, fontSize: 12)),
-        ]),
+          _chartCard("COMPLETED & NOT COMPLETED", total2, [
+            _chartSection(completed, primaryColor, "Completed"),
+            _chartSection(notCompleted, Colors.grey.withOpacity(0.5), "Not Completed"),
+          ]),
+        ],
+        const SizedBox(height: 16),
+        _chartCard("IN-TIME & DELAYED", total3, [
+          _chartSection(onTime, Colors.teal, "In-Time"),
+          _chartSection(delayed, Colors.deepOrangeAccent, "Delayed"),
+        ], isFullWidth: true),
+      ],
+    );
+  }
+
+  Widget _chartCard(String title, int total, List<PieChartSectionData> sections, {bool isFullWidth = false}) {
+    final ac = Theme.of(context).extension<AppColors>()!;
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: ac.cardBackground,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [BoxShadow(color: ac.shadowColor, blurRadius: 10)],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, letterSpacing: 0.5)),
+          const SizedBox(height: 20),
+          Row(
+            children: [
+              SizedBox(
+                width: 120,
+                height: 120,
+                child: Stack(
+                  children: [
+                    PieChart(
+                      PieChartData(
+                        sectionsSpace: 2,
+                        centerSpaceRadius: 40,
+                        sections: sections,
+                      ),
+                    ),
+                    Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text("$total", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: ac.textPrimary)),
+                          Text("TOTAL", style: TextStyle(fontSize: 8, color: ac.textMuted, fontWeight: FontWeight.bold)),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 24),
+              Expanded(
+                child: Column(
+                  children: sections.map((s) {
+                    double perc = total > 0 ? (s.value / total) * 100 : 0;
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      child: Row(
+                        children: [
+                          Container(width: 10, height: 10, decoration: BoxDecoration(color: s.color, shape: BoxShape.circle)),
+                          const SizedBox(width: 8),
+                          Expanded(child: Text(s.title, style: TextStyle(fontSize: 12, color: ac.textSecondary))),
+                          Text("${s.value.toInt()} (${perc.toStringAsFixed(0)}%)", style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                        ],
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
+  }
+
+  PieChartSectionData _chartSection(int value, Color color, String title) {
+    return PieChartSectionData(
+      color: color,
+      value: value.toDouble(),
+      title: '', // We show title in legent instead
+      radius: 12,
+      showTitle: false,
+    );
+  }
+
+  Widget _buildPlaceholderChart() {
+    // Keep for fallback or just remove
+    return const SizedBox.shrink();
   }
 }

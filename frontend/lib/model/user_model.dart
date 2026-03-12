@@ -9,6 +9,19 @@ class UserModel {
   final String? mobileNumber;
   final String? manager;
   final String? profilePhotoUrl;
+  
+  // Remaining fields
+  final String? personalEmail;
+  final String? emergencyMobileNo;
+  final String? dateOfBirth;
+  final String? maritalStatus;
+  final String? gender;
+  final String? address;
+  final String? city;
+  final String? state;
+  final String? nationality;
+  final String? joiningDate;
+  final String? currentSalary;
 
   UserModel({
     required this.id,
@@ -21,6 +34,17 @@ class UserModel {
     this.mobileNumber,
     this.manager,
     this.profilePhotoUrl,
+    this.personalEmail,
+    this.emergencyMobileNo,
+    this.dateOfBirth,
+    this.maritalStatus,
+    this.gender,
+    this.address,
+    this.city,
+    this.state,
+    this.nationality,
+    this.joiningDate,
+    this.currentSalary,
   });
 
   factory UserModel.fromJson(Map<String, dynamic> json) {
@@ -33,9 +57,20 @@ class UserModel {
       role: json['role'] ?? 'User',
       designation: json['designation'] ?? '',
       department: json['department'] ?? 'General',
-      mobileNumber: json['mobileNumber'],
+      mobileNumber: json['mobileNumber']?.toString(),
       manager: json['manager'],
       profilePhotoUrl: json['profilePhotoUrl'],
+      personalEmail: json['personalEmail'],
+      emergencyMobileNo: json['emergencyMobileNo']?.toString(),
+      dateOfBirth: json['dateOfBirth']?.toString(),
+      maritalStatus: json['maritalStatus'],
+      gender: json['gender'],
+      address: json['address'],
+      city: json['city'],
+      state: json['state'],
+      nationality: json['nationality'],
+      joiningDate: json['joiningDate']?.toString(),
+      currentSalary: json['currentSalary']?.toString(),
     );
   }
 
@@ -52,6 +87,17 @@ class UserModel {
       'mobileNumber': mobileNumber,
       'manager': manager,
       'profilePhotoUrl': profilePhotoUrl,
+      'personalEmail': personalEmail,
+      'emergencyMobileNo': emergencyMobileNo,
+      'dateOfBirth': dateOfBirth,
+      'maritalStatus': maritalStatus,
+      'gender': gender,
+      'address': address,
+      'city': city,
+      'state': state,
+      'nationality': nationality,
+      'joiningDate': joiningDate,
+      'currentSalary': currentSalary,
     };
   }
 

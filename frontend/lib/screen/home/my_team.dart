@@ -53,7 +53,7 @@ class _MyTeamScreenState extends State<MyTeamScreen>
       backgroundColor: Colors.transparent,
       builder: (ctx) => FractionallySizedBox(
         heightFactor: 0.85,
-        child: _MemberDetailPanel(
+        child: MemberDetailPanel(
           member: member,
           onClose: () => Navigator.pop(ctx),
           tabController: _tabController,
@@ -633,14 +633,14 @@ class _MyTeamScreenState extends State<MyTeamScreen>
 }
 
 // ─── MEMBER DETAIL PANEL (Kept from original codebase) ────────────────────────
-class _MemberDetailPanel extends StatefulWidget {
+class MemberDetailPanel extends StatefulWidget {
   final UserModel member;
   final VoidCallback onClose;
   final TabController tabController;
   final Color green;
   final AppColors appColors;
 
-  const _MemberDetailPanel({
+  const MemberDetailPanel({
     required this.member,
     required this.onClose,
     required this.tabController,
@@ -649,10 +649,10 @@ class _MemberDetailPanel extends StatefulWidget {
   });
 
   @override
-  State<_MemberDetailPanel> createState() => _MemberDetailPanelState();
+  State<MemberDetailPanel> createState() => _MemberDetailPanelState();
 }
 
-class _MemberDetailPanelState extends State<_MemberDetailPanel> {
+class _MemberDetailPanelState extends State<MemberDetailPanel> {
   final Color _green = ThemeProvider.primaryGreen;
 
   @override
@@ -1043,41 +1043,40 @@ class _MemberDetailPanelState extends State<_MemberDetailPanel> {
   }
 
   Widget _buildInfoTab(UserModel member, AppColors ac) {
+    String addressText = [
+      if (member.address != null && member.address!.isNotEmpty) member.address,
+      if (member.city != null && member.city!.isNotEmpty) member.city,
+      if (member.state != null && member.state!.isNotEmpty) member.state,
+      if (member.nationality != null && member.nationality!.isNotEmpty) member.nationality,
+    ].where((e) => e != null).join(', ');
+    if (addressText.isEmpty) addressText = "N/A";
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
       child: Column(
         children: [
           _infoCard("Personal Info", [
             _infoItem(Icons.person_outline, "Full Name", member.fullName, ac),
-            _infoItem(Icons.email_outlined, "Email", member.workEmail, ac),
-            _infoItem(
-              Icons.phone_outlined,
-              "Mobile",
-              member.mobileNumber ?? "N/A",
-              ac,
-            ),
+            _infoItem(Icons.favorite_outline, "Gender", member.gender ?? "N/A", ac),
+            _infoItem(Icons.calendar_today_outlined, "Date of Birth", member.dateOfBirth ?? "N/A", ac),
+            _infoItem(Icons.family_restroom_outlined, "Marital Status", member.maritalStatus ?? "N/A", ac),
           ], ac),
           const SizedBox(height: 16),
-          _infoCard("Work Info", [
+          _infoCard("Communication Details", [
+            _infoItem(Icons.email_outlined, "Work Email", member.workEmail, ac),
+            _infoItem(Icons.mail_outline, "Personal Email", member.personalEmail ?? "N/A", ac),
+            _infoItem(Icons.phone_outlined, "Primary Mobile", member.mobileNumber ?? "N/A", ac),
+            _infoItem(Icons.phone_in_talk_outlined, "Emergency Contact", member.emergencyMobileNo ?? "N/A", ac),
+            _infoItem(Icons.location_on_outlined, "Address", addressText, ac),
+          ], ac),
+          const SizedBox(height: 16),
+          _infoCard("Employment & Career", [
             _infoItem(Icons.work_outline, "Role", member.role, ac),
-            _infoItem(
-              Icons.badge_outlined,
-              "Designation",
-              member.designation,
-              ac,
-            ),
-            _infoItem(
-              Icons.business_outlined,
-              "Department",
-              member.department,
-              ac,
-            ),
-            _infoItem(
-              Icons.supervisor_account_outlined,
-              "Reports To",
-              member.manager ?? "NA",
-              ac,
-            ),
+            _infoItem(Icons.badge_outlined, "Designation", member.designation, ac),
+            _infoItem(Icons.business_outlined, "Department", member.department, ac),
+            _infoItem(Icons.supervisor_account_outlined, "Reports To", member.manager ?? "N/A", ac),
+            _infoItem(Icons.access_time_outlined, "Joining Date", member.joiningDate ?? "N/A", ac),
+            _infoItem(Icons.account_balance_wallet_outlined, "Current Salary", member.currentSalary != null ? "₹${member.currentSalary}" : "N/A", ac),
           ], ac),
         ],
       ),

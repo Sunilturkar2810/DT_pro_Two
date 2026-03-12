@@ -50,6 +50,7 @@ dependencies:
   timezone: ^0.9.4
   url_launcher: ^6.3.2
   audioplayers: ^6.6.0
+  fl_chart: ^0.70.2
 
 dependency_overrides:
   record_linux: ^1.2.0
