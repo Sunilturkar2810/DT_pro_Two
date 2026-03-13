@@ -139,14 +139,15 @@ export const login = async (request, reply) => {
             email: user.workEmail
         });
 
+        // Remove sensitive information
+        const { password: _, ...safeUser } = user;
+
         return reply.send({
             message: 'Login successful',
             token,
             user: {
-                id: user.userId,
-                firstName: user.firstName,
-                lastName: user.lastName,
-                role: user.role
+                ...safeUser,
+                id: safeUser.userId // Ensure id is also present for compatibility
             }
         });
     } catch (error) {
@@ -156,19 +157,13 @@ export const login = async (request, reply) => {
 };
 export const getUsers = async (request, reply) => {
     try {
-        const allUsers = await db.select({
-            userId: users.userId,
-            firstName: users.firstName,
-            lastName: users.lastName,
-            workEmail: users.workEmail,
-            role: users.role,
-            designation: users.designation,
-            department: users.department,
-            mobileNumber: users.mobileNumber,
-            manager: users.manager,
-        }).from(users);
+        const allUsers = await db.query.users.findMany();
+        
+        // Remove password from all users
+        const safeUsers = allUsers.map(({ password, ...user }) => user);
+
         // Changed to send { users: [...] } so Flutter's response.data['users'] works
-        const filteredUsers = allUsers.filter(u => u.role !== 'Deleted');
+        const filteredUsers = safeUsers.filter(u => u.role !== 'Deleted');
         return reply.send({ users: filteredUsers });
     } catch (error) {
         request.log.error(error);

@@ -109,6 +109,20 @@ export const getMyTeamMembers = async (request, reply) => {
             lastName: users.lastName,
             workEmail: users.workEmail,
             mobileNumber: users.mobileNumber,
+            designation: users.designation,
+            department: users.department,
+            profilePhotoUrl: users.profilePhotoUrl,
+            personalEmail: users.personalEmail,
+            emergencyMobileNo: users.emergencyMobileNo,
+            dateOfBirth: users.dateOfBirth,
+            maritalStatus: users.maritalStatus,
+            gender: users.gender,
+            address: users.address,
+            city: users.city,
+            state: users.state,
+            nationality: users.nationality,
+            joiningDate: users.joiningDate,
+            currentSalary: users.currentSalary,
             managerId: teamMembers.reportsTo,
         })
             .from(teamMembers)
@@ -138,13 +152,13 @@ export const getMyTeamMembers = async (request, reply) => {
 
         memberResult.forEach(member => {
             if (!uniqueMembersMap.has(member.userId)) {
+                // Find all fields for this user from the DB result
+                const userRow = memberResult.find(m => m.userId === member.userId);
+                
+                // Fetch the full user object (excluding sensitive info if needed, but here we already selected specific fields)
+                // Actually, let's just make the select above better.
                 uniqueMembersMap.set(member.userId, {
-                    userId: member.userId,
-                    firstName: member.firstName,
-                    lastName: member.lastName,
-                    workEmail: member.workEmail,
-                    mobileNumber: member.mobileNumber,
-                    role: member.role, // If they are in multiple teams, this just takes the first found role
+                    ...member,
                     manager: member.managerId ? managerNames[member.managerId] || null : null,
                 });
             }
@@ -154,6 +168,53 @@ export const getMyTeamMembers = async (request, reply) => {
 
         return reply.send(formattedMembers);
 
+    } catch (error) {
+        request.log.error(error);
+        return reply.code(500).send({ message: 'Internal Server Error' });
+    }
+};
+
+export const updateTeamMember = async (request, reply) => {
+    try {
+        const currentUserId = request.user.id;
+        const { memberId } = request.params;
+        const updates = request.body;
+
+        // Check if user is admin
+        if (request.user.role !== 'ADMIN' && request.user.role !== 'SUPERADMIN') {
+            return reply.code(403).send({ message: 'Only admins can update team members' });
+        }
+
+        // Allowed fields that can be updated
+        const allowedUpdates = {};
+        const updatableFields = [
+            'firstName', 'lastName', 'mobileNumber', 
+            'designation', 'department', 'manager', 'role'
+        ];
+
+        for (const field of updatableFields) {
+            if (updates[field] !== undefined) {
+                allowedUpdates[field] = updates[field];
+            }
+        }
+
+        if (Object.keys(allowedUpdates).length === 0) {
+            return reply.code(400).send({ message: 'No valid fields provided to update.' });
+        }
+
+        allowedUpdates.updatedAt = new Date();
+
+        const [updatedUser] = await db.update(users)
+            .set(allowedUpdates)
+            .where(eq(users.userId, memberId))
+            .returning();
+
+        if (!updatedUser) {
+            return reply.code(404).send({ message: 'User not found' });
+        }
+
+        const { password, ...safeUser } = updatedUser;
+        return reply.send({ message: 'Team member updated successfully', data: safeUser });
     } catch (error) {
         request.log.error(error);
         return reply.code(500).send({ message: 'Internal Server Error' });

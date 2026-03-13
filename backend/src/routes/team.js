@@ -1,4 +1,4 @@
-import { createTeam, getTeams, getTeamMembers, getMyTeamMembers } from '../controllers/teamController.js';
+import { createTeam, getTeams, getTeamMembers, getMyTeamMembers, updateTeamMember } from '../controllers/teamController.js';
 
 export default async function teamRoutes(fastify, options) {
     fastify.addHook('onRequest', async (request, reply) => {
@@ -13,4 +13,5 @@ export default async function teamRoutes(fastify, options) {
     fastify.get('/', getTeams);
     fastify.get('/my-members', getMyTeamMembers);
     fastify.get('/:teamId/members', getTeamMembers);
+    fastify.put('/members/:memberId', updateTeamMember);
 }
