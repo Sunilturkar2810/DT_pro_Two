@@ -285,7 +285,12 @@ export const updateProfile = async (request, reply) => {
         const updates = request.body;
 
         const allowedUpdates = {};
-        const updatableFields = ['firstName', 'lastName', 'mobileNumber', 'profilePhotoUrl', 'theme'];
+        const updatableFields = [
+            'firstName', 'lastName', 'mobileNumber', 'profilePhotoUrl', 'theme',
+            'personalEmail', 'emergencyMobileNo', 'dateOfBirth', 'maritalStatus', 'gender',
+            'address', 'city', 'state', 'nationality', 'joiningDate', 'currentSalary',
+            'designation', 'department', 'manager'
+        ];
         
         for (const field of updatableFields) {
             if (updates[field] !== undefined) {

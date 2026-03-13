@@ -655,6 +655,64 @@ class MemberDetailPanel extends StatefulWidget {
 class _MemberDetailPanelState extends State<MemberDetailPanel> {
   final Color _green = ThemeProvider.primaryGreen;
 
+  void _showEditDialog(String label, String fieldKey, String currentValue) {
+    final TextEditingController _editController = TextEditingController(
+      text: currentValue == "N/A" ? "" : currentValue,
+    );
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        final ac = widget.appColors;
+        return AlertDialog(
+          backgroundColor: ac.cardBackground,
+          title: Text("Edit $label", style: TextStyle(color: ac.textPrimary)),
+          content: TextField(
+            controller: _editController,
+            decoration: InputDecoration(
+              hintText: "Enter $label",
+              hintStyle: TextStyle(color: ac.textMuted),
+              enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: _green)),
+              focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: _green)),
+            ),
+            style: TextStyle(color: ac.textPrimary),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text("Cancel", style: TextStyle(color: ac.textMuted)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: _green),
+              onPressed: () async {
+                final newValue = _editController.text.trim();
+                if (newValue != (currentValue == "N/A" ? "" : currentValue)) {
+                  final provider = Provider.of<AuthProvider>(context, listen: false);
+                  Navigator.pop(ctx);
+                  
+                  bool success = await provider.updateProfile({fieldKey: newValue});
+                  
+                  if (success) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text("$label updated successfully"), backgroundColor: Colors.green),
+                    );
+                    // Refresh current user if needed, though updateProfile usually updates the provider state
+                  } else {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text(provider.errorMessage ?? "Failed to update"), backgroundColor: Colors.red),
+                    );
+                  }
+                } else {
+                  Navigator.pop(ctx);
+                }
+              },
+              child: const Text("Save", style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final ac = widget.appColors;
@@ -1043,11 +1101,15 @@ class _MemberDetailPanelState extends State<MemberDetailPanel> {
   }
 
   Widget _buildInfoTab(UserModel member, AppColors ac) {
+    final currentUser = context.watch<AuthProvider>().currentUser;
+    final bool isOwnProfile = currentUser?.id == member.id;
+    final displayMember = isOwnProfile ? currentUser! : member;
+
     String addressText = [
-      if (member.address != null && member.address!.isNotEmpty) member.address,
-      if (member.city != null && member.city!.isNotEmpty) member.city,
-      if (member.state != null && member.state!.isNotEmpty) member.state,
-      if (member.nationality != null && member.nationality!.isNotEmpty) member.nationality,
+      if (displayMember.address != null && displayMember.address!.isNotEmpty) displayMember.address,
+      if (displayMember.city != null && displayMember.city!.isNotEmpty) displayMember.city,
+      if (displayMember.state != null && displayMember.state!.isNotEmpty) displayMember.state,
+      if (displayMember.nationality != null && displayMember.nationality!.isNotEmpty) displayMember.nationality,
     ].where((e) => e != null).join(', ');
     if (addressText.isEmpty) addressText = "N/A";
 
@@ -1056,27 +1118,31 @@ class _MemberDetailPanelState extends State<MemberDetailPanel> {
       child: Column(
         children: [
           _infoCard("Personal Info", [
-            _infoItem(Icons.person_outline, "Full Name", member.fullName, ac),
-            _infoItem(Icons.favorite_outline, "Gender", member.gender ?? "N/A", ac),
-            _infoItem(Icons.calendar_today_outlined, "Date of Birth", member.dateOfBirth ?? "N/A", ac),
-            _infoItem(Icons.family_restroom_outlined, "Marital Status", member.maritalStatus ?? "N/A", ac),
+            _infoItem(Icons.person_outline, "First Name", displayMember.firstName, ac, fieldKey: 'firstName', canEdit: isOwnProfile),
+            _infoItem(Icons.person_outline, "Last Name", displayMember.lastName, ac, fieldKey: 'lastName', canEdit: isOwnProfile),
+            _infoItem(Icons.favorite_outline, "Gender", displayMember.gender ?? "N/A", ac, fieldKey: 'gender', canEdit: isOwnProfile),
+            _infoItem(Icons.calendar_today_outlined, "Date of Birth", displayMember.dateOfBirth ?? "N/A", ac, fieldKey: 'dateOfBirth', canEdit: isOwnProfile),
+            _infoItem(Icons.family_restroom_outlined, "Marital Status", displayMember.maritalStatus ?? "N/A", ac, fieldKey: 'maritalStatus', canEdit: isOwnProfile),
           ], ac),
           const SizedBox(height: 16),
           _infoCard("Communication Details", [
-            _infoItem(Icons.email_outlined, "Work Email", member.workEmail, ac),
-            _infoItem(Icons.mail_outline, "Personal Email", member.personalEmail ?? "N/A", ac),
-            _infoItem(Icons.phone_outlined, "Primary Mobile", member.mobileNumber ?? "N/A", ac),
-            _infoItem(Icons.phone_in_talk_outlined, "Emergency Contact", member.emergencyMobileNo ?? "N/A", ac),
-            _infoItem(Icons.location_on_outlined, "Address", addressText, ac),
+            _infoItem(Icons.email_outlined, "Work Email", displayMember.workEmail, ac), // Email usually not editable by user
+            _infoItem(Icons.mail_outline, "Personal Email", displayMember.personalEmail ?? "N/A", ac, fieldKey: 'personalEmail', canEdit: isOwnProfile),
+            _infoItem(Icons.phone_outlined, "Primary Mobile", displayMember.mobileNumber ?? "N/A", ac, fieldKey: 'mobileNumber', canEdit: isOwnProfile),
+            _infoItem(Icons.phone_in_talk_outlined, "Emergency Contact", displayMember.emergencyMobileNo ?? "N/A", ac, fieldKey: 'emergencyMobileNo', canEdit: isOwnProfile),
+            _infoItem(Icons.location_on_outlined, "Address", displayMember.address ?? "N/A", ac, fieldKey: 'address', canEdit: isOwnProfile),
+            _infoItem(Icons.location_city_outlined, "City", displayMember.city ?? "N/A", ac, fieldKey: 'city', canEdit: isOwnProfile),
+            _infoItem(Icons.map_outlined, "State", displayMember.state ?? "N/A", ac, fieldKey: 'state', canEdit: isOwnProfile),
+            _infoItem(Icons.flag_outlined, "Nationality", displayMember.nationality ?? "N/A", ac, fieldKey: 'nationality', canEdit: isOwnProfile),
           ], ac),
           const SizedBox(height: 16),
           _infoCard("Employment & Career", [
-            _infoItem(Icons.work_outline, "Role", member.role, ac),
-            _infoItem(Icons.badge_outlined, "Designation", member.designation, ac),
-            _infoItem(Icons.business_outlined, "Department", member.department, ac),
-            _infoItem(Icons.supervisor_account_outlined, "Reports To", member.manager ?? "N/A", ac),
-            _infoItem(Icons.access_time_outlined, "Joining Date", member.joiningDate ?? "N/A", ac),
-            _infoItem(Icons.account_balance_wallet_outlined, "Current Salary", member.currentSalary != null ? "₹${member.currentSalary}" : "N/A", ac),
+            _infoItem(Icons.work_outline, "Role", displayMember.role, ac),
+            _infoItem(Icons.badge_outlined, "Designation", displayMember.designation, ac, fieldKey: 'designation', canEdit: isOwnProfile),
+            _infoItem(Icons.business_outlined, "Department", displayMember.department, ac, fieldKey: 'department', canEdit: isOwnProfile),
+            _infoItem(Icons.supervisor_account_outlined, "Reports To", displayMember.manager ?? "N/A", ac),
+            _infoItem(Icons.access_time_outlined, "Joining Date", displayMember.joiningDate ?? "N/A", ac, fieldKey: 'joiningDate', canEdit: isOwnProfile),
+            _infoItem(Icons.account_balance_wallet_outlined, "Current Salary", displayMember.currentSalary != null ? "₹${displayMember.currentSalary}" : "N/A", ac),
           ], ac),
         ],
       ),
@@ -1112,34 +1178,44 @@ class _MemberDetailPanelState extends State<MemberDetailPanel> {
     );
   }
 
-  Widget _infoItem(IconData icon, String label, String value, AppColors ac) {
+  Widget _infoItem(IconData icon, String label, String value, AppColors ac, {String? fieldKey, bool canEdit = false}) {
+    bool isNA = value == "N/A" || value.isEmpty;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      child: Row(
-        children: [
-          Icon(icon, size: 18, color: _green.withOpacity(0.7)),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: TextStyle(fontSize: 11, color: ac.textMuted),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  value,
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: ac.textPrimary,
+      child: InkWell(
+        onTap: (canEdit && (isNA || true)) ? () => _showEditDialog(label, fieldKey!, value) : null,
+        child: Row(
+          children: [
+            Icon(icon, size: 18, color: _green.withOpacity(0.7)),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: TextStyle(fontSize: 11, color: ac.textMuted),
                   ),
-                ),
-              ],
+                  const SizedBox(height: 2),
+                  Text(
+                    value,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: ac.textPrimary,
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+            if (canEdit)
+              Icon(
+                isNA ? Icons.add_circle_outline : Icons.edit_outlined,
+                size: 16,
+                color: isNA ? _green : ac.textMuted,
+              ),
+          ],
+        ),
       ),
     );
   }
