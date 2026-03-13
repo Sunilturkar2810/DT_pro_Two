@@ -77,4 +77,13 @@ class AuthService {
       throw e.response?.data['message'] ?? 'Reset password failed';
     }
   }
+
+  Future<Map<String, dynamic>> updateTeamMember(String memberId, Map<String, dynamic> data) async {
+    try {
+      final response = await _dio.put('${ApiConstants.baseUrl}/team/members/$memberId', data: data);
+      return response.data['data'] ?? response.data;
+    } on DioException catch (e) {
+      throw e.response?.data['message'] ?? 'Failed to update team member';
+    }
+  }
 }

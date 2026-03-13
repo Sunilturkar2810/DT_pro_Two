@@ -4,6 +4,9 @@ import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../provider/auth_provider.dart';
 import '../../../provider/theme_provider.dart';
+import '../../../provider/user_provider.dart';
+import '../../../widget/personal_profile_panel.dart';
+import 'my_profile_screen.dart';
 import '../support/support_screen.dart';
 
 import '../notifications/notifications_screen.dart';
@@ -172,11 +175,10 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
                       title: const Text('View Profile'),
                       trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                       onTap: () {
-                        // Pre-fetch profile info if required, although it'll just show current info
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (_) => ViewProfileScreen(user: user),
+                            builder: (_) => MyProfileScreen(user: user),
                           ),
                         );
                       },
@@ -241,47 +243,6 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
                 ),
               ),
             ),
-    );
-  }
-}
-
-class ViewProfileScreen extends StatefulWidget {
-  final UserModel user;
-  const ViewProfileScreen({super.key, required this.user});
-
-  @override
-  State<ViewProfileScreen> createState() => _ViewProfileScreenState();
-}
-
-class _ViewProfileScreenState extends State<ViewProfileScreen> with SingleTickerProviderStateMixin {
-  late TabController _tabController;
-
-  @override
-  void initState() {
-    super.initState();
-    _tabController = TabController(length: 3, vsync: this);
-  }
-
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      appBar: AppBar(
-        title: const Text('View Profile'),
-      ),
-      body: MemberDetailPanel(
-        member: widget.user,
-        onClose: () => Navigator.pop(context),
-        tabController: _tabController,
-        green: ThemeProvider.primaryGreen,
-        appColors: Theme.of(context).extension<AppColors>()!,
-      ),
     );
   }
 }

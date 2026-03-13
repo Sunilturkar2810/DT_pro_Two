@@ -134,7 +134,27 @@ class AuthProvider extends ChangeNotifier {
       print("📄 Response Data: ${jsonEncode(resp)}");
       print("-----------------------------------------");
 
-      if (resp.containsKey('user') || resp['message'] == "User registered successfully") {
+      if (resp.containsKey('token') && resp.containsKey('user')) {
+        final box = Hive.box('settingsBox');
+        
+        // Store token
+        await box.put('auth_token', resp['token']);
+        
+        // Store user data
+        await box.put('auth_user', jsonEncode(resp['user']));
+        
+        // Store user ID
+        String fetchedId = resp['user']['userId'] ?? resp['user']['id'] ?? '';
+        await box.put('auth_user_id', fetchedId);
+        
+        // Set current user and mark as authenticated
+        _currentUser = UserModel.fromJson(resp['user']);
+        _isAuthenticated = true;
+        
+        print("✅ User auto-authenticated after signup! ID: ${_currentUser?.id}, Designation: ${_currentUser?.designation}");
+        return true;
+      } else if (resp['message'] == "User registered successfully") {
+        // Fallback for backward compatibility - signup successful but need to login
         return true;
       }
       return false;
@@ -214,6 +234,25 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  // --- ADMIN: UPDATE TEAM MEMBER ---
+  Future<bool> updateTeamMemberDetails(String memberId, Map<String, dynamic> updates) async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final updatedData = await _authService.updateTeamMember(memberId, updates);
+      print("✅ TEAM MEMBER UPDATED SUCCESSFULLY!");
+      return true;
+    } catch (e) {
+      _errorMessage = e.toString().replaceAll('Exception: ', '');
+      print("🛑 TEAM MEMBER UPDATE FAILED! Error: $_errorMessage");
+      return false;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
 
   Future<void> logout() async {
     final box = Hive.box('settingsBox');

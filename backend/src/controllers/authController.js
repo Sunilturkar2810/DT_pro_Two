@@ -38,11 +38,22 @@ export const register = async (request, reply) => {
             department
         }).returning();
 
+        // Generate JWT token for auto-login after signup
+        const token = request.server.jwt.sign({
+            id: newUser[0].userId,
+            role: newUser[0].role,
+            email: newUser[0].workEmail
+        });
+
+        // Remove sensitive information and return full user object
+        const { password: _, ...safeUser } = newUser[0];
+
         return reply.code(201).send({
             message: 'User registered successfully',
+            token,
             user: {
-                id: newUser[0].userId,
-                workEmail: newUser[0].workEmail
+                ...safeUser,
+                id: safeUser.userId // Ensure id is also present for compatibility
             }
         });
     } catch (error) {

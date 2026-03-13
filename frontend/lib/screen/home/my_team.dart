@@ -6,6 +6,7 @@ import 'package:d_table_delegate_system/provider/theme_provider.dart';
 import 'package:d_table_delegate_system/provider/user_provider.dart';
 import 'package:d_table_delegate_system/widget/app_dropdown.dart';
 import 'package:d_table_delegate_system/screen/auth/signup/signup_screen.dart';
+import 'package:d_table_delegate_system/screen/home/edit_team_member.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -551,48 +552,66 @@ class _MyTeamScreenState extends State<MyTeamScreen>
               onSelected: (value) {
                 if (value == 'Profile') {
                   _onMemberTap(user);
+                } else if (value == 'Edit') {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => EditTeamMemberScreen(member: user),
+                    ),
+                  ).then((_) {
+                    // Refresh team data after editing
+                    context.read<UserProvider>().fetchMyTeam();
+                  });
                 }
                 // Add your other actions here
               },
               itemBuilder: (BuildContext context) {
-                return [
+                final isAdmin = context.read<AuthProvider>().isAdmin;
+                final items = [
                   const PopupMenuItem(
                     value: 'Profile',
                     child: Text('View Profile', style: TextStyle(fontSize: 13)),
                   ),
-                  const PopupMenuItem(
-                    value: 'Edit',
-                    child: Text('Edit', style: TextStyle(fontSize: 13)),
-                  ),
-                  const PopupMenuItem(
-                    value: 'Reassign',
-                    child: Text(
-                      'Reassign All Tasks',
-                      style: TextStyle(fontSize: 13),
-                    ),
-                  ),
-                  const PopupMenuItem(
-                    value: 'Credentials',
-                    child: Text(
-                      'Update Credentials',
-                      style: TextStyle(fontSize: 13),
-                    ),
-                  ),
-                  const PopupMenuItem(
-                    value: 'DeleteTasks',
-                    child: Text(
-                      'Delete All Tasks',
-                      style: TextStyle(fontSize: 13, color: Colors.red),
-                    ),
-                  ),
-                  const PopupMenuItem(
-                    value: 'DeleteUser',
-                    child: Text(
-                      'Delete User',
-                      style: TextStyle(fontSize: 13, color: Colors.red),
-                    ),
-                  ),
                 ];
+                
+                if (isAdmin) {
+                  items.addAll([
+                    const PopupMenuItem(
+                      value: 'Edit',
+                      child: Text('Edit', style: TextStyle(fontSize: 13)),
+                    ),
+                    const PopupMenuItem(
+                      value: 'Reassign',
+                      child: Text(
+                        'Reassign All Tasks',
+                        style: TextStyle(fontSize: 13),
+                      ),
+                    ),
+                    const PopupMenuItem(
+                      value: 'Credentials',
+                      child: Text(
+                        'Update Credentials',
+                        style: TextStyle(fontSize: 13),
+                      ),
+                    ),
+                    const PopupMenuItem(
+                      value: 'DeleteTasks',
+                      child: Text(
+                        'Delete All Tasks',
+                        style: TextStyle(fontSize: 13, color: Colors.red),
+                      ),
+                    ),
+                    const PopupMenuItem(
+                      value: 'DeleteUser',
+                      child: Text(
+                        'Delete User',
+                        style: TextStyle(fontSize: 13, color: Colors.red),
+                      ),
+                    ),
+                  ]);
+                }
+                
+                return items;
               },
             ),
           ),
@@ -793,35 +812,6 @@ class _MemberDetailPanelState extends State<MemberDetailPanel> {
                       ac,
                     ),
                     const SizedBox(height: 16),
-                    // Assign Task button
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        onPressed:
-                            () {}, // Implementation inside _showAssignSheet if added back
-                        icon: const Icon(
-                          Icons.add_task,
-                          size: 18,
-                          color: Colors.white,
-                        ),
-                        label: const Text(
-                          "Assign Task",
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 14,
-                          ),
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: _green,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          elevation: 0,
-                        ),
-                      ),
-                    ),
                   ],
                 ),
               ),
