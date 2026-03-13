@@ -1,7 +1,7 @@
 import { db } from '../db/index.js';
 import { users } from '../db/schema.js';
 import { eq } from 'drizzle-orm';
-import { hashPassword, comparePassword } from '../utils/auth.js';
+import { hashPassword, comparePassword, formatUserResponse } from '../utils/auth.js';
 
 export const register = async (request, reply) => {
     const {
@@ -45,16 +45,13 @@ export const register = async (request, reply) => {
             email: newUser[0].workEmail
         });
 
-        // Remove sensitive information and return full user object
-        const { password: _, ...safeUser } = newUser[0];
+        // Format user response with proper field names
+        const formattedUser = formatUserResponse(newUser[0]);
 
         return reply.code(201).send({
             message: 'User registered successfully',
             token,
-            user: {
-                ...safeUser,
-                id: safeUser.userId // Ensure id is also present for compatibility
-            }
+            user: formattedUser
         });
     } catch (error) {
         request.log.error(error);
@@ -150,14 +147,13 @@ export const login = async (request, reply) => {
             email: user.workEmail
         });
 
-        // Remove sensitive information
-        const { password: _, ...safeUser } = user;
+        // Format user response with proper field names
+        const formattedUser = formatUserResponse(user);
 
         return reply.send({
             message: 'Login successful',
             token,
-            user: {
-                ...safeUser,
+            user: formattedUser
                 id: safeUser.userId // Ensure id is also present for compatibility
             }
         });
@@ -170,12 +166,12 @@ export const getUsers = async (request, reply) => {
     try {
         const allUsers = await db.query.users.findMany();
         
-        // Remove password from all users
-        const safeUsers = allUsers.map(({ password, ...user }) => user);
+        // Format all users and remove deleted ones
+        const formattedUsers = allUsers
+            .map(user => formatUserResponse(user))
+            .filter(u => u.role !== 'Deleted');
 
-        // Changed to send { users: [...] } so Flutter's response.data['users'] works
-        const filteredUsers = safeUsers.filter(u => u.role !== 'Deleted');
-        return reply.send({ users: filteredUsers });
+        return reply.send({ users: formattedUsers });
     } catch (error) {
         request.log.error(error);
         return reply.code(500).send({ message: 'Internal Server Error' });
@@ -225,10 +221,10 @@ export const getMe = async (request, reply) => {
             return reply.code(404).send({ message: 'User not found' });
         }
 
-        // Remove sensitive information
-        const { password, ...safeUser } = user;
+        // Format user response with proper field names
+        const formattedUser = formatUserResponse(user);
 
-        return reply.send(safeUser);
+        return reply.send(formattedUser);
     } catch (error) {
         request.log.error(error);
         return reply.code(500).send({ message: 'Internal Server Error' });
@@ -319,8 +315,8 @@ export const updateProfile = async (request, reply) => {
             return reply.code(404).send({ message: 'User not found' });
         }
 
-        const { password, ...safeUser } = updatedUser;
-        return reply.send({ message: 'Profile updated successfully', data: safeUser });
+        const formattedUser = formatUserResponse(updatedUser);
+        return reply.send({ message: 'Profile updated successfully', data: formattedUser });
     } catch (error) {
         request.log.error(error);
         return reply.code(500).send({ message: 'Internal Server Error' });
