@@ -473,7 +473,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
             children: [
               const Icon(Icons.local_offer_outlined, size: 14, color: Color(0xFF4F46E5)),
               const SizedBox(width: 6),
-              Text(task.department.isNotEmpty ? task.department.toUpperCase() : "GENERAL",
+              Text(task.category.isNotEmpty ? task.category.toUpperCase() : "GENERAL",
                   style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Color(0xFF4F46E5))),
             ],
           ),

@@ -1121,10 +1121,9 @@ class _AssignTaskSheetState extends State<AssignTaskSheet>
                       ],
                     ),
                   ),
-                ],
-              ),
-            ],
-          ),
+                ),
+              ],
+            ),
         const SizedBox(height: 16),
         Row(
           children: [

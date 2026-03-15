@@ -496,7 +496,7 @@ class _DelegateTasksScreenState extends State<DelegateTasksScreen> {
                       size: 13, color: appColors.textMuted),
                   const SizedBox(width: 4),
                   Flexible(
-                    child: Text(task.department,
+                    child: Text(task.category,
                         style: TextStyle(
                             fontSize: 11, color: appColors.textSecondary),
                         overflow: TextOverflow.ellipsis),

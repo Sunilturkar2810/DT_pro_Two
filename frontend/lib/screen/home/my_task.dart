@@ -511,7 +511,7 @@ class _MyTaskScreenState extends State<MyTaskScreen>
                   const SizedBox(width: 4),
                   Flexible(
                     child: Text(
-                      task.department,
+                      task.category,
                       style: TextStyle(
                           fontSize: 11,
                           color: appColors.textSecondary,
