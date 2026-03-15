@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'notifications_reminders_screen.dart';
 
 class GeneralSettingsScreen extends StatefulWidget {
   const GeneralSettingsScreen({Key? key}) : super(key: key);
@@ -221,7 +222,14 @@ class _GeneralSettingsScreenState extends State<GeneralSettingsScreen> {
                     _buildSettingsTile('Task Update Settings', Icons.edit_outlined, () {
                       _showTaskUpdateSettingsDialog(context);
                     }),
-                    _buildSettingsTile('Notifications & Reminders', Icons.notifications_none_outlined, () {}),
+                    _buildSettingsTile('Notifications & Reminders', Icons.notifications_none_outlined, () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const NotificationsRemindersScreen(),
+                        ),
+                      );
+                    }),
                     _buildSettingsTile('Export Tasks', Icons.download_outlined, () {}, isLast: true),
                   ],
                 ),
