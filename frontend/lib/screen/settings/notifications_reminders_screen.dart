@@ -242,14 +242,14 @@ class _NotificationsRemindersScreenState extends State<NotificationsRemindersScr
   }
 
   Widget _buildNotificationChannelsTable() {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10, offset: const Offset(0, 4))],
-      ),
-      overflow: Clip.hardEdge,
-      child: Column(
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10, offset: const Offset(0, 4))],
+        ),
+        child: Column(
         children: [
           // Header
           Container(
@@ -292,18 +292,19 @@ class _NotificationsRemindersScreenState extends State<NotificationsRemindersScr
           }).toList(),
         ],
       ),
+      ),
     );
   }
 
   Widget _buildNotificationFrequencyTable() {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10, offset: const Offset(0, 4))],
-      ),
-      overflow: Clip.hardEdge,
-      child: Column(
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10, offset: const Offset(0, 4))],
+        ),
+        child: Column(
         children: [
           // Header
           Container(
@@ -345,6 +346,7 @@ class _NotificationsRemindersScreenState extends State<NotificationsRemindersScr
             );
           }).toList(),
         ],
+      ),
       ),
     );
   }
