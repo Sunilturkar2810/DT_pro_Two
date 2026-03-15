@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../../provider/settings_provider.dart';
 
 class NotificationsRemindersScreen extends StatefulWidget {
   const NotificationsRemindersScreen({Key? key}) : super(key: key);
@@ -63,6 +65,36 @@ class _NotificationsRemindersScreenState extends State<NotificationsRemindersScr
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    
+    // Load notification settings from provider
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final settingsProvider = context.read<SettingsProvider>();
+      settingsProvider.fetchNotificationSettings().then((_) {
+        final notif = settingsProvider.notificationSettings;
+        setState(() {
+          _informaticsNotificationsEnabled = notif['informaticsNotifications'] ?? true;
+          _emailNotificationsEnabled = notif['emailNotifications'] ?? true;
+          _dailyReminderEnabled = notif['dailyReminder'] ?? true;
+          _emailRemindersEnabled = notif['emailReminders'] ?? true;
+          _reminderTimeController.text = notif['taskReminderTime'] ?? '09:00';
+          _weeklyOnlyEnabled = notif['weeklyOnly'] ?? false;
+          
+          // Load reminder days
+          if (notif['reminderDays'] != null && notif['reminderDays'] is List) {
+            List<String> days = List<String>.from(notif['reminderDays']);
+            _selectedDays = {
+              'Mon': days.contains('Monday'),
+              'Tue': days.contains('Tuesday'),
+              'Wed': days.contains('Wednesday'),
+              'Thu': days.contains('Thursday'),
+              'Fri': days.contains('Friday'),
+              'Sat': days.contains('Saturday'),
+              'Sun': days.contains('Sunday'),
+            };
+          }
+        });
+      });
+    });
   }
 
   @override
@@ -115,20 +147,71 @@ class _NotificationsRemindersScreenState extends State<NotificationsRemindersScr
               SizedBox(
                 width: double.infinity,
                 height: 48,
-                child: ElevatedButton(
-                  onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Notification settings saved successfully'),
-                        backgroundColor: Color(0xFF20E19F),
-                      ),
-                    );
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF20E19F),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                child: Consumer<SettingsProvider>(
+                  builder: (context, settingsProvider, _) => ElevatedButton(
+                    onPressed: () async {
+                      // Convert selected days to full day names
+                      List<String> reminderDays = _selectedDays.entries
+                          .where((e) => e.value)
+                          .map((e) => e.key == 'Mon'
+                              ? 'Monday'
+                              : e.key == 'Tue'
+                                  ? 'Tuesday'
+                                  : e.key == 'Wed'
+                                      ? 'Wednesday'
+                                      : e.key == 'Thu'
+                                          ? 'Thursday'
+                                          : e.key == 'Fri'
+                                              ? 'Friday'
+                                              : e.key == 'Sat'
+                                                  ? 'Saturday'
+                                                  : 'Sunday')
+                          .toList();
+
+                      final success = await settingsProvider.updateNotificationSettings(
+                        informaticsNotifications: _informaticsNotificationsEnabled,
+                        emailNotifications: _emailNotificationsEnabled,
+                        dailyReminder: _dailyReminderEnabled,
+                        emailReminders: _emailRemindersEnabled,
+                        taskReminderTime: _reminderTimeController.text,
+                        weeklyOnly: _weeklyOnlyEnabled,
+                        reminderDays: reminderDays,
+                        notificationChannels: _notificationChannels,
+                        notificationFrequency: _notificationFrequency,
+                      );
+
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(success
+                                ? 'Notification settings saved successfully'
+                                : 'Error: ${settingsProvider.errorMessage}'),
+                            backgroundColor: success
+                                ? const Color(0xFF20E19F)
+                                : Colors.red,
+                          ),
+                        );
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF20E19F),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                    child: settingsProvider.isLoading
+                        ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                            ),
+                          )
+                        : const Text('Save Settings',
+                            style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16)),
                   ),
-                  child: const Text('Save Settings', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
                 ),
               ),
             ],

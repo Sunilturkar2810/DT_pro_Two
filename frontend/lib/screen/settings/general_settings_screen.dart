@@ -1,5 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../../provider/settings_provider.dart';
+import '../../provider/export_provider.dart';
 import 'notifications_reminders_screen.dart';
+import 'export_tasks_logs_screen.dart';
+import 'role_permission_screen.dart';
 
 class GeneralSettingsScreen extends StatefulWidget {
   const GeneralSettingsScreen({Key? key}) : super(key: key);
@@ -39,6 +44,31 @@ class _GeneralSettingsScreenState extends State<GeneralSettingsScreen> {
     '100-500',
     '500+'
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    // Load settings when screen opens
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final settingsProvider = Provider.of<SettingsProvider>(context, listen: false);
+      settingsProvider.fetchGeneralSettings().then((_) {
+        final general = settingsProvider.generalSettings;
+        setState(() {
+          _companyNameController.text = general['companyName'] ?? '';
+          _selectedIndustry = general['businessIndustry'];
+          _selectedSize = general['companySize'];
+        });
+      });
+      settingsProvider.fetchTaskUpdateSettings().then((_) {
+        final taskSettings = settingsProvider.taskUpdateSettings;
+        setState(() {
+          _remarksEnabled = taskSettings['remarksRequired'] ?? true;
+          _attachmentsEnabled = taskSettings['attachmentsRequired'] ?? false;
+          _imagesEnabled = taskSettings['imagesRequired'] ?? false;
+        });
+      });
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -159,22 +189,48 @@ class _GeneralSettingsScreenState extends State<GeneralSettingsScreen> {
                     SizedBox(
                       width: double.infinity,
                       height: 48,
-                      child: ElevatedButton(
-                        onPressed: () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Settings updated successfully'),
-                              backgroundColor: Color(0xFF20E19F),
-                            ),
-                          );
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF20E19F),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                        ),
-                        child: const Text(
-                          'Update',
-                          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                      child: Consumer<SettingsProvider>(
+                        builder: (context, settingsProvider, _) => ElevatedButton(
+                          onPressed: () async {
+                            final success = await settingsProvider.updateGeneralSettings(
+                              companyName: _companyNameController.text,
+                              businessIndustry: _selectedIndustry,
+                              companySize: _selectedSize,
+                            );
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(success
+                                      ? 'Settings updated successfully'
+                                      : 'Error: ${settingsProvider.errorMessage}'),
+                                  backgroundColor: success
+                                      ? const Color(0xFF20E19F)
+                                      : Colors.red,
+                                ),
+                              );
+                            }
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF20E19F),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8)),
+                          ),
+                          child: settingsProvider.isLoading
+                              ? const SizedBox(
+                                  height: 20,
+                                  width: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    valueColor: AlwaysStoppedAnimation<Color>(
+                                        Colors.white),
+                                  ),
+                                )
+                              : const Text(
+                                  'Update',
+                                  style: TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold),
+                                ),
                         ),
                       ),
                     ),
@@ -256,7 +312,9 @@ class _GeneralSettingsScreenState extends State<GeneralSettingsScreen> {
                 ),
                 child: Column(
                   children: [
-                    _buildSettingsTile('Export Tasks Logs', Icons.download_outlined, () {}),
+                    _buildSettingsTile('Export Tasks Logs', Icons.download_outlined, () {
+                      Navigator.push(context, MaterialPageRoute(builder: (context) => const ExportedTasksLogsScreen()));
+                    }),
                     _buildSettingsTile('Import Tasks', Icons.upload_outlined, () {}, isLast: true),
                   ],
                 ),
@@ -288,7 +346,9 @@ class _GeneralSettingsScreenState extends State<GeneralSettingsScreen> {
                     ),
                   ],
                 ),
-                child: _buildSettingsTile('Role and Permission', Icons.security_outlined, () {}, isLast: true),
+                child: _buildSettingsTile('Role and Permission', Icons.security_outlined, () {
+                  Navigator.push(context, MaterialPageRoute(builder: (context) => const RolePermissionScreen()));
+                }, isLast: true),
               ),
               const SizedBox(height: 20),
 
@@ -483,15 +543,27 @@ class _GeneralSettingsScreenState extends State<GeneralSettingsScreen> {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: () {
+                onPressed: () async {
+                final success = await Provider.of<SettingsProvider>(context, listen: false)
+                    .updateTaskUpdateSettings(
+                      remarksRequired: _remarksEnabled,
+                      attachmentsRequired: _attachmentsEnabled,
+                      imagesRequired: _imagesEnabled,
+                    );
+                if (mounted) {
                   Navigator.pop(context);
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Task update settings saved successfully'),
-                      backgroundColor: Color(0xFF20E19F),
+                    SnackBar(
+                      content: Text(success
+                          ? 'Task update settings saved successfully'
+                          : 'Error saving settings'),
+                      backgroundColor: success
+                          ? const Color(0xFF20E19F)
+                          : Colors.red,
                     ),
                   );
-                },
+                }
+              },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF20E19F),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
@@ -631,14 +703,34 @@ class _GeneralSettingsScreenState extends State<GeneralSettingsScreen> {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Tasks exported successfully'),
-                      backgroundColor: Color(0xFF20E19F),
-                    ),
+                onPressed: () async {
+                  final exportProvider =
+                      Provider.of<ExportProvider>(context, listen: false);
+                  final success = await exportProvider.createExport(
+                    dateRange: _exportDateRange,
+                    assignedTo: _exportAssignedTo != 'All' && _exportAssignedTo != null
+                        ? [_exportAssignedTo!]
+                        : null,
+                    assignedBy: _exportAssignedBy != 'All' && _exportAssignedBy != null
+                        ? [_exportAssignedBy!]
+                        : null,
+                    taskType: _exportTaskType != 'All' && _exportTaskType != null
+                        ? [_exportTaskType!]
+                        : null,
                   );
+                  if (mounted) {
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(success
+                            ? 'Tasks exported successfully'
+                            : 'Error exporting tasks'),
+                        backgroundColor: success
+                            ? const Color(0xFF20E19F)
+                            : Colors.red,
+                      ),
+                    );
+                  }
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF20E19F),

@@ -7,6 +7,9 @@ import 'package:d_table_delegate_system/provider/group_provider.dart';
 import 'package:d_table_delegate_system/provider/notification_provider.dart';
 import 'package:d_table_delegate_system/provider/ticket_provider.dart';
 import 'package:d_table_delegate_system/provider/user_provider.dart';
+import 'package:d_table_delegate_system/provider/settings_provider.dart';
+import 'package:d_table_delegate_system/provider/export_provider.dart';
+import 'package:d_table_delegate_system/provider/roles_provider.dart';
 import 'package:d_table_delegate_system/screen/animated_splash_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:hive/hive.dart';
@@ -39,6 +42,9 @@ void main() async {
         ChangeNotifierProvider(create: (_) => NotificationProvider()),
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
         ChangeNotifierProvider(create: (_) => CategoryProvider()),
+        ChangeNotifierProvider(create: (_) => SettingsProvider()),
+        ChangeNotifierProvider(create: (_) => ExportProvider()),
+        ChangeNotifierProvider(create: (_) => RolesProvider()),
       ],
       child: const MyApp(),
     ),

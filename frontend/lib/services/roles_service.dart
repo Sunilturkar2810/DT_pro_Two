@@ -1,0 +1,97 @@
+import 'package:dio/dio.dart';
+import '../config/api_constants.dart';
+
+class RolesService {
+  final Dio _dio;
+
+  RolesService(this._dio);
+
+  // Get all roles with permissions
+  Future<Map<String, dynamic>> getAllRoles() async {
+    try {
+      final response = await _dio.get('${ApiConstants.baseUrl}/api/roles');
+      return response.data;
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  // Get single role with permissions
+  Future<Map<String, dynamic>> getRoleWithPermissions(String roleId) async {
+    try {
+      final response = await _dio.get('${ApiConstants.baseUrl}/api/roles/$roleId');
+      return response.data;
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  // Create custom role
+  Future<Map<String, dynamic>> createRole({
+    required String name,
+    required String? description,
+  }) async {
+    try {
+      final response = await _dio.post(
+        '${ApiConstants.baseUrl}/api/roles',
+        data: {
+          'name': name,
+          'description': description,
+        },
+      );
+      return response.data;
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  // Update role
+  Future<Map<String, dynamic>> updateRole({
+    required String roleId,
+    required String name,
+    required String? description,
+  }) async {
+    try {
+      final response = await _dio.put(
+        '${ApiConstants.baseUrl}/api/roles/$roleId',
+        data: {
+          'name': name,
+          'description': description,
+        },
+      );
+      return response.data;
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  // Delete role
+  Future<Map<String, dynamic>> deleteRole(String roleId) async {
+    try {
+      final response = await _dio.delete(
+        '${ApiConstants.baseUrl}/api/roles/$roleId',
+      );
+      return response.data;
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  // Update role permissions
+  Future<Map<String, dynamic>> updateRolePermissions({
+    required String roleId,
+    required Map<String, bool> permissions,
+  }) async {
+    try {
+      final response = await _dio.put(
+        '${ApiConstants.baseUrl}/api/roles/$roleId/permissions',
+        data: {
+          'permissions': permissions,
+        },
+      );
+      return response.data;
+    } catch (e) {
+      rethrow;
+    }
+  }
+}
