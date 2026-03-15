@@ -16,6 +16,12 @@ class _GeneralSettingsScreenState extends State<GeneralSettingsScreen> {
   bool _attachmentsEnabled = false;
   bool _imagesEnabled = false;
 
+  // Export Tasks Dialog
+  String _exportDateRange = 'This Month';
+  String? _exportAssignedTo;
+  String? _exportAssignedBy;
+  String? _exportTaskType;
+
   final List<String> _industries = [
     'Technology',
     'Healthcare',
@@ -204,21 +210,6 @@ class _GeneralSettingsScreenState extends State<GeneralSettingsScreen> {
                 ),
                 child: Column(
                   children: [
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                      child: Align(
-                        alignment: Alignment.centerLeft,
-                        child: Text(
-                          'Task App Settings',
-                          style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFF334155),
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 4),
                     _buildSettingsTile('Task Update Settings', Icons.edit_outlined, () {
                       _showTaskUpdateSettingsDialog(context);
                     }),
@@ -230,7 +221,9 @@ class _GeneralSettingsScreenState extends State<GeneralSettingsScreen> {
                         ),
                       );
                     }),
-                    _buildSettingsTile('Export Tasks', Icons.download_outlined, () {}, isLast: true),
+                    _buildSettingsTile('Export Tasks', Icons.download_outlined, () {
+                      _showExportTasksDialog(context);
+                    }, isLast: true),
                   ],
                 ),
               ),
@@ -536,6 +529,126 @@ class _GeneralSettingsScreenState extends State<GeneralSettingsScreen> {
             activeColor: const Color(0xFF20E19F),
           ),
         ],
+      ),
+    );
+  }
+
+  void _showExportTasksDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Export Tasks', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Date Range Dropdown
+                DropdownButtonFormField<String>(
+                  value: _exportDateRange,
+                  decoration: InputDecoration(
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: const BorderSide(color: Color(0xFF20E19F), width: 2),
+                    ),
+                  ),
+                  items: ['This Month', 'Last Month', 'Last 3 Months', 'Last 6 Months', 'This Year', 'All Time'].map((date) {
+                    return DropdownMenuItem(value: date, child: Text(date));
+                  }).toList(),
+                  onChanged: (value) {
+                    setDialogState(() => _exportDateRange = value ?? 'This Month');
+                  },
+                ),
+                const SizedBox(height: 16),
+
+                // Assigned To Dropdown
+                DropdownButtonFormField<String>(
+                  value: _exportAssignedTo,
+                  hint: const Text('Assigned To'),
+                  decoration: InputDecoration(
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: const BorderSide(color: Color(0xFF20E19F), width: 2),
+                    ),
+                  ),
+                  items: ['All', 'John Doe', 'Jane Smith', 'Mike Johnson'].map((name) {
+                    return DropdownMenuItem(value: name, child: Text(name));
+                  }).toList(),
+                  onChanged: (value) {
+                    setDialogState(() => _exportAssignedTo = value);
+                  },
+                ),
+                const SizedBox(height: 16),
+
+                // Assigned By Dropdown
+                DropdownButtonFormField<String>(
+                  value: _exportAssignedBy,
+                  hint: const Text('Assigned By'),
+                  decoration: InputDecoration(
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: const BorderSide(color: Color(0xFF20E19F), width: 2),
+                    ),
+                  ),
+                  items: ['All', 'Admin', 'Manager 1', 'Manager 2'].map((name) {
+                    return DropdownMenuItem(value: name, child: Text(name));
+                  }).toList(),
+                  onChanged: (value) {
+                    setDialogState(() => _exportAssignedBy = value);
+                  },
+                ),
+                const SizedBox(height: 16),
+
+                // Task Type Dropdown
+                DropdownButtonFormField<String>(
+                  value: _exportTaskType,
+                  hint: const Text('Task Type'),
+                  decoration: InputDecoration(
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: const BorderSide(color: Color(0xFF20E19F), width: 2),
+                    ),
+                  ),
+                  items: ['All', 'General', 'Urgent', 'Regular', 'Follow-up'].map((type) {
+                    return DropdownMenuItem(value: type, child: Text(type));
+                  }).toList(),
+                  onChanged: (value) {
+                    setDialogState(() => _exportTaskType = value);
+                  },
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Tasks exported successfully'),
+                      backgroundColor: Color(0xFF20E19F),
+                    ),
+                  );
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF20E19F),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+                child: const Text('Export Tasks', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
