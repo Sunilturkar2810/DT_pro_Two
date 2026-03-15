@@ -4,9 +4,10 @@
   "main": "src/index.js",
   "type": "module",
   "scripts": {
-    "start": "npm run db:push && node src/index.js",
+    "start": "node src/index.js",
     "dev": "nodemon src/index.js",
-    "db:push": "drizzle-kit push"
+    "db:push": "drizzle-kit push",
+    "db:migrate": "drizzle-kit migrate"
   },
   "keywords": [],
   "author": "",
