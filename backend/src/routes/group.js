@@ -1,6 +1,7 @@
 import { db } from '../db/index.js';
-import { groups, groupMembers, users } from '../db/schema.js';
+import { groups, groupMembers, users, delegations } from '../db/schema.js';
 import { eq, sql } from 'drizzle-orm';
+import { createDelegation } from '../controllers/delegation.controller.js';
 
 async function groupRoutes(app, options) {
   // Create group
@@ -149,11 +150,59 @@ async function groupRoutes(app, options) {
     }
   });
 
-  // Mock tasks for a group
+  // Get group tasks
   app.get('/:id/tasks', {
     onRequest: [app.authenticate]
   }, async (request, reply) => {
-    return { success: true, data: [] };
+    try {
+      const { id } = request.params;
+      const tasks = await db.select({
+        id: delegations.id,
+        taskTitle: delegations.taskTitle,
+        description: delegations.description,
+        priority: delegations.priority,
+        status: delegations.status,
+        dueDate: delegations.dueDate,
+        createdAt: delegations.createdAt,
+        assignerId: delegations.assignerId,
+        doerId: delegations.doerId,
+      })
+      .from(delegations)
+      .where(eq(delegations.groupId, id));
+      
+      return { success: true, data: tasks };
+    } catch (error) {
+      reply.status(500).send({ success: false, message: error.message });
+    }
+  });
+
+  // Create task for group
+  app.post('/:id/tasks', {
+    onRequest: [app.authenticate]
+  }, async (request, reply) => {
+    try {
+      const { id } = request.params;
+      
+      // Verify group exists
+      const [group] = await db.select().from(groups).where(eq(groups.groupId, id));
+      if (!group) {
+        return reply.status(404).send({ success: false, message: 'Group not found' });
+      }
+
+      // Create delegation with groupId
+      const taskData = {
+        ...request.body,
+        groupId: id,
+        assignerId: request.user.id
+      };
+
+      // Call createDelegation with the modified request
+      const modifiedRequest = { body: taskData };
+      await createDelegation(modifiedRequest, reply);
+    } catch (error) {
+      console.error('Error creating group task:', error);
+      reply.status(500).send({ success: false, message: error.message });
+    }
   });
 }
 

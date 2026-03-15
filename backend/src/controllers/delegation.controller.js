@@ -34,7 +34,8 @@ export const createDelegation = async (req, reply) => {
         customOccurDays,
         customOccurDates,
         tags,
-        asset
+        asset,
+        groupId
     } = req.body;
 
     try {
@@ -58,6 +59,7 @@ export const createDelegation = async (req, reply) => {
                 evidenceUrl: evidenceUrl || null,
                 checklistItems: checklistItems && checklistItems.length > 0 ? checklistItems : null,
                 revisionCount: 0,
+                groupId: groupId || null,
                 tags: (typeof tags === 'object' && tags !== null) ? tags : (typeof tags === 'string' ? JSON.parse(tags) : null),
             }).returning();
 
