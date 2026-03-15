@@ -7,7 +7,7 @@ class TicketService {
 
   Future<List<dynamic>> getMyTickets() async {
     final response = await _dio.get(ApiConstants.tickets);
-    return response.data['data'] ?? [];
+    return response.data['tickets'] ?? [];
   }
 
   Future<Map<String, dynamic>> raiseTicket(Map<String, dynamic> data) async {
@@ -18,7 +18,7 @@ class TicketService {
   // Admin / Manager Only
   Future<List<dynamic>> getAllTickets() async {
     final response = await _dio.get('${ApiConstants.tickets}/admin/all');
-    return response.data['data'] ?? [];
+    return response.data['tickets'] ?? [];
   }
 
   Future<void> updateTicket(String id, Map<String, dynamic> data) async {

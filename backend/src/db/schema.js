@@ -230,3 +230,18 @@ export const groupMembers = pgTable('group_members', {
   addedBy: uuid('added_by').references(() => users.userId).notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
+
+export const tickets = pgTable('tickets', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  title: varchar('title', { length: 255 }).notNull(),
+  description: text('description').notNull(),
+  category: varchar('category', { length: 100 }).notNull(), // Report An Error, Give Feedback, Billing/Subscription, Delete My Account
+  subCategory: varchar('sub_category', { length: 100 }).notNull(), // Tasks Delegation, My Team, Intranet, Leaves, Attendance, Other
+  priority: varchar('priority', { length: 50 }).default('Medium'), // Low, Medium, High
+  status: varchar('status', { length: 50 }).default('Open'), // Open, InProgress, Resolved, Closed
+  raisedBy: uuid('raised_by').references(() => users.userId).notNull(),
+  assignedTo: uuid('assigned_to').references(() => users.userId),
+  screenshotUrls: jsonb('screenshot_urls'), // Array of base64 strings
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});

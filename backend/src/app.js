@@ -9,6 +9,7 @@ import notificationRoutes from './routes/notifications.js';
 import categoryRoutes from './routes/category.js';
 import groupRoutes from './routes/group.js';
 import dashboardRoutes from './routes/dashboard.js';
+import ticketRoutes from './routes/tickets.js';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -53,6 +54,7 @@ const buildApp = (options = {}) => {
     app.register(categoryRoutes, { prefix: '/api/categories' });
     app.register(groupRoutes, { prefix: '/api/groups' });
     app.register(dashboardRoutes, { prefix: '/api/dashboard' });
+    app.register(ticketRoutes, { prefix: '/api/tickets' });
 
     // Custom Error Handler
     app.setErrorHandler((error, request, reply) => {
