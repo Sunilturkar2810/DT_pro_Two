@@ -15,8 +15,8 @@ class GeneralSettingsScreen extends StatefulWidget {
 
 class _GeneralSettingsScreenState extends State<GeneralSettingsScreen> {
   final _companyNameController = TextEditingController();
-  String? _selectedIndustry;
-  String? _selectedSize;
+  late String _selectedIndustry;
+  late String _selectedSize;
   bool _remarksEnabled = true;
   bool _attachmentsEnabled = false;
   bool _imagesEnabled = false;
@@ -45,9 +45,16 @@ class _GeneralSettingsScreenState extends State<GeneralSettingsScreen> {
     '500+'
   ];
 
+  late String _selectedIndustry;
+  late String _selectedSize;
+
   @override
   void initState() {
     super.initState();
+    // Initialize with defaults
+    _selectedIndustry = _industries.first;
+    _selectedSize = _sizes.first;
+    
     // Load settings when screen opens
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final settingsProvider = Provider.of<SettingsProvider>(context, listen: false);
@@ -55,8 +62,8 @@ class _GeneralSettingsScreenState extends State<GeneralSettingsScreen> {
         final general = settingsProvider.generalSettings;
         setState(() {
           _companyNameController.text = general['companyName'] ?? '';
-          _selectedIndustry = general['businessIndustry'];
-          _selectedSize = general['companySize'];
+          _selectedIndustry = general['businessIndustry'] ?? _industries.first;
+          _selectedSize = general['companySize'] ?? _sizes.first;
         });
       });
       settingsProvider.fetchTaskUpdateSettings().then((_) {
@@ -156,9 +163,11 @@ class _GeneralSettingsScreenState extends State<GeneralSettingsScreen> {
                         );
                       }).toList(),
                       onChanged: (value) {
-                        setState(() {
-                          _selectedIndustry = value;
-                        });
+                        if (value != null) {
+                          setState(() {
+                            _selectedIndustry = value;
+                          });
+                        }
                       },
                     ),
                     const SizedBox(height: 16),
@@ -180,9 +189,11 @@ class _GeneralSettingsScreenState extends State<GeneralSettingsScreen> {
                         );
                       }).toList(),
                       onChanged: (value) {
-                        setState(() {
-                          _selectedSize = value;
-                        });
+                        if (value != null) {
+                          setState(() {
+                            _selectedSize = value;
+                          });
+                        }
                       },
                     ),
                     const SizedBox(height: 20),
