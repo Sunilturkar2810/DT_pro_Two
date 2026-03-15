@@ -15,14 +15,27 @@ export const raiseTicket = async (request, reply) => {
       });
     }
 
+    // Validate user exists
+    const userRecord = await db
+      .select()
+      .from(users)
+      .where(eq(users.userId, userId));
+
+    if (!userRecord[0]) {
+      return reply.status(401).send({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
     const newTicket = await db.insert(tickets).values({
       title: title.trim(),
       description: description.trim(),
-      category,
-      subCategory: subCategory || 'Other',
+      category: category.trim(),
+      subCategory: (subCategory || 'Other').trim(),
       priority: priority || 'Medium',
       raisedBy: userId,
-      screenshotUrls: screenshotUrls || [],
+      screenshotUrls: screenshotUrls && Array.isArray(screenshotUrls) ? screenshotUrls : [],
     }).returning();
 
     return reply.status(201).send({
@@ -34,7 +47,8 @@ export const raiseTicket = async (request, reply) => {
     request.log.error(error);
     return reply.status(500).send({
       success: false,
-      message: error.message || 'Failed to raise ticket'
+      message: error.message || 'Failed to raise ticket',
+      error: process.env.NODE_ENV === 'development' ? error : undefined
     });
   }
 };
@@ -89,7 +103,7 @@ export const getAllTickets = async (request, reply) => {
       .from(users)
       .where(eq(users.userId, userId));
 
-    if (!user[0] || user[0].role !== 'admin') {
+    if (!user[0] || (user[0].role && user[0].role.toLowerCase() !== 'admin')) {
       return reply.status(403).send({
         success: false,
         message: 'Unauthorized: Admin access required'
@@ -149,7 +163,7 @@ export const updateTicketStatus = async (request, reply) => {
       .from(users)
       .where(eq(users.userId, userId));
 
-    if (!user[0] || user[0].role !== 'admin') {
+    if (!user[0] || (user[0].role && user[0].role.toLowerCase() !== 'admin')) {
       return reply.status(403).send({
         success: false,
         message: 'Unauthorized: Admin access required'
@@ -200,7 +214,7 @@ export const deleteTicket = async (request, reply) => {
       .from(users)
       .where(eq(users.userId, userId));
 
-    if (!user[0] || user[0].role !== 'admin') {
+    if (!user[0] || (user[0].role && user[0].role.toLowerCase() !== 'admin')) {
       return reply.status(403).send({
         success: false,
         message: 'Unauthorized: Admin access required'
