@@ -5,7 +5,7 @@ import { eq, desc } from 'drizzle-orm';
 // Create a new support ticket
 export const raiseTicket = async (request, reply) => {
   try {
-    const userId = request.user.userId;
+    const userId = request.user.id; // JWT uses 'id', not 'userId'
     const { title, description, category, subCategory, priority, screenshotUrls } = request.body;
 
     if (!title || !description || !category) {
@@ -56,7 +56,7 @@ export const raiseTicket = async (request, reply) => {
 // Get tickets raised by current user
 export const getMyTickets = async (request, reply) => {
   try {
-    const userId = request.user.userId;
+    const userId = request.user.id; // JWT uses 'id', not 'userId'
 
     const myTickets = await db
       .select()
@@ -95,7 +95,7 @@ export const getMyTickets = async (request, reply) => {
 // Get all tickets (admin only)
 export const getAllTickets = async (request, reply) => {
   try {
-    const userId = request.user.userId;
+    const userId = request.user.id; // JWT uses 'id', not 'userId'
 
     // Check if user is admin
     const user = await db
@@ -154,7 +154,7 @@ export const getAllTickets = async (request, reply) => {
 // Update ticket status (admin only)
 export const updateTicketStatus = async (request, reply) => {
   try {
-    const userId = request.user.userId;
+    const userId = request.user.id; // JWT uses 'id', not 'userId'
     const { ticketId, status, assignedTo } = request.body;
 
     // Check if user is admin
@@ -205,7 +205,7 @@ export const updateTicketStatus = async (request, reply) => {
 // Delete ticket (admin only)
 export const deleteTicket = async (request, reply) => {
   try {
-    const userId = request.user.userId;
+    const userId = request.user.id; // JWT uses 'id', not 'userId'
     const { ticketId } = request.params;
 
     // Check if user is admin
