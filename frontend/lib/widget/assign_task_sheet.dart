@@ -1061,7 +1061,7 @@ class _AssignTaskSheetState extends State<AssignTaskSheet>
               child: Consumer<CategoryProvider>(
                 builder: (_, catProv, __) {
                   final cats = catProv.categories.isNotEmpty
-                      ? catProv.categories.map((c) => c['name']).toList()
+                      ? catProv.categories.map((c) => c['name'] as String).toList()
                       : ['General', 'Urgent', 'Maintenance', 'Sales', 'Support'];
                   final safeCategory = cats.contains(_category) ? _category : cats.first;
                   return Column(
@@ -1860,7 +1860,7 @@ class _AssignTaskSheetState extends State<AssignTaskSheet>
       builder: (ctx) => Consumer<CategoryProvider>(
         builder: (_, catProv, __) {
           final cats = catProv.categories.isNotEmpty
-              ? catProv.categories.map((c) => c['name']).toList()
+              ? catProv.categories.map((c) => c['name'] as String).toList()
               : ['General', 'Urgent', 'Maintenance', 'Sales', 'Support'];
           return _BottomSheetWrapper(
             title: 'Select Category',
