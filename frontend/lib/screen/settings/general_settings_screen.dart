@@ -11,6 +11,9 @@ class _GeneralSettingsScreenState extends State<GeneralSettingsScreen> {
   final _companyNameController = TextEditingController();
   String? _selectedIndustry;
   String? _selectedSize;
+  bool _remarksEnabled = true;
+  bool _attachmentsEnabled = false;
+  bool _imagesEnabled = false;
 
   final List<String> _industries = [
     'Technology',
@@ -200,8 +203,24 @@ class _GeneralSettingsScreenState extends State<GeneralSettingsScreen> {
                 ),
                 child: Column(
                   children: [
-                    _buildSettingsTile('Task App Settings', Icons.settings_outlined, () {}),
-                    _buildSettingsTile('Task Update Settings', Icons.edit_outlined, () {}),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          'Task App Settings',
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF334155),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    _buildSettingsTile('Task Update Settings', Icons.edit_outlined, () {
+                      _showTaskUpdateSettingsDialog(context);
+                    }),
                     _buildSettingsTile('Notifications & Reminders', Icons.notifications_none_outlined, () {}),
                     _buildSettingsTile('Export Tasks', Icons.download_outlined, () {}, isLast: true),
                   ],
@@ -398,6 +417,115 @@ class _GeneralSettingsScreenState extends State<GeneralSettingsScreen> {
               );
             },
             child: const Text('Reset', style: TextStyle(color: Color(0xFFDC2626))),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showTaskUpdateSettingsDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: const [
+              Text(
+                'Task Update Settings',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              SizedBox(height: 4),
+              Text(
+                'Set Mandatory Fields',
+                style: TextStyle(fontSize: 12, color: Color(0xFF8B95A5), fontWeight: FontWeight.w500),
+              ),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _buildToggleTile(
+                  'Remarks',
+                  _remarksEnabled,
+                  (value) {
+                    setDialogState(() {
+                      _remarksEnabled = value;
+                    });
+                  },
+                ),
+                const SizedBox(height: 16),
+                _buildToggleTile(
+                  'Attachments',
+                  _attachmentsEnabled,
+                  (value) {
+                    setDialogState(() {
+                      _attachmentsEnabled = value;
+                    });
+                  },
+                ),
+                const SizedBox(height: 16),
+                _buildToggleTile(
+                  'Images',
+                  _imagesEnabled,
+                  (value) {
+                    setDialogState(() {
+                      _imagesEnabled = value;
+                    });
+                  },
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Task update settings saved successfully'),
+                      backgroundColor: Color(0xFF20E19F),
+                    ),
+                  );
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF20E19F),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+                child: const Text(
+                  'Save',
+                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildToggleTile(String label, bool value, Function(bool) onChanged) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+          ),
+          Switch(
+            value: value,
+            onChanged: onChanged,
+            activeColor: const Color(0xFF20E19F),
           ),
         ],
       ),
