@@ -78,9 +78,9 @@ class _RaiseTicketScreenState extends State<RaiseTicketScreen> {
       }
 
       final success = await provider.raiseTicket(
-        _selectedCategory ?? 'General',
+        _titleController.text.trim(),
         _descController.text.trim(),
-        _selectedSubCategory ?? 'Other',
+        _selectedCategory ?? 'General',
         'Medium', // Default priority for now
         screenshots,
       );
@@ -130,6 +130,20 @@ class _RaiseTicketScreenState extends State<RaiseTicketScreen> {
                 ],
               ),
               const SizedBox(height: 20),
+
+              // Title Field
+              TextFormField(
+                controller: _titleController,
+                decoration: InputDecoration(
+                  hintText: 'Ticket Title',
+                  filled: true,
+                  fillColor: Colors.grey.shade50,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
+                ),
+                validator: (val) => val == null || val.isEmpty ? 'Title is required' : null,
+              ),
+              const SizedBox(height: 16),
 
               // Category Dropdown
               AppDropdown<String>(
