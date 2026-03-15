@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'general_settings_screen.dart';
+import 'categories_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -75,7 +76,14 @@ class SettingsScreen extends StatelessWidget {
                     _buildSettingsTile(
                       icon: Icons.folder_open_outlined,
                       title: "Categories",
-                      onTap: () {},
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const CategoriesScreen(),
+                          ),
+                        );
+                      },
                     ),
                     _buildSettingsTile(
                       icon: Icons.local_offer_outlined,
