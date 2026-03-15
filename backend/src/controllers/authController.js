@@ -154,7 +154,7 @@ export const login = async (request, reply) => {
             message: 'Login successful',
             token,
             user: formattedUser,
-            id: safeUser.userId // Ensure id is also present for compatibility
+            id: user.userId // Ensure id is also present for compatibility
         });
     } catch (error) {
         request.log.error(error);
