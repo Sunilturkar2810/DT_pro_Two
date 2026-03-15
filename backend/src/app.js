@@ -10,6 +10,9 @@ import categoryRoutes from './routes/category.js';
 import groupRoutes from './routes/group.js';
 import dashboardRoutes from './routes/dashboard.js';
 import ticketRoutes from './routes/tickets.js';
+import settingsRoutes from './routes/settings.js';
+import exportRoutes from './routes/exports.js';
+import rolesRoutes from './routes/roles.js';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -55,6 +58,9 @@ const buildApp = (options = {}) => {
     app.register(groupRoutes, { prefix: '/api/groups' });
     app.register(dashboardRoutes, { prefix: '/api/dashboard' });
     app.register(ticketRoutes, { prefix: '/api/tickets' });
+    app.register(settingsRoutes, { prefix: '/api/settings' });
+    app.register(exportRoutes, { prefix: '/api/exports' });
+    app.register(rolesRoutes, { prefix: '/api/roles' });
 
     // Custom Error Handler
     app.setErrorHandler((error, request, reply) => {

@@ -245,3 +245,78 @@ export const tickets = pgTable('tickets', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
+
+// User Settings - Company info
+export const userSettings = pgTable('user_settings', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').references(() => users.userId).notNull().unique(),
+  companyName: varchar('company_name', { length: 255 }),
+  businessIndustry: varchar('business_industry', { length: 100 }),
+  companySize: varchar('company_size', { length: 50 }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+// Task Update Settings - Mandatory fields
+export const taskUpdateSettings = pgTable('task_update_settings', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').references(() => users.userId).notNull().unique(),
+  remarksRequired: boolean('remarks_required').default(true),
+  attachmentsRequired: boolean('attachments_required').default(false),
+  imagesRequired: boolean('images_required').default(false),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+// Notification Settings - User notification preferences
+export const notificationSettings = pgTable('notification_settings', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').references(() => users.userId).notNull().unique(),
+  informaticsNotifications: boolean('informatics_notifications').default(true),
+  emailNotifications: boolean('email_notifications').default(true),
+  dailyReminder: boolean('daily_reminder').default(true),
+  emailReminders: boolean('email_reminders').default(true),
+  taskReminderTime: varchar('task_reminder_time', { length: 5 }).default('09:00'),
+  weeklyOnly: boolean('weekly_only').default(false),
+  reminderDays: jsonb('reminder_days'), // ["Monday", "Wednesday", etc]
+  notificationChannels: jsonb('notification_channels'), // Role-based notification settings
+  notificationFrequency: jsonb('notification_frequency'), // Role-based frequency settings
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+// Export Logs - Track task exports
+export const exportLogs = pgTable('export_logs', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').references(() => users.userId).notNull(),
+  dateRange: varchar('date_range', { length: 100 }),
+  assignedTo: jsonb('assigned_to'), // Array of user IDs
+  assignedBy: jsonb('assigned_by'), // Array of user IDs
+  taskType: jsonb('task_type'), // Array of task types
+  filePath: text('file_path'),
+  fileSize: integer('file_size'),
+  exportFormat: varchar('export_format', { length: 20 }), // csv, excel, pdf
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  expiresAt: timestamp('expires_at').notNull(), // Auto-delete after 60 days
+});
+
+// Roles - Custom and default roles
+export const roles = pgTable('roles', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  name: varchar('name', { length: 100 }).notNull().unique(),
+  description: text('description'),
+  isDefault: boolean('is_default').default(false),
+  createdBy: uuid('created_by').references(() => users.userId),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+// Role Permissions - Permissions for each role
+export const rolePermissions = pgTable('role_permissions', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  roleId: uuid('role_id').references(() => roles.id).notNull(),
+  action: varchar('action', { length: 100 }).notNull(), // Create, Edit, View, Delete, Import Task, Export Task
+  allowed: boolean('allowed').default(false),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
