@@ -454,30 +454,6 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
                 task.evidenceRequired ? "Yes" : "No"),
           ],
         ),
-        const Padding(
-          padding: EdgeInsets.symmetric(vertical: 16),
-          child: Divider(color: Color(0xFFF3F4F6)),
-        ),
-        const Text("TASK TAGS",
-            style: TextStyle(
-                fontSize: 11, fontWeight: FontWeight.w800, color: Color(0xFF6B7280), letterSpacing: 1.0)),
-        const SizedBox(height: 12),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          decoration: BoxDecoration(
-            color: const Color(0xFFEEF2FF),
-            borderRadius: BorderRadius.circular(100),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.local_offer_outlined, size: 14, color: Color(0xFF4F46E5)),
-              const SizedBox(width: 6),
-              Text(task.category.isNotEmpty ? task.category.toUpperCase() : "GENERAL",
-                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Color(0xFF4F46E5))),
-            ],
-          ),
-        ),
       ],
     );
 
