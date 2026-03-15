@@ -245,19 +245,13 @@ class _AssignTaskSheetState extends State<AssignTaskSheet>
       assingDoerId: _selectedDoer!.id,
       priority: _priority,
       status: _status,
-      startDate: _startDate?.toIso8601String(),
       dueDate: _endDate?.toIso8601String() ??
           _startDate?.toIso8601String() ??
           DateTime.now().toIso8601String(),
       category: _category,
       inLoopIds: _selectedInLoop.map((u) => u.id).toList(),
-      isRepeat: _repeat,
-      repeatFrequency: _repeat ? _repeatFrequency : null,
-      repeatStartDate: _startDate?.toIso8601String(),
-      repeatEndDate: _endDate?.toIso8601String(),
       checklistItems:
           _checklist.map((t) => {'text': t, 'status': 'Pending'}).toList(),
-      department: auth.currentUser?.department ?? 'General',
       voiceNoteUrl: voiceNoteUrl,
       referenceDocs: refDocUrls,
       reminderAt: _reminderDateTime?.toIso8601String(),
@@ -1098,77 +1092,39 @@ class _AssignTaskSheetState extends State<AssignTaskSheet>
         const SizedBox(height: 16),
         Row(
           children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(children: [
-                    const Icon(Icons.play_circle_outline_rounded, size: 13, color: Color(0xFF3B82F6)),
-                    const SizedBox(width: 5),
-                    Text('Start Date', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.grey[500], letterSpacing: 0.4)),
-                  ]),
-                  const SizedBox(height: 6),
-                  GestureDetector(
-                    onTap: () => _pickDate(true),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
-                      decoration: BoxDecoration(
-                        color: _startDate != null ? const Color(0xFF3B82F6).withOpacity(0.06) : const Color(0xFFFAFAFB),
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: _startDate != null ? const Color(0xFF3B82F6).withOpacity(0.3) : const Color(0xFFE2E8F0)),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(Icons.calendar_today_rounded, size: 16, color: _startDate != null ? const Color(0xFF3B82F6) : Colors.grey[400]),
-                          const SizedBox(width: 8),
-                          Text(
-                            _startDate != null ? DateFormat('dd MMM yyyy').format(_startDate!) : 'Select Start',
-                            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: _startDate != null ? const Color(0xFF3B82F6) : Colors.grey[400]),
-                          ),
-                        ],
-                      ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(children: [
+                  const Icon(Icons.stop_circle_outlined, size: 13, color: Color(0xFFF59E0B)),
+                  const SizedBox(width: 5),
+                  Text('Due Date', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.grey[500], letterSpacing: 0.4)),
+                ]),
+                const SizedBox(height: 6),
+                GestureDetector(
+                  onTap: () => _pickDate(false),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+                    decoration: BoxDecoration(
+                      color: _endDate != null ? const Color(0xFFF59E0B).withOpacity(0.06) : const Color(0xFFFAFAFB),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: _endDate != null ? const Color(0xFFF59E0B).withOpacity(0.3) : const Color(0xFFE2E8F0)),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.calendar_today_rounded, size: 16, color: _endDate != null ? const Color(0xFFF59E0B) : Colors.grey[400]),
+                        const SizedBox(width: 8),
+                        Text(
+                          _endDate != null ? DateFormat('dd MMM yyyy').format(_endDate!) : 'Select Due',
+                          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: _endDate != null ? const Color(0xFFF59E0B) : Colors.grey[400]),
+                        ),
+                      ],
                     ),
                   ),
                 ],
               ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(children: [
-                    const Icon(Icons.stop_circle_outlined, size: 13, color: Color(0xFFF59E0B)),
-                    const SizedBox(width: 5),
-                    Text('Due Date', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.grey[500], letterSpacing: 0.4)),
-                  ]),
-                  const SizedBox(height: 6),
-                  GestureDetector(
-                    onTap: () => _pickDate(false),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
-                      decoration: BoxDecoration(
-                        color: _endDate != null ? const Color(0xFFF59E0B).withOpacity(0.06) : const Color(0xFFFAFAFB),
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: _endDate != null ? const Color(0xFFF59E0B).withOpacity(0.3) : const Color(0xFFE2E8F0)),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(Icons.calendar_today_rounded, size: 16, color: _endDate != null ? const Color(0xFFF59E0B) : Colors.grey[400]),
-                          const SizedBox(width: 8),
-                          Text(
-                            _endDate != null ? DateFormat('dd MMM yyyy').format(_endDate!) : 'Select Due',
-                            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: _endDate != null ? const Color(0xFFF59E0B) : Colors.grey[400]),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
+            ],
+          ),
         const SizedBox(height: 16),
         Row(
           children: [

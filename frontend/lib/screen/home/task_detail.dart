@@ -450,8 +450,6 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
                 task.dueDate.isNotEmpty ? task.dueDate : "N/A"),
             _infoBlock("STATUS", Icons.flag_rounded, const Color(0xFF10B981),
                 task.status?.isNotEmpty ?? false ? task.status! : "Pending"),
-            _infoBlock("START DATE", Icons.play_circle_outline_rounded, const Color(0xFF3B82F6),
-                task.startDate?.isNotEmpty ?? false ? task.startDate! : "N/A"),
             _infoBlock("EVIDENCE REQUIRED", Icons.check_circle_outline, Colors.green,
                 task.evidenceRequired ? "Yes" : "No"),
           ],
@@ -614,15 +612,12 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
 
   Widget _buildExtraDetailsCard(DelegationModel task) {
     final bool hasChecklist = task.checklistItems.isNotEmpty;
-    final bool hasRepeat = task.isRepeat;
     final bool hasAsset = task.asset != null && task.asset!.isNotEmpty;
-    final bool hasStartDate = task.repeatStartDate != null && task.repeatStartDate!.isNotEmpty;
     final bool hasVoice = task.voiceNoteUrl != null && task.voiceNoteUrl!.isNotEmpty;
     final bool hasFiles = task.referenceDocs.isNotEmpty;
     final bool hasReminder = task.reminderAt != null && task.reminderAt!.isNotEmpty;
 
-    if (!hasChecklist && !hasRepeat && !hasAsset && !hasStartDate &&
-        !hasVoice && !hasFiles && !hasReminder) {
+    if (!hasChecklist && !hasAsset && !hasVoice && !hasFiles && !hasReminder) {
       return const SizedBox.shrink();
     }
 
@@ -656,32 +651,6 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
           const SizedBox(height: 16),
           const Divider(color: Color(0xFFF3F4F6)),
           const SizedBox(height: 16),
-
-          // ── Start & End Dates Row ──
-          if (hasStartDate) ...[
-            Row(
-              children: [
-                Expanded(
-                  child: _detailInfoTile(
-                    icon: Icons.play_circle_outline_rounded,
-                    iconColor: const Color(0xFF3B82F6),
-                    label: "START DATE",
-                    value: _formatDisplayDate(task.repeatStartDate ?? ''),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _detailInfoTile(
-                    icon: Icons.stop_circle_outlined,
-                    iconColor: const Color(0xFFF59E0B),
-                    label: "END DATE",
-                    value: _formatDisplayDate(task.repeatEndDate ?? ''),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-          ],
 
           // ── Reminder ──
           if (hasReminder) ...[
@@ -817,17 +786,6 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
               iconColor: const Color(0xFF8B5CF6),
               label: "ASSET / REFERENCE",
               value: task.asset!,
-            ),
-            const SizedBox(height: 16),
-          ],
-
-          // ── Repeat Info ──
-          if (hasRepeat) ...[
-            _detailInfoTile(
-              icon: Icons.repeat_rounded,
-              iconColor: const Color(0xFF20E19F),
-              label: "REPEAT SCHEDULE",
-              value: task.repeatFrequency ?? 'Yes',
             ),
             const SizedBox(height: 16),
           ],

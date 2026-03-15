@@ -32,19 +32,13 @@ class DelegationModel {
   String assingDoerId;
   String priority;
   String dueDate;
-  String? startDate;
   String status;
-  String department;
   bool evidenceRequired;
   List<RemarkModel> remarks;
 
   // Additional fields from backend
   List<String> inLoopIds;
   String category;
-  bool isRepeat;
-  String? repeatFrequency;
-  String? repeatStartDate;
-  String? repeatEndDate;
   String? asset;
   List<Map<String, dynamic>> checklistItems;
 
@@ -65,17 +59,11 @@ class DelegationModel {
     required this.assingDoerId,
     required this.priority,
     required this.dueDate,
-    this.startDate,
     this.status = "Pending",
-    this.department = "General",
     this.evidenceRequired = false,
     this.remarks = const [],
     this.inLoopIds = const [],
     this.category = "General",
-    this.isRepeat = false,
-    this.repeatFrequency,
-    this.repeatStartDate,
-    this.repeatEndDate,
     this.checklistItems = const [],
     this.delegatorName = '',
     this.assigneeName = '',
@@ -130,17 +118,11 @@ class DelegationModel {
       assingDoerId: json['doerId'] ?? json['doer_id'] ?? json['assingDoerId'] ?? json['assing_doer_id'] ?? '',
       priority: json['priority'] ?? 'Medium',
       dueDate: json['dueDate'] ?? json['due_date'] ?? '',
-      startDate: json['startDate'] ?? json['start_date'],
       status: json['status'] ?? 'Pending',
-      department: json['department'] ?? 'General',
       evidenceRequired: json['evidenceRequired'] == true || json['evidence_required'] == true || json['evidenceRequired'] == 1 || json['evidence_required'] == 1,
       remarks: remarksList,
       inLoopIds: inLoopList,
       category: json['category'] ?? 'General',
-      isRepeat: json['isRepeat'] == true || json['is_repeat'] == true || json['isRepeat'] == 1 || json['is_repeat'] == 1,
-      repeatFrequency: json['repeatFrequency'] ?? json['repeat_frequency'],
-      repeatStartDate: json['repeatStartDate'] ?? json['repeat_start_date'],
-      repeatEndDate: json['repeatEndDate'] ?? json['repeat_end_date'],
       checklistItems: checklistItemsList,
       delegatorName: '$delegatorFirst $delegatorLast'.trim(),
       assigneeName: '$assigneeFirst $assigneeLast'.trim(),
@@ -159,16 +141,10 @@ class DelegationModel {
       "doerId": assingDoerId,
       "priority": priority,
       "dueDate": dueDate,
-      if (startDate != null) "startDate": startDate,
       "status": status,
-      "department": department,
       "evidenceRequired": evidenceRequired,
       "inLoopIds": inLoopIds,
       "category": category,
-      "isRepeat": isRepeat,
-      "repeatFrequency": repeatFrequency,
-      "repeatStartDate": repeatStartDate,
-      "repeatEndDate": repeatEndDate,
       "checklistItems": checklistItems,
       "asset": asset,
       if (voiceNoteUrl != null) "voiceNoteUrl": voiceNoteUrl,

@@ -1,15 +1,6 @@
 [
   {
-    "column_name": "id"
-  },
-  {
-    "column_name": "evidence_required"
-  },
-  {
-    "column_name": "revision_count"
-  },
-  {
-    "column_name": "created_at"
+    "column_name": "parent_id"
   },
   {
     "column_name": "updated_at"
@@ -27,6 +18,15 @@
     "column_name": "checklist_items"
   },
   {
+    "column_name": "deleted_at"
+  },
+  {
+    "column_name": "deleted_by"
+  },
+  {
+    "column_name": "id"
+  },
+  {
     "column_name": "assigner_id"
   },
   {
@@ -34,6 +34,15 @@
   },
   {
     "column_name": "due_date"
+  },
+  {
+    "column_name": "evidence_required"
+  },
+  {
+    "column_name": "revision_count"
+  },
+  {
+    "column_name": "created_at"
   },
   {
     "column_name": "task_title"
