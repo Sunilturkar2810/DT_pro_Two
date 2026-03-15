@@ -81,6 +81,7 @@ class _RaiseTicketScreenState extends State<RaiseTicketScreen> {
         _titleController.text.trim(),
         _descController.text.trim(),
         _selectedCategory ?? 'General',
+        _selectedSubCategory ?? 'Other',
         'Medium', // Default priority for now
         screenshots,
       );

@@ -31,7 +31,7 @@ class TicketProvider extends ChangeNotifier {
     }
   }
 
-  Future<bool> raiseTicket(String title, String description, String type, String priority, List<String> screenshotUrls) async {
+  Future<bool> raiseTicket(String title, String description, String category, String subCategory, String priority, List<String> screenshotUrls) async {
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
@@ -40,7 +40,8 @@ class TicketProvider extends ChangeNotifier {
       await _service.raiseTicket({
         "title": title,
         "description": description,
-        "type": type,
+        "category": category,
+        "subCategory": subCategory,
         "priority": priority,
         "screenshotUrls": screenshotUrls
       });
