@@ -45,9 +45,6 @@ class _GeneralSettingsScreenState extends State<GeneralSettingsScreen> {
     '500+'
   ];
 
-  late String _selectedIndustry;
-  late String _selectedSize;
-
   @override
   void initState() {
     super.initState();
