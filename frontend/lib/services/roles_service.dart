@@ -9,7 +9,7 @@ class RolesService {
   // Get all roles with permissions
   Future<Map<String, dynamic>> getAllRoles() async {
     try {
-      final response = await _dio.get('${ApiConstants.baseUrl}/api/roles');
+      final response = await _dio.get('/roles');
       return response.data;
     } catch (e) {
       rethrow;
@@ -19,7 +19,7 @@ class RolesService {
   // Get single role with permissions
   Future<Map<String, dynamic>> getRoleWithPermissions(String roleId) async {
     try {
-      final response = await _dio.get('${ApiConstants.baseUrl}/api/roles/$roleId');
+      final response = await _dio.get('/roles/$roleId');
       return response.data;
     } catch (e) {
       rethrow;
@@ -33,7 +33,7 @@ class RolesService {
   }) async {
     try {
       final response = await _dio.post(
-        '${ApiConstants.baseUrl}/api/roles',
+        '/roles',
         data: {
           'name': name,
           'description': description,
@@ -53,7 +53,7 @@ class RolesService {
   }) async {
     try {
       final response = await _dio.put(
-        '${ApiConstants.baseUrl}/api/roles/$roleId',
+        '/roles/$roleId',
         data: {
           'name': name,
           'description': description,
@@ -69,7 +69,7 @@ class RolesService {
   Future<Map<String, dynamic>> deleteRole(String roleId) async {
     try {
       final response = await _dio.delete(
-        '${ApiConstants.baseUrl}/api/roles/$roleId',
+        '/roles/$roleId',
       );
       return response.data;
     } catch (e) {
@@ -84,7 +84,7 @@ class RolesService {
   }) async {
     try {
       final response = await _dio.put(
-        '${ApiConstants.baseUrl}/api/roles/$roleId/permissions',
+        '/roles/$roleId/permissions',
         data: {
           'permissions': permissions,
         },

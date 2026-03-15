@@ -15,7 +15,7 @@ class ExportService {
   }) async {
     try {
       final response = await _dio.post(
-        '${ApiConstants.baseUrl}/api/exports',
+        '/exports',
         data: {
           'dateRange': dateRange,
           'assignedTo': assignedTo,
@@ -32,7 +32,7 @@ class ExportService {
   // Get export logs
   Future<Map<String, dynamic>> getExportLogs() async {
     try {
-      final response = await _dio.get('${ApiConstants.baseUrl}/api/exports/logs');
+      final response = await _dio.get('/exports/logs');
       return response.data;
     } catch (e) {
       rethrow;
@@ -42,7 +42,7 @@ class ExportService {
   // Get all export logs (admin only)
   Future<Map<String, dynamic>> getAllExportLogs() async {
     try {
-      final response = await _dio.get('${ApiConstants.baseUrl}/api/exports/admin/logs');
+      final response = await _dio.get('/exports/admin/logs');
       return response.data;
     } catch (e) {
       rethrow;
@@ -53,7 +53,7 @@ class ExportService {
   Future<Map<String, dynamic>> downloadExport(String exportId) async {
     try {
       final response = await _dio.get(
-        '${ApiConstants.baseUrl}/api/exports/$exportId/download',
+        '/exports/$exportId/download',
       );
       return response.data;
     } catch (e) {
@@ -65,7 +65,7 @@ class ExportService {
   Future<Map<String, dynamic>> deleteExport(String exportId) async {
     try {
       final response = await _dio.delete(
-        '${ApiConstants.baseUrl}/api/exports/$exportId',
+        '/exports/$exportId',
       );
       return response.data;
     } catch (e) {

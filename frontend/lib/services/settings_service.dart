@@ -9,7 +9,7 @@ class SettingsService {
   // General Settings
   Future<Map<String, dynamic>> getGeneralSettings() async {
     try {
-      final response = await _dio.get('${ApiConstants.baseUrl}/api/settings/general');
+      final response = await _dio.get('/settings/general');
       return response.data;
     } catch (e) {
       rethrow;
@@ -23,7 +23,7 @@ class SettingsService {
   }) async {
     try {
       final response = await _dio.post(
-        '${ApiConstants.baseUrl}/api/settings/general',
+        '/settings/general',
         data: {
           'companyName': companyName,
           'businessIndustry': businessIndustry,
@@ -39,7 +39,7 @@ class SettingsService {
   // Task Update Settings
   Future<Map<String, dynamic>> getTaskUpdateSettings() async {
     try {
-      final response = await _dio.get('${ApiConstants.baseUrl}/api/settings/task-update');
+      final response = await _dio.get('/settings/task-update');
       return response.data;
     } catch (e) {
       rethrow;
@@ -53,7 +53,7 @@ class SettingsService {
   }) async {
     try {
       final response = await _dio.post(
-        '${ApiConstants.baseUrl}/api/settings/task-update',
+        '/settings/task-update',
         data: {
           'remarksRequired': remarksRequired,
           'attachmentsRequired': attachmentsRequired,
@@ -69,7 +69,7 @@ class SettingsService {
   // Notification Settings
   Future<Map<String, dynamic>> getNotificationSettings() async {
     try {
-      final response = await _dio.get('${ApiConstants.baseUrl}/api/settings/notifications');
+      final response = await _dio.get('/settings/notifications');
       return response.data;
     } catch (e) {
       rethrow;
@@ -89,7 +89,7 @@ class SettingsService {
   }) async {
     try {
       final response = await _dio.post(
-        '${ApiConstants.baseUrl}/api/settings/notifications',
+        '/settings/notifications',
         data: {
           'informaticsNotifications': informaticsNotifications,
           'emailNotifications': emailNotifications,

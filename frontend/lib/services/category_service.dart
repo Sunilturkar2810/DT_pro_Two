@@ -8,7 +8,7 @@ class CategoryService {
   // Get all categories with task count
   Future<List<Map<String, dynamic>>> getAllCategories() async {
     try {
-      final response = await _dio.get('${ApiConstants.baseUrl}/api/categories');
+      final response = await _dio.get(ApiConstants.categories);
       final categories = List<Map<String, dynamic>>.from(response.data ?? []);
       return categories;
     } catch (e) {
@@ -19,7 +19,7 @@ class CategoryService {
   // Get single category by ID
   Future<Map<String, dynamic>> getCategoryById(String categoryId) async {
     try {
-      final response = await _dio.get('${ApiConstants.baseUrl}/api/categories/$categoryId');
+      final response = await _dio.get('${ApiConstants.categories}/$categoryId');
       return Map<String, dynamic>.from(response.data ?? {});
     } catch (e) {
       throw Exception('Failed to fetch category: $e');
@@ -33,7 +33,7 @@ class CategoryService {
   }) async {
     try {
       final response = await _dio.post(
-        '${ApiConstants.baseUrl}/api/categories/create',
+        '${ApiConstants.categories}/create',
         data: {
           'name': name.trim(),
           'color': color.trim(),
@@ -53,7 +53,7 @@ class CategoryService {
   }) async {
     try {
       final response = await _dio.put(
-        '${ApiConstants.baseUrl}/api/categories/$categoryId',
+        '${ApiConstants.categories}/$categoryId',
         data: {
           'name': name.trim(),
           'color': color.trim(),
@@ -68,7 +68,7 @@ class CategoryService {
   // Delete category
   Future<void> deleteCategory(String categoryId) async {
     try {
-      await _dio.delete('${ApiConstants.baseUrl}/api/categories/$categoryId');
+      await _dio.delete('${ApiConstants.categories}/$categoryId');
     } catch (e) {
       throw Exception('Failed to delete category: $e');
     }
@@ -78,7 +78,7 @@ class CategoryService {
   Future<Map<String, dynamic>> deleteCategoryTasks(String categoryId) async {
     try {
       final response = await _dio.delete(
-        '${ApiConstants.baseUrl}/api/categories/$categoryId/tasks'
+        '${ApiConstants.categories}/$categoryId/tasks'
       );
       return Map<String, dynamic>.from(response.data ?? {});
     } catch (e) {
@@ -90,7 +90,7 @@ class CategoryService {
   Future<Map<String, dynamic>> removeCategoryLink(String categoryId) async {
     try {
       final response = await _dio.delete(
-        '${ApiConstants.baseUrl}/api/categories/$categoryId/unlink'
+        '${ApiConstants.categories}/$categoryId/unlink'
       );
       return Map<String, dynamic>.from(response.data ?? {});
     } catch (e) {
@@ -102,7 +102,7 @@ class CategoryService {
   Future<List<Map<String, dynamic>>> searchCategories(String query) async {
     try {
       final response = await _dio.get(
-        '${ApiConstants.baseUrl}/api/categories/search',
+        '${ApiConstants.categories}/search',
         queryParameters: {'search': query},
       );
       final categories = List<Map<String, dynamic>>.from(response.data ?? []);
