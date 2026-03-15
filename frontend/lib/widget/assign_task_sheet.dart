@@ -1128,6 +1128,13 @@ class _AssignTaskSheetState extends State<AssignTaskSheet>
         ),
         const SizedBox(height: 16),
         Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(children: [
+                    const Icon(Icons.flag_rounded, size: 13, color: Color(0xFF10B981)),
                     const SizedBox(width: 5),
                     Text('Status', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.grey[500], letterSpacing: 0.4)),
                   ]),
