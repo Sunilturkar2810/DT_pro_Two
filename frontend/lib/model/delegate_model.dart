@@ -32,6 +32,7 @@ class DelegationModel {
   String assingDoerId;
   String priority;
   String dueDate;
+  String? startDate;
   String status;
   String department;
   bool evidenceRequired;
@@ -64,6 +65,7 @@ class DelegationModel {
     required this.assingDoerId,
     required this.priority,
     required this.dueDate,
+    this.startDate,
     this.status = "Pending",
     this.department = "General",
     this.evidenceRequired = false,
@@ -128,6 +130,7 @@ class DelegationModel {
       assingDoerId: json['doerId'] ?? json['doer_id'] ?? json['assingDoerId'] ?? json['assing_doer_id'] ?? '',
       priority: json['priority'] ?? 'Medium',
       dueDate: json['dueDate'] ?? json['due_date'] ?? '',
+      startDate: json['startDate'] ?? json['start_date'],
       status: json['status'] ?? 'Pending',
       department: json['department'] ?? 'General',
       evidenceRequired: json['evidenceRequired'] == true || json['evidence_required'] == true || json['evidenceRequired'] == 1 || json['evidence_required'] == 1,
@@ -156,6 +159,7 @@ class DelegationModel {
       "doerId": assingDoerId,
       "priority": priority,
       "dueDate": dueDate,
+      if (startDate != null) "startDate": startDate,
       "status": status,
       "department": department,
       "evidenceRequired": evidenceRequired,

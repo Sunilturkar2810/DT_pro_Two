@@ -28,7 +28,6 @@ class _AssignTaskSheetState extends State<AssignTaskSheet>
   final TextEditingController _titleController = TextEditingController();
   final TextEditingController _descController = TextEditingController();
   final TextEditingController _checklistController = TextEditingController();
-  final TextEditingController _assetController = TextEditingController();
   final TextEditingController _remarkController = TextEditingController(); // ← Remark field
   final FocusNode _titleFocus = FocusNode();
   final FocusNode _descFocus = FocusNode();
@@ -43,6 +42,7 @@ class _AssignTaskSheetState extends State<AssignTaskSheet>
   DateTime? _endDate;
   String _priority = 'High';
   String _category = 'General';
+  String _status = 'Pending';
   List<UserModel> _selectedInLoop = [];
   List<String> _checklist = [];
   bool _showChecklist = false;
@@ -94,7 +94,6 @@ class _AssignTaskSheetState extends State<AssignTaskSheet>
     _titleController.dispose();
     _descController.dispose();
     _checklistController.dispose();
-    _assetController.dispose();
     _remarkController.dispose();
     _titleFocus.dispose();
     _descFocus.dispose();
@@ -170,7 +169,6 @@ class _AssignTaskSheetState extends State<AssignTaskSheet>
   void _resetForm() {
     _titleController.clear();
     _descController.clear();
-    _assetController.clear();
     _checklistController.clear();
     _remarkController.clear();
     setState(() {
@@ -180,6 +178,7 @@ class _AssignTaskSheetState extends State<AssignTaskSheet>
       _endDate = null;
       _priority = 'High';
       _category = 'General';
+      _status = 'Pending';
       _checklist = [];
       _repeat = false;
       _repeatFrequency = 'Daily';
@@ -245,6 +244,8 @@ class _AssignTaskSheetState extends State<AssignTaskSheet>
       delegatorId: auth.currentUser!.id,
       assingDoerId: _selectedDoer!.id,
       priority: _priority,
+      status: _status,
+      startDate: _startDate?.toIso8601String(),
       dueDate: _endDate?.toIso8601String() ??
           _startDate?.toIso8601String() ??
           DateTime.now().toIso8601String(),
@@ -257,9 +258,6 @@ class _AssignTaskSheetState extends State<AssignTaskSheet>
       checklistItems:
           _checklist.map((t) => {'text': t, 'status': 'Pending'}).toList(),
       department: auth.currentUser?.department ?? 'General',
-      asset: _assetController.text.trim().isEmpty
-          ? null
-          : _assetController.text.trim(),
       voiceNoteUrl: voiceNoteUrl,
       referenceDocs: refDocUrls,
       reminderAt: _reminderDateTime?.toIso8601String(),
@@ -660,8 +658,6 @@ class _AssignTaskSheetState extends State<AssignTaskSheet>
                       _buildSectionLabel('People'),
                       const SizedBox(height: 12),
                       _buildPeopleRow(),
-                      const SizedBox(height: 20),
-                      _buildAssetField(),
                       const SizedBox(height: 20),
                       _buildChecklistSection(),
                       _buildAttachmentsRow(),
@@ -1173,6 +1169,33 @@ class _AssignTaskSheetState extends State<AssignTaskSheet>
             ),
           ],
         ),
+        const SizedBox(height: 16),
+        Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(children: [
+                    const Icon(Icons.flag_rounded, size: 13, color: Color(0xFF10B981)),
+                    const SizedBox(width: 5),
+                    Text('Status', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.grey[500], letterSpacing: 0.4)),
+                  ]),
+                  const SizedBox(height: 6),
+                  AppDropdown<String>(
+                    isCompact: false,
+                    value: _status,
+                    items: const ['Pending', 'In Progress', 'On Hold', 'Completed', 'Cancelled'],
+                    labelBuilder: (v) => v,
+                    onChanged: (v) { if (v != null) setState(() => _status = v); },
+                    prefixIcon: Icons.flag_rounded,
+                    accentColor: const Color(0xFF10B981),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ],
     );
   }
@@ -1398,35 +1421,7 @@ class _AssignTaskSheetState extends State<AssignTaskSheet>
 
   // ── Asset Field ──────────────────────────────────────────────────────────────
 
-  Widget _buildAssetField() {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.grey[50],
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.grey[200]!),
-      ),
-      child: TextField(
-        controller: _assetController,
-        style:
-            const TextStyle(fontSize: 14, color: Color(0xFF374151), height: 1.4),
-        decoration: InputDecoration(
-          labelText: 'Asset / Resource',
-          labelStyle: TextStyle(
-              fontSize: 13,
-              color: Colors.grey[500],
-              fontWeight: FontWeight.w500),
-          hintText: 'e.g. Laptop #3, Server Room A...',
-          hintStyle: TextStyle(color: Colors.grey[400], fontSize: 13.5),
-          prefixIcon: Icon(Icons.inventory_2_rounded,
-              color: _primary.withOpacity(0.7), size: 20),
-          border: InputBorder.none,
-          contentPadding:
-              const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-          floatingLabelBehavior: FloatingLabelBehavior.auto,
-        ),
-      ),
-    );
-  }
+
 
   // ── Checklist Section ────────────────────────────────────────────────────────
 

@@ -9,12 +9,14 @@ export const createDelegation = async (req, reply) => {
         taskTitle,
         description,
         assignerId,
-        doerId, // Now expected as single or array depends on logic, but controller treats as array usually from frontend
+        doerId,
         inLoopIds,
         category,
         priority,
         status,
         dueDate,
+        startDate,
+        department,
         voiceNoteUrl,
         referenceDocs,
         evidenceRequired,
@@ -50,13 +52,19 @@ export const createDelegation = async (req, reply) => {
                 priority,
                 status: status || 'Pending',
                 dueDate: dueDate ? new Date(dueDate).toISOString().split('T')[0] : null,
+                startDate: startDate ? new Date(startDate).toISOString().split('T')[0] : null,
+                department: department || null,
+                isRepeat: isRepeat === true,
+                repeatFrequency: repeatFrequency || null,
+                repeatStartDate: repeatStartDate ? new Date(repeatStartDate).toISOString().split('T')[0] : null,
+                repeatEndDate: repeatEndDate ? new Date(repeatEndDate).toISOString().split('T')[0] : null,
                 voiceNoteUrl,
                 referenceDocs,
                 evidenceRequired: evidenceRequired === true,
                 evidenceUrl: evidenceUrl || null,
+                checklistItems: checklistItems && checklistItems.length > 0 ? checklistItems : null,
                 revisionCount: 0,
                 tags: (typeof tags === 'object' && tags !== null) ? tags : (typeof tags === 'string' ? JSON.parse(tags) : null),
-                // asset: asset || null
             }).returning();
 
             createdDelegations.push(newDelegation);

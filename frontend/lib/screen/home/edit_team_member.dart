@@ -122,7 +122,7 @@ class _EditTeamMemberScreenState extends State<EditTeamMemberScreen> {
       appBar: AppBar(
         title: const Text('Edit Team Member'),
         centerTitle: true,
-        elevation: 1,
+        elevation: 0,
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),

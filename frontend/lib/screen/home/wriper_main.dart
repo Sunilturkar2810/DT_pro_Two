@@ -117,13 +117,6 @@ class _MainWrapperState extends State<MainWrapper> {
               destinations: navDestinations,
             ),
 
-          if (!isMobile)
-            VerticalDivider(
-              thickness: 1,
-              width: 1,
-              color: appColors.divider,
-            ),
-
           Expanded(
             child: IndexedStack(
               index: _currentIndex,
