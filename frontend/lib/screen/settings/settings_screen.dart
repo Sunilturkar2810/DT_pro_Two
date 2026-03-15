@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'general_settings_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -61,7 +62,14 @@ class SettingsScreen extends StatelessWidget {
                     _buildSettingsTile(
                       icon: Icons.settings_outlined,
                       title: "General",
-                      onTap: () {},
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const GeneralSettingsScreen(),
+                          ),
+                        );
+                      },
                       isTop: true,
                     ),
                     _buildSettingsTile(

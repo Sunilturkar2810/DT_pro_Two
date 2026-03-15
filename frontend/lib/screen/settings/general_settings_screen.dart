@@ -1,0 +1,412 @@
+import 'package:flutter/material.dart';
+
+class GeneralSettingsScreen extends StatefulWidget {
+  const GeneralSettingsScreen({Key? key}) : super(key: key);
+
+  @override
+  State<GeneralSettingsScreen> createState() => _GeneralSettingsScreenState();
+}
+
+class _GeneralSettingsScreenState extends State<GeneralSettingsScreen> {
+  final _companyNameController = TextEditingController();
+  String? _selectedIndustry;
+  String? _selectedSize;
+
+  final List<String> _industries = [
+    'Technology',
+    'Healthcare',
+    'Finance',
+    'Retail',
+    'Manufacturing',
+    'Other'
+  ];
+
+  final List<String> _sizes = [
+    '1-10',
+    '11-30',
+    '31-50',
+    '51-100',
+    '100-500',
+    '500+'
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF8F9FD),
+      appBar: AppBar(
+        title: const Text(
+          "GENERAL SETTINGS",
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+            fontSize: 18,
+            letterSpacing: 1.2,
+          ),
+        ),
+        backgroundColor: const Color(0xFF20E19F),
+        elevation: 0,
+        centerTitle: true,
+        iconTheme: const IconThemeData(color: Colors.white),
+      ),
+      body: SingleChildScrollView(
+        physics: const BouncingScrollPhysics(),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 24.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Company Info Section
+              const Padding(
+                padding: EdgeInsets.only(left: 8.0, bottom: 12.0),
+                child: Text(
+                  "COMPANY INFORMATION",
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 1.2,
+                    color: Color(0xFF8B95A5),
+                  ),
+                ),
+              ),
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.02),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  children: [
+                    TextField(
+                      controller: _companyNameController,
+                      decoration: InputDecoration(
+                        labelText: 'Company Name',
+                        hintText: 'Enter company name',
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                        floatingLabelStyle: const TextStyle(color: Color(0xFF20E19F)),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: const BorderSide(color: Color(0xFF20E19F), width: 2),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    DropdownButtonFormField<String>(
+                      value: _selectedIndustry,
+                      decoration: InputDecoration(
+                        labelText: 'Business Industry',
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                        floatingLabelStyle: const TextStyle(color: Color(0xFF20E19F)),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: const BorderSide(color: Color(0xFF20E19F), width: 2),
+                        ),
+                      ),
+                      items: _industries.map((industry) {
+                        return DropdownMenuItem(
+                          value: industry,
+                          child: Text(industry),
+                        );
+                      }).toList(),
+                      onChanged: (value) {
+                        setState(() {
+                          _selectedIndustry = value;
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    DropdownButtonFormField<String>(
+                      value: _selectedSize,
+                      decoration: InputDecoration(
+                        labelText: 'Company Size',
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                        floatingLabelStyle: const TextStyle(color: Color(0xFF20E19F)),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: const BorderSide(color: Color(0xFF20E19F), width: 2),
+                        ),
+                      ),
+                      items: _sizes.map((size) {
+                        return DropdownMenuItem(
+                          value: size,
+                          child: Text(size),
+                        );
+                      }).toList(),
+                      onChanged: (value) {
+                        setState(() {
+                          _selectedSize = value;
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 20),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 48,
+                      child: ElevatedButton(
+                        onPressed: () {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Settings updated successfully'),
+                              backgroundColor: Color(0xFF20E19F),
+                            ),
+                          );
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF20E19F),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                        child: const Text(
+                          'Update',
+                          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 28),
+
+              // Settings Sections
+              const Padding(
+                padding: EdgeInsets.only(left: 8.0, bottom: 12.0),
+                child: Text(
+                  "TASK SETTINGS",
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 1.2,
+                    color: Color(0xFF8B95A5),
+                  ),
+                ),
+              ),
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.02),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  children: [
+                    _buildSettingsTile('Task App Settings', Icons.settings_outlined, () {}),
+                    _buildSettingsTile('Task Update Settings', Icons.edit_outlined, () {}),
+                    _buildSettingsTile('Notifications & Reminders', Icons.notifications_none_outlined, () {}),
+                    _buildSettingsTile('Export Tasks', Icons.download_outlined, () {}, isLast: true),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              // Data Management
+              const Padding(
+                padding: EdgeInsets.only(left: 8.0, bottom: 12.0),
+                child: Text(
+                  "DATA MANAGEMENT",
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 1.2,
+                    color: Color(0xFF8B95A5),
+                  ),
+                ),
+              ),
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.02),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  children: [
+                    _buildSettingsTile('Export Tasks Logs', Icons.download_outlined, () {}),
+                    _buildSettingsTile('Import Tasks', Icons.upload_outlined, () {}, isLast: true),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              // Access Control
+              const Padding(
+                padding: EdgeInsets.only(left: 8.0, bottom: 12.0),
+                child: Text(
+                  "ACCESS CONTROL",
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 1.2,
+                    color: Color(0xFF8B95A5),
+                  ),
+                ),
+              ),
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.02),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: _buildSettingsTile('Role and Permission', Icons.security_outlined, () {}, isLast: true),
+              ),
+              const SizedBox(height: 20),
+
+              // Danger Zone
+              const Padding(
+                padding: EdgeInsets.only(left: 8.0, bottom: 12.0),
+                child: Text(
+                  "DANGER ZONE",
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 1.2,
+                    color: Color(0xFFDC2626),
+                  ),
+                ),
+              ),
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.02),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: _buildDangerTile('Reset Task', Icons.restart_alt, () {
+                  _showResetConfirmation(context);
+                }),
+              ),
+              const SizedBox(height: 32),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSettingsTile(String title, IconData icon, VoidCallback onTap, {bool isLast = false}) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+          decoration: BoxDecoration(
+            border: isLast
+                ? null
+                : Border(bottom: BorderSide(color: Colors.grey.withOpacity(0.1))),
+          ),
+          child: Row(
+            children: [
+              Icon(icon, color: const Color(0xFF5E6B81), size: 22),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF334155),
+                  ),
+                ),
+              ),
+              const Icon(Icons.chevron_right_rounded, color: Color(0xFFCBD5E1), size: 20),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDangerTile(String title, IconData icon, VoidCallback onTap) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            color: const Color(0xFFFEE2E2),
+          ),
+          child: Row(
+            children: [
+              Icon(icon, color: const Color(0xFFDC2626), size: 22),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFFDC2626),
+                  ),
+                ),
+              ),
+              const Icon(Icons.chevron_right_rounded, color: Color(0xFFDC2626), size: 20),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showResetConfirmation(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Reset Task', style: TextStyle(color: Color(0xFFDC2626))),
+        content: const Text('Are you sure you want to reset all tasks? This action cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Tasks have been reset'),
+                  backgroundColor: Color(0xFFDC2626),
+                ),
+              );
+            },
+            child: const Text('Reset', style: TextStyle(color: Color(0xFFDC2626))),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _companyNameController.dispose();
+    super.dispose();
+  }
+}
