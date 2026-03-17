@@ -4,7 +4,7 @@
   "main": "src/index.js",
   "type": "module",
   "scripts": {
-    "start": "npx drizzle-kit push && node src/index.js",
+    "start": "node src/index.js",
     "dev": "nodemon src/index.js",
     "db:push": "drizzle-kit push",
     "db:migrate": "drizzle-kit migrate"
