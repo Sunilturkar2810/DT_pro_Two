@@ -59,8 +59,16 @@ class _GeneralSettingsScreenState extends State<GeneralSettingsScreen> {
         final general = settingsProvider.generalSettings;
         setState(() {
           _companyNameController.text = general['companyName'] ?? '';
-          _selectedIndustry = general['businessIndustry'] ?? _industries.first;
-          _selectedSize = general['companySize'] ?? _sizes.first;
+          // Validate industry against available options
+          final industry = general['businessIndustry'];
+          _selectedIndustry = (industry != null && _industries.contains(industry)) 
+            ? industry 
+            : _industries.first;
+          // Validate size against available options
+          final size = general['companySize'];
+          _selectedSize = (size != null && _sizes.contains(size)) 
+            ? size 
+            : _sizes.first;
         });
       });
       settingsProvider.fetchTaskUpdateSettings().then((_) {

@@ -170,8 +170,8 @@ class _RolePermissionScreenState extends State<RolePermissionScreen> {
                         String action = entry.value;
                         bool isLast = index == actions.length - 1;
                         
-                        final permissionKey = action.toLowerCase().replaceAll(' ', '_');
-                        bool isChecked = permissions[permissionKey] as bool? ?? false;
+                        // Use action name directly as key (no conversion)
+                        bool isChecked = permissions[action] as bool? ?? false;
 
                         return Container(
                           decoration: BoxDecoration(
@@ -192,7 +192,8 @@ class _RolePermissionScreenState extends State<RolePermissionScreen> {
                                   child: GestureDetector(
                                     onTap: () async {
                                       final newPermissions = {...permissions};
-                                      newPermissions[permissionKey] = !isChecked;
+                                      // Use action name directly as key (no conversion)
+                                      newPermissions[action] = !isChecked;
                                       
                                       await rolesProvider.updateRolePermissions(
                                         roleId: roleId,

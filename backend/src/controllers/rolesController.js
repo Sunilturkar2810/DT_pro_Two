@@ -30,9 +30,52 @@ const DEFAULT_ROLES = {
     }
 };
 
+// Initialize default roles if they don't exist
+const initializeDefaultRoles = async () => {
+    try {
+        for (const [roleName, permissions] of Object.entries(DEFAULT_ROLES)) {
+            const existing = await db.query.roles.findFirst({
+                where: eq(roles.name, roleName)
+            });
+
+            if (!existing) {
+                const result = await db.insert(roles)
+                    .values({
+                        name: roleName,
+                        description: `Default ${roleName} role`,
+                        isDefault: true,
+                        createdAt: new Date(),
+                        updatedAt: new Date()
+                    })
+                    .returning();
+
+                const newRole = result[0];
+
+                // Create default permissions for this role
+                for (const [action, allowed] of Object.entries(permissions)) {
+                    await db.insert(rolePermissions)
+                        .values({
+                            roleId: newRole.id,
+                            action,
+                            allowed,
+                            createdAt: new Date(),
+                            updatedAt: new Date()
+                        });
+                }
+                console.log(`✅ Created default role: ${roleName}`);
+            }
+        }
+    } catch (error) {
+        console.error('❌ Error initializing default roles:', error);
+    }
+};
+
 // Get all roles (default + custom) with their permissions
 export const getAllRoles = async (request, reply) => {
     try {
+        // Initialize default roles if needed
+        await initializeDefaultRoles();
+
         const allRoles = await db.query.roles.findMany();
 
         // Get detailed roles with permissions
@@ -58,6 +101,7 @@ export const getAllRoles = async (request, reply) => {
             roles: rolesWithPermissions
         };
     } catch (error) {
+        console.error('❌ getAllRoles error:', error);
         reply.status(500).send({ error: error.message });
     }
 };
