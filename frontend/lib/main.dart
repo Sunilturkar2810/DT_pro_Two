@@ -10,9 +10,9 @@ import 'package:d_table_delegate_system/provider/user_provider.dart';
 import 'package:d_table_delegate_system/provider/settings_provider.dart';
 import 'package:d_table_delegate_system/provider/export_provider.dart';
 import 'package:d_table_delegate_system/provider/roles_provider.dart';
+import 'package:d_table_delegate_system/provider/holiday_provider.dart';
 import 'package:d_table_delegate_system/screen/animated_splash_screen.dart';
 import 'package:flutter/material.dart';
-import 'package:hive/hive.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:provider/provider.dart';
 import 'package:d_table_delegate_system/provider/theme_provider.dart';
@@ -45,6 +45,7 @@ void main() async {
         ChangeNotifierProvider(create: (_) => SettingsProvider()),
         ChangeNotifierProvider(create: (_) => ExportProvider()),
         ChangeNotifierProvider(create: (_) => RolesProvider()),
+        ChangeNotifierProvider(create: (_) => HolidayProvider()),
       ],
       child: const MyApp(),
     ),

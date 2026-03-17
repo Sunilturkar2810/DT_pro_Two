@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'general_settings_screen.dart';
 import 'categories_screen.dart';
+import 'holidays_screen.dart'; // Added Holidays screen import
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -93,7 +94,14 @@ class SettingsScreen extends StatelessWidget {
                     _buildSettingsTile(
                       icon: Icons.calendar_today_outlined,
                       title: "Holidays",
-                      onTap: () {},
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const HolidaysScreen(),
+                          ),
+                        );
+                      },
                     ),
                     _buildSettingsTile(
                       icon: Icons.notifications_none_outlined,
