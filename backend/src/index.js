@@ -130,15 +130,32 @@ const initDatabase = async () => {
         // Insert default roles if not already present
         const existingRoles = await db.execute(sql`SELECT COUNT(*) as count FROM "roles" WHERE "is_default" = true`);
         if (existingRoles[0].count === 0) {
-            const defaultRoles = ['Admin', 'Manager', 'Team Member'];
-            for (const role of defaultRoles) {
-                await db.execute(sql`
+            const defaultRoles = {
+                'Admin': { Create: true, Edit: true, View: true, Delete: true, 'Import Task': true, 'Export Task': true },
+                'Manager': { Create: true, Edit: true, View: true, Delete: false, 'Import Task': true, 'Export Task': true },
+                'Team Member': { Create: true, Edit: false, View: true, Delete: false, 'Import Task': false, 'Export Task': false }
+            };
+
+            for (const [roleName, permissions] of Object.entries(defaultRoles)) {
+                const result = await db.execute(sql`
                     INSERT INTO "roles" ("name", "is_default", "created_at", "updated_at")
-                    VALUES (${role}, true, NOW(), NOW())
+                    VALUES (${roleName}, true, NOW(), NOW())
                     ON CONFLICT (name) DO NOTHING
+                    RETURNING "id"
                 `);
+
+                if (result[0]?.id) {
+                    const roleId = result[0].id;
+                    for (const [action, allowed] of Object.entries(permissions)) {
+                        await db.execute(sql`
+                            INSERT INTO "role_permissions" ("role_id", "action", "allowed", "created_at", "updated_at")
+                            VALUES (${roleId}, ${action}, ${allowed}, NOW(), NOW())
+                            ON CONFLICT DO NOTHING
+                        `);
+                    }
+                    console.log(`✅ Created role with permissions: ${roleName}`);
+                }
             }
-            console.log('✅ Default roles created');
         }
         
         console.log('✅ Database tables initialized');

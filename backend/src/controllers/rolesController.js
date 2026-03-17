@@ -30,99 +30,27 @@ const DEFAULT_ROLES = {
     }
 };
 
-// Safe initialization - tries to find roles, handles missing tables
-const getSafeRoles = async () => {
-    try {
-        // Try to fetch roles
-        const allRoles = await db.query.roles.findMany().catch(err => {
-            console.warn('⚠️ Could not fetch roles (tables may not exist yet):', err.message);
-            return [];
-        });
-
-        if (allRoles.length === 0 && Object.keys(DEFAULT_ROLES).length > 0) {
-            // Try to initialize default roles
-            await initializeDefaultRoles();
-            return await db.query.roles.findMany().catch(() => []);
-        }
-
-        return allRoles;
-    } catch (error) {
-        console.error('❌ Error in getSafeRoles:', error.message);
-        return [];
-    }
-};
-
-// Initialize default roles if they don't exist
-const initializeDefaultRoles = async () => {
-    try {
-        for (const [roleName, permissions] of Object.entries(DEFAULT_ROLES)) {
-            try {
-                const existing = await db.query.roles.findFirst({
-                    where: eq(roles.name, roleName)
-                });
-
-                if (!existing) {
-                    const result = await db.insert(roles)
-                        .values({
-                            name: roleName,
-                            description: `Default ${roleName} role`,
-                            isDefault: true,
-                            createdAt: new Date(),
-                            updatedAt: new Date()
-                        })
-                        .returning();
-
-                    const newRole = result[0];
-
-                    // Create default permissions for this role
-                    for (const [action, allowed] of Object.entries(permissions)) {
-                        await db.insert(rolePermissions)
-                            .values({
-                                roleId: newRole.id,
-                                action,
-                                allowed,
-                                createdAt: new Date(),
-                                updatedAt: new Date()
-                            });
-                    }
-                    console.log(`✅ Created default role: ${roleName}`);
-                }
-            } catch (roleError) {
-                // Skip if role creation fails
-                console.warn(`⚠️ Warning initializing role ${roleName}:`, roleError.message);
-            }
-        }
-    } catch (error) {
-        console.error('❌ Error initializing default roles:', error.message);
-    }
-};
-
 // Get all roles (default + custom) with their permissions
 export const getAllRoles = async (request, reply) => {
     try {
-        const allRoles = await getSafeRoles();
+        const allRoles = await db.query.roles.findMany();
 
         // Get detailed roles with permissions
         const rolesWithPermissions = await Promise.all(
             allRoles.map(async (role) => {
-                try {
-                    const permissions = await db.query.rolePermissions.findMany({
-                        where: eq(rolePermissions.roleId, role.id)
-                    });
+                const permissions = await db.query.rolePermissions.findMany({
+                    where: eq(rolePermissions.roleId, role.id)
+                });
 
-                    const permissionMap = {};
-                    permissions.forEach(perm => {
-                        permissionMap[perm.action] = perm.allowed;
-                    });
+                const permissionMap = {};
+                permissions.forEach(perm => {
+                    permissionMap[perm.action] = perm.allowed;
+                });
 
-                    return {
-                        ...role,
-                        permissions: permissionMap
-                    };
-                } catch (err) {
-                    console.warn(`⚠️ Could not fetch permissions for role ${role.id}`);
-                    return { ...role, permissions: {} };
-                }
+                return {
+                    ...role,
+                    permissions: permissionMap
+                };
             })
         );
 
@@ -131,11 +59,8 @@ export const getAllRoles = async (request, reply) => {
             roles: rolesWithPermissions
         };
     } catch (error) {
-        console.error('❌ getAllRoles error:', error);
-        // Return empty array instead of 500 error
-        return {
-            roles: []
-        };
+        console.error('❌ getAllRoles error:', error.message);
+        reply.status(500).send({ error: error.message });
     }
 };
 
