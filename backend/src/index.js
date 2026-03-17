@@ -3,6 +3,8 @@ import dotenv from 'dotenv';
 import { initCron } from './utils/cron.js';
 import { db } from './db/index.js';
 import { sql } from 'drizzle-orm';
+import { roles, rolePermissions } from './db/schema.js';
+import { eq } from 'drizzle-orm';
 
 dotenv.config();
 
@@ -128,35 +130,63 @@ const initDatabase = async () => {
         `);
 
         // Insert default roles if not already present
-        const existingRoles = await db.execute(sql`SELECT COUNT(*) as count FROM "roles" WHERE "is_default" = true`);
-        if (existingRoles[0].count === 0) {
-            const defaultRoles = {
-                'Admin': { Create: true, Edit: true, View: true, Delete: true, 'Import Task': true, 'Export Task': true },
-                'Manager': { Create: true, Edit: true, View: true, Delete: false, 'Import Task': true, 'Export Task': true },
-                'Team Member': { Create: true, Edit: false, View: true, Delete: false, 'Import Task': false, 'Export Task': false }
-            };
+        console.log('🔄 Initializing default roles...');
+        
+        const defaultRoles = {
+            'Admin': { Create: true, Edit: true, View: true, Delete: true, 'Import Task': true, 'Export Task': true },
+            'Manager': { Create: true, Edit: true, View: true, Delete: false, 'Import Task': true, 'Export Task': true },
+            'Team Member': { Create: true, Edit: false, View: true, Delete: false, 'Import Task': false, 'Export Task': false }
+        };
 
-            for (const [roleName, permissions] of Object.entries(defaultRoles)) {
-                const result = await db.execute(sql`
-                    INSERT INTO "roles" ("name", "is_default", "created_at", "updated_at")
-                    VALUES (${roleName}, true, NOW(), NOW())
-                    ON CONFLICT (name) DO NOTHING
-                    RETURNING "id"
-                `);
+        for (const [roleName, permissions] of Object.entries(defaultRoles)) {
+            try {
+                // Check if role exists
+                const existingRole = await db.query.roles.findFirst({
+                    where: eq(roles.name, roleName)
+                }).catch(err => {
+                    console.warn(`⚠️ Could not query role ${roleName}:`, err.message);
+                    return null;
+                });
 
-                if (result[0]?.id) {
-                    const roleId = result[0].id;
-                    for (const [action, allowed] of Object.entries(permissions)) {
-                        await db.execute(sql`
-                            INSERT INTO "role_permissions" ("role_id", "action", "allowed", "created_at", "updated_at")
-                            VALUES (${roleId}, ${action}, ${allowed}, NOW(), NOW())
-                            ON CONFLICT DO NOTHING
-                        `);
+                if (!existingRole) {
+                    // Create role
+                    const newRole = await db.insert(roles)
+                        .values({
+                            name: roleName,
+                            isDefault: true,
+                            createdAt: new Date(),
+                            updatedAt: new Date()
+                        })
+                        .returning();
+
+                    if (newRole && newRole[0]) {
+                        const roleId = newRole[0].id;
+                        
+                        // Add permissions for this role
+                        for (const [action, allowed] of Object.entries(permissions)) {
+                            await db.insert(rolePermissions)
+                                .values({
+                                    roleId: roleId,
+                                    action: action,
+                                    allowed: allowed,
+                                    createdAt: new Date(),
+                                    updatedAt: new Date()
+                                })
+                                .catch(err => {
+                                    console.warn(`⚠️ Could not insert permission ${action}:`, err.message);
+                                });
+                        }
+                        console.log(`✅ Created role: ${roleName} with ${Object.keys(permissions).length} permissions`);
                     }
-                    console.log(`✅ Created role with permissions: ${roleName}`);
+                } else {
+                    console.log(`✅ Role already exists: ${roleName}`);
                 }
+            } catch (error) {
+                console.warn(`⚠️ Error processing role ${roleName}:`, error.message);
             }
         }
+        
+        console.log('✅ Role initialization complete');
         
         console.log('✅ Database tables initialized');
     } catch (error) {
