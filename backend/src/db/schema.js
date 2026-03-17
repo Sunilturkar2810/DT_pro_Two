@@ -205,6 +205,15 @@ export const checklist = pgTable('checklist', {
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
 
+export const holidays = pgTable('holidays', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  name: varchar('name', { length: 255 }).notNull(),
+  date: date('date').notNull(),
+  createdBy: uuid('created_by'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
 export const categories = pgTable('categories', {
   id: uuid('id').primaryKey().defaultRandom(),
   name: varchar('name', { length: 255 }).notNull(),

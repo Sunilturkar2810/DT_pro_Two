@@ -13,6 +13,7 @@ import ticketRoutes from './routes/tickets.js';
 import settingsRoutes from './routes/settings.js';
 import exportRoutes from './routes/exports.js';
 import rolesRoutes from './routes/roles.js';
+import holidaysRoutes from './routes/holidays.js';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -61,6 +62,7 @@ const buildApp = (options = {}) => {
     app.register(settingsRoutes, { prefix: '/api/settings' });
     app.register(exportRoutes, { prefix: '/api/exports' });
     app.register(rolesRoutes, { prefix: '/api/roles' });
+    app.register(holidaysRoutes, { prefix: '/api/holidays' });
 
     // Custom Error Handler
     app.setErrorHandler((error, request, reply) => {
