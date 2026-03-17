@@ -34,46 +34,52 @@ const DEFAULT_ROLES = {
 const initializeDefaultRoles = async () => {
     try {
         for (const [roleName, permissions] of Object.entries(DEFAULT_ROLES)) {
-            const existing = await db.query.roles.findFirst({
-                where: eq(roles.name, roleName)
-            });
+            try {
+                const existing = await db.query.roles.findFirst({
+                    where: eq(roles.name, roleName)
+                });
 
-            if (!existing) {
-                const result = await db.insert(roles)
-                    .values({
-                        name: roleName,
-                        description: `Default ${roleName} role`,
-                        isDefault: true,
-                        createdAt: new Date(),
-                        updatedAt: new Date()
-                    })
-                    .returning();
-
-                const newRole = result[0];
-
-                // Create default permissions for this role
-                for (const [action, allowed] of Object.entries(permissions)) {
-                    await db.insert(rolePermissions)
+                if (!existing) {
+                    const result = await db.insert(roles)
                         .values({
-                            roleId: newRole.id,
-                            action,
-                            allowed,
+                            name: roleName,
+                            description: `Default ${roleName} role`,
+                            isDefault: true,
                             createdAt: new Date(),
                             updatedAt: new Date()
-                        });
+                        })
+                        .returning();
+
+                    const newRole = result[0];
+
+                    // Create default permissions for this role
+                    for (const [action, allowed] of Object.entries(permissions)) {
+                        await db.insert(rolePermissions)
+                            .values({
+                                roleId: newRole.id,
+                                action,
+                                allowed,
+                                createdAt: new Date(),
+                                updatedAt: new Date()
+                            });
+                    }
+                    console.log(`✅ Created default role: ${roleName}`);
                 }
-                console.log(`✅ Created default role: ${roleName}`);
+            } catch (roleError) {
+                // Skip if role creation fails, but continue with next role
+                console.warn(`⚠️ Warning initializing role ${roleName}:`, roleError.message);
             }
         }
     } catch (error) {
-        console.error('❌ Error initializing default roles:', error);
+        console.error('❌ Error initializing default roles:', error.message);
+        // Don't throw - allow getAllRoles to continue even if initialization fails
     }
 };
 
 // Get all roles (default + custom) with their permissions
 export const getAllRoles = async (request, reply) => {
     try {
-        // Initialize default roles if needed
+        // Try to initialize default roles (won't fail if tables don't exist yet)
         await initializeDefaultRoles();
 
         const allRoles = await db.query.roles.findMany();
@@ -102,7 +108,8 @@ export const getAllRoles = async (request, reply) => {
         };
     } catch (error) {
         console.error('❌ getAllRoles error:', error);
-        reply.status(500).send({ error: error.message });
+        console.error('Error details:', error.message);
+        reply.status(500).send({ error: error.message, stack: error.stack });
     }
 };
 
