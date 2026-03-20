@@ -4,6 +4,8 @@ import 'package:d_table_delegate_system/provider/auth_provider.dart';
 import 'package:d_table_delegate_system/provider/delegation_provider.dart';
 import 'package:d_table_delegate_system/provider/theme_provider.dart';
 import 'package:d_table_delegate_system/provider/user_provider.dart';
+import 'package:d_table_delegate_system/provider/category_provider.dart';
+import 'package:d_table_delegate_system/provider/tag_provider.dart';
 import 'package:d_table_delegate_system/screen/home/task_detail.dart';
 import 'package:d_table_delegate_system/widget/app_dropdown.dart';
 import 'package:d_table_delegate_system/widget/assign_task_sheet.dart';
@@ -29,11 +31,19 @@ class _MyTaskScreenState extends State<MyTaskScreen>
   final TextEditingController searchController = TextEditingController();
 
   String searchQuery = "";
-  String selectedDateRange = "This Month";
+  String selectedDateRange = "All Time";
   String selectedSortBy = "Target Date";
   bool parentTasksOnly = false;
   int _viewMode = 0; // 0=list, 1=grid, 2=calendar
   String _activeStatusTab = "All";
+
+  // Filter states
+  DateTime? _customStartDate;
+  DateTime? _customEndDate;
+  String _assignedByFilter = "Anyone";
+  String _priorityFilter = "All Priority";
+  String _categoryFilter = "All Categories";
+  String _tagFilter = "All Tags";
 
   // Status tabs with config
   final List<Map<String, dynamic>> _statusTabs = [
@@ -55,6 +65,8 @@ class _MyTaskScreenState extends State<MyTaskScreen>
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       Provider.of<DelegationProvider>(context, listen: false).fetchAll();
       Provider.of<UserProvider>(context, listen: false).fetchUsers();
+      Provider.of<CategoryProvider>(context, listen: false).fetchCategories();
+      Provider.of<TagProvider>(context, listen: false).fetchTags();
     });
   }
 
@@ -65,10 +77,10 @@ class _MyTaskScreenState extends State<MyTaskScreen>
   }
 
   List<DelegationModel> _applyFilters(
-      List<DelegationModel> all, String? myId) {
+      List<DelegationModel> all, String? myId, List<UserModel> users) {
     // MY TASKS = sirf wo tasks jo MUJHE assign kiye gaye hain
     return all.where((task) {
-      if (task.assingDoerId != myId) return false; // ✅ only assigned TO me
+      if (task.assingDoerId != myId) return false;
 
       bool matchesSearch = searchQuery.isEmpty ||
           task.delegationName.toLowerCase().contains(searchQuery) ||
@@ -77,26 +89,75 @@ class _MyTaskScreenState extends State<MyTaskScreen>
       bool matchesStatus =
           _activeStatusTab == "All" || task.status == _activeStatusTab;
 
-      bool matchesDate = true;
-      if (selectedDateRange == "Today") {
-        matchesDate =
-            task.dueDate.startsWith(DateTime.now().toString().split(' ')[0]);
-      } else if (selectedDateRange == "This Month") {
-        matchesDate = task.dueDate
-            .startsWith(DateTime.now().toString().substring(0, 7));
-      } else if (selectedDateRange == "This Week") {
-        final now = DateTime.now();
-        final weekStart = now.subtract(Duration(days: now.weekday - 1));
-        final weekEnd = weekStart.add(const Duration(days: 6));
-        try {
-          final due = DateTime.parse(task.dueDate.split('T')[0]);
-          matchesDate =
-              due.isAfter(weekStart.subtract(const Duration(days: 1))) &&
-                  due.isBefore(weekEnd.add(const Duration(days: 1)));
-        } catch (_) {}
+      // Filter: Assigned By
+      bool matchesAssignedBy = true;
+      if (_assignedByFilter != "Anyone") {
+        final assigner = users.firstWhere((u) => u.id == task.delegatorId, orElse: () => UserModel.empty());
+        matchesAssignedBy = assigner.fullName == _assignedByFilter;
       }
 
-      return matchesSearch && matchesStatus && matchesDate;
+      // Filter: Priority
+      bool matchesPriority = true;
+      if (_priorityFilter != "All Priority") {
+        matchesPriority = task.priority == _priorityFilter;
+      }
+
+      // Filter: Category
+      bool matchesCategory = true;
+      if (_categoryFilter != "All Categories") {
+        matchesCategory = task.category == _categoryFilter;
+      }
+
+      // Filter: Tags
+      bool matchesTags = true;
+      if (_tagFilter != "All Tags") {
+        matchesTags = task.tagsList.contains(_tagFilter);
+      }
+
+      bool matchesDate = true;
+      final now = DateTime.now();
+      
+      try {
+        final due = DateTime.parse(task.dueDate.split('T')[0]);
+        final today = DateTime(now.year, now.month, now.day);
+        final taskDate = DateTime(due.year, due.month, due.day);
+        
+        if (selectedDateRange == "Today") {
+          matchesDate = taskDate.isAtSameMomentAs(today);
+        } else if (selectedDateRange == "Yesterday") {
+          final yesterday = today.subtract(const Duration(days: 1));
+          matchesDate = taskDate.isAtSameMomentAs(yesterday);
+        } else if (selectedDateRange == "This Week") {
+          final weekStart = today.subtract(Duration(days: today.weekday - 1));
+          final weekEnd = weekStart.add(const Duration(days: 6));
+          matchesDate = taskDate.isAfter(weekStart.subtract(const Duration(days: 1))) &&
+                        taskDate.isBefore(weekEnd.add(const Duration(days: 1)));
+        } else if (selectedDateRange == "Last Week") {
+          final lastWeekStart = today.subtract(Duration(days: today.weekday - 1 + 7));
+          final lastWeekEnd = lastWeekStart.add(const Duration(days: 6));
+          matchesDate = taskDate.isAfter(lastWeekStart.subtract(const Duration(days: 1))) &&
+                        taskDate.isBefore(lastWeekEnd.add(const Duration(days: 1)));
+        } else if (selectedDateRange == "This Month") {
+          matchesDate = taskDate.year == today.year && taskDate.month == today.month;
+        } else if (selectedDateRange == "Last Month") {
+          final lastMonth = today.month == 1 ? 12 : today.month - 1;
+          final lastMonthYear = today.month == 1 ? today.year - 1 : today.year;
+          matchesDate = taskDate.year == lastMonthYear && taskDate.month == lastMonth;
+        } else if (selectedDateRange == "This Year") {
+          matchesDate = taskDate.year == today.year;
+        } else if (selectedDateRange == "Custom") {
+          if (_customStartDate != null && _customEndDate != null) {
+            final start = DateTime(_customStartDate!.year, _customStartDate!.month, _customStartDate!.day);
+            final end = DateTime(_customEndDate!.year, _customEndDate!.month, _customEndDate!.day);
+            matchesDate = (taskDate.isAtSameMomentAs(start) || taskDate.isAfter(start)) &&
+                          (taskDate.isAtSameMomentAs(end) || taskDate.isBefore(end));
+          } else {
+            matchesDate = true;
+          }
+        }
+      } catch (_) {}
+
+      return matchesSearch && matchesStatus && matchesDate && matchesAssignedBy && matchesPriority && matchesCategory && matchesTags;
     }).toList();
   }
 
@@ -108,19 +169,16 @@ class _MyTaskScreenState extends State<MyTaskScreen>
     final appColors = Theme.of(context).extension<AppColors>()!;
     final primary = ThemeProvider.primaryGreen;
 
-    final filtered =
-        _applyFilters(delegationProv.delegations, auth.currentUser?.id);
-
     final myId = auth.currentUser?.id;
-    // Status counts — sirf mujhe assign kiye gaye tasks
-    final myTasks = delegationProv.delegations
-        .where((t) => t.assingDoerId == myId)
-        .toList();
+    final filtered = _applyFilters(delegationProv.delegations, myId, userProv.users);
 
-    int overdueCount  = myTasks.where((t) => t.status == "Overdue").length;
-    int pendingCount  = myTasks.where((t) => t.status == "Pending").length;
+    // Status counts — sirf mujhe assign kiye gaye tasks
+    final myTasks = delegationProv.delegations.where((t) => t.assingDoerId == myId).toList();
+
+    int overdueCount = myTasks.where((t) => t.status == "Overdue").length;
+    int pendingCount = myTasks.where((t) => t.status == "Pending").length;
     int inProgressCount = myTasks.where((t) => t.status == "In Progress").length;
-    int completedCount  = myTasks.where((t) => t.status == "Completed").length;
+    int completedCount = myTasks.where((t) => t.status == "Completed").length;
     int allCount = myTasks.length;
 
     final counts = {
@@ -133,54 +191,130 @@ class _MyTaskScreenState extends State<MyTaskScreen>
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      body: Column(
-        children: [
-          // ── AppBar ──────────────────────────────────────────────
-          AppBar(
+      body: NestedScrollView(
+        headerSliverBuilder: (context, innerBoxIsScrolled) => [
+          SliverAppBar(
             backgroundColor: primary,
+            expandedHeight: 120,
+            pinned: true,
             elevation: 0,
-            centerTitle: true,
-            title: Text(
-              widget.title.toUpperCase(),
-              style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 18,
-                  letterSpacing: 1.2),
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.black, size: 20),
+              onPressed: () => Navigator.pop(context),
+            ),
+            flexibleSpace: FlexibleSpaceBar(
+              centerTitle: true,
+              title: Text(widget.title.toUpperCase(), 
+                style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 16, letterSpacing: 1.2)
+              ),
+              background: Container(color: primary),
             ),
           ),
-
-          // ── Top Toolbar Row 1: Assign + Date + Filter + Saved + Search ──
-          _buildTopToolbar(appColors, primary),
-
-          // ── Top Toolbar Row 2: View icons + Sort + Parent Tasks ──
-          _buildSecondaryToolbar(appColors, primary),
-
-          // ── Status Tabs ──────────────────────────────────────────
-          _buildStatusTabs(appColors, primary, counts),
-
-          // ── Task List / Empty ────────────────────────────────────
-          Expanded(
-            child: RefreshIndicator(
-              color: primary,
-              onRefresh: () async {
-                await Provider.of<DelegationProvider>(context, listen: false)
-                    .fetchAll();
-              },
-              child: delegationProv.isLoading
-                  ? Center(child: CircularProgressIndicator(color: primary))
-                  : filtered.isEmpty
-                      ? _buildEmptyState(appColors)
-                      : ListView.builder(
-                          padding: const EdgeInsets.only(
-                              top: 12, bottom: 80, left: 16, right: 16),
-                          physics: const AlwaysScrollableScrollPhysics(),
-                          itemCount: filtered.length,
-                          itemBuilder: (ctx, i) =>
-                              _buildTaskCard(filtered[i], userProv.users,
-                                  auth.currentUser?.id, appColors, primary),
-                        ),
+        ],
+        body: Column(
+          children: [
+            Expanded(
+              child: RefreshIndicator(
+                color: primary,
+                onRefresh: () async => await delegationProv.fetchAll(),
+                child: ListView(
+                  padding: const EdgeInsets.symmetric(vertical: 20),
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(color: primary.withOpacity(0.15), borderRadius: BorderRadius.circular(12)),
+                                child: Icon(Icons.task_alt_rounded, color: primary, size: 28),
+                              ),
+                              const SizedBox(width: 15),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text("My Tasks", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: appColors.textPrimary)),
+                                  Text("Tasks assigned to you", style: TextStyle(fontSize: 13, color: appColors.textMuted)),
+                                ],
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 25),
+                          _buildSummaryRow(counts, appColors),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 25),
+                    _buildTopToolbar(appColors, primary),
+                    _buildSecondaryToolbar(appColors, primary),
+                    _buildStatusTabs(appColors, primary, counts),
+                    const SizedBox(height: 10),
+                    if (delegationProv.isLoading)
+                      const SizedBox(height: 200, child: Center(child: CircularProgressIndicator()))
+                    else if (filtered.isEmpty)
+                      _buildEmptyState(appColors)
+                    else
+                      ListView.builder(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                        itemCount: filtered.length,
+                        itemBuilder: (ctx, i) => _buildTaskCard(filtered[i], userProv.users, myId, appColors, primary),
+                      ),
+                    const SizedBox(height: 100),
+                  ],
+                ),
+              ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSummaryRow(Map<String, int> counts, AppColors appColors) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      physics: const BouncingScrollPhysics(),
+      child: Row(
+        children: [
+          _statCard("TOTAL", counts["All"] ?? 0, Colors.blueGrey, Icons.list_rounded, appColors),
+          _statCard("OVERDUE", counts["OverDue"] ?? 0, Colors.red, Icons.timer_outlined, appColors),
+          _statCard("PENDING", counts["Pending"] ?? 0, Colors.orange, Icons.pending_actions_rounded, appColors),
+          _statCard("IN PROGRESS", counts["In Progress"] ?? 0, Colors.blue, Icons.sync_rounded, appColors),
+          _statCard("COMPLETED", counts["Completed"] ?? 0, ThemeProvider.primaryGreen, Icons.check_circle_outline_rounded, appColors),
+        ],
+      ),
+    );
+  }
+
+  Widget _statCard(String label, int count, Color color, IconData icon, AppColors appColors) {
+    return Container(
+      width: 140,
+      margin: const EdgeInsets.only(right: 12),
+      padding: const EdgeInsets.all(15),
+      decoration: BoxDecoration(
+        color: appColors.cardBackground,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [BoxShadow(color: appColors.shadowColor, blurRadius: 8, offset: const Offset(0, 4))],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+               Icon(icon, color: color, size: 18),
+               Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+            ],
           ),
+          const SizedBox(height: 12),
+          Text("$count", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: appColors.textPrimary)),
+          const SizedBox(height: 4),
+          Text(label, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: appColors.textMuted, letterSpacing: 0.5)),
         ],
       ),
     );
@@ -210,15 +344,57 @@ class _MyTaskScreenState extends State<MyTaskScreen>
             ),
             const SizedBox(width: 8),
 
-            // Date Range dropdown
             AppDropdown<String>(
               isCompact: true,
               value: selectedDateRange,
-              items: const ["Today", "This Week", "This Month", "Last Month", "All Time"],
+              items: const [
+                "All Time", 
+                "Today", 
+                "Yesterday", 
+                "This Week", 
+                "Last Week", 
+                "This Month", 
+                "Last Month", 
+                "This Year", 
+                "Custom"
+              ],
               labelBuilder: (v) => v,
               prefixIcon: Icons.date_range_rounded,
               accentColor: ThemeProvider.primaryGreen,
-              onChanged: (v) => setState(() => selectedDateRange = v!),
+              onChanged: (v) async {
+                if (v == "Custom") {
+                  final picked = await showDateRangePicker(
+                    context: context,
+                    firstDate: DateTime(2000),
+                    lastDate: DateTime(2100),
+                    builder: (context, child) {
+                      return Theme(
+                        data: Theme.of(context).copyWith(
+                          colorScheme: ColorScheme.light(
+                            primary: ThemeProvider.primaryGreen,
+                            onPrimary: Colors.white,
+                            onSurface: const Color(0xFF1A1D23),
+                          ),
+                        ),
+                        child: child!,
+                      );
+                    },
+                  );
+                  if (picked != null) {
+                    setState(() {
+                      _customStartDate = picked.start;
+                      _customEndDate = picked.end;
+                      selectedDateRange = "Custom";
+                    });
+                  }
+                } else {
+                  setState(() {
+                    selectedDateRange = v!;
+                    _customStartDate = null;
+                    _customEndDate = null;
+                  });
+                }
+              },
             ),
             const SizedBox(width: 8),
 
@@ -226,8 +402,8 @@ class _MyTaskScreenState extends State<MyTaskScreen>
             _greenBtn(
               icon: Icons.filter_list_rounded,
               label: "Filter",
-              color: primary,
-              onTap: () {},
+              color: const Color(0xFF1A1D23),
+              onTap: () => _showFilterDialog(appColors, primary),
             ),
             const SizedBox(width: 8),
 
@@ -395,205 +571,115 @@ class _MyTaskScreenState extends State<MyTaskScreen>
   // ─────────────────────────────────────────────────────────────────
   Widget _buildTaskCard(DelegationModel task, List<UserModel> users,
       String? myId, AppColors appColors, Color primary) {
-    final bool isDelegatedByMe = task.delegatorId == myId;
+    final String delegatorName = task.getAssignedByName(users);
+    final String initial = delegatorName.isNotEmpty ? delegatorName[0].toUpperCase() : "U";
     final Color statusColor = _getStatusColor(task.status);
+    final String timeAgo = _getTimeAgo(task.createdAt);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
         color: appColors.cardBackground,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.blueGrey.shade100,width: .7),
-        boxShadow: [
-          BoxShadow(
-              color: appColors.shadowColor,
-              blurRadius: 10,
-              offset: const Offset(0, 4))
-        ],
+        boxShadow: [BoxShadow(color: appColors.shadowColor, blurRadius: 10, offset: const Offset(0, 4))],
       ),
       child: InkWell(
-        onTap: () => Navigator.push(
-            context, MaterialPageRoute(builder: (_) => TaskDetailScreen(task: task, allowEdit: true))),
+        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => TaskDetailScreen(task: task, allowEdit: true))),
         borderRadius: BorderRadius.circular(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // ── Card Header ───────────────────────────────────────
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            children: [
+              Row(
                 children: [
-                  // Priority color bar
-                  Container(
-                    width: 4,
-                    height: 50,
-                    margin: const EdgeInsets.only(right: 12, top: 2),
-                    decoration: BoxDecoration(
-                      color: _getPriorityColor(task.priority),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
+                  // Checkbox
+                  SizedBox(
+                    width: 24, height: 24,
+                    child: Checkbox(value: false, onChanged: (v){}, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4))),
                   ),
+                  const SizedBox(width: 12),
+                  
+                  // Avatar
+                  CircleAvatar(
+                    radius: 16,
+                    backgroundColor: primary.withOpacity(0.1),
+                    child: Text(initial, style: TextStyle(color: primary, fontWeight: FontWeight.bold, fontSize: 12)),
+                  ),
+                  const SizedBox(width: 12),
+
+                  // Title & Delegator
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                task.delegationName,
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w800,
-                                  fontSize: 15,
-                                  color: appColors.textPrimary,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            _statusBadge(task.status, statusColor),
-                          ],
-                        ),
-                        const SizedBox(height: 4),
-                        // Assigned by whom
-                        Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 8, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: Colors.teal.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: Text(
-                                "📥 Assigned to you",
-                                style: const TextStyle(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w700,
-                                  color: Colors.teal,
-                                ),
-                              ),
-                            ),
-                          ],
+                        RichText(
+                          text: TextSpan(
+                            style: TextStyle(fontSize: 13, color: appColors.textPrimary),
+                            children: [
+                              TextSpan(text: "From: ${delegatorName.toLowerCase()} ", style: TextStyle(color: appColors.textMuted, fontSize: 11)),
+                              TextSpan(text: task.delegationName, style: const TextStyle(fontWeight: FontWeight.bold)),
+                            ],
+                          ),
                         ),
                       ],
                     ),
                   ),
+                  
+                  // Status Badge
+                  _statusBadge(task.status, statusColor),
                 ],
               ),
-            ),
-
-            const SizedBox(height: 8),
-
-            // ── Meta Info Row ─────────────────────────────────────
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Row(
+              const SizedBox(height: 12),
+              
+              // Footer row
+              Row(
                 children: [
-                  // Assignee info
-                  Icon(Icons.person_rounded, size: 14, color: primary),
+                  const SizedBox(width: 88), // Align with title
+                  Icon(Icons.calendar_month_outlined, size: 14, color: Colors.blueAccent),
                   const SizedBox(width: 4),
-                  Expanded(
-                    child: Text(
-                      isDelegatedByMe
-                          ? "To: ${task.getAssignedToName(users)}"
-                          : "From: ${task.getAssignedByName(users)}",
-                      style: TextStyle(
-                          fontSize: 11,
-                          color: appColors.textSecondary,
-                          fontWeight: FontWeight.w600),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
+                  Text(_formatDate(task.dueDate), style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: appColors.textSecondary)),
                   const SizedBox(width: 12),
-                  Icon(Icons.business_center_rounded,
-                      size: 14, color: primary),
-                  const SizedBox(width: 4),
-                  Flexible(
-                    child: Text(
-                      task.category,
-                      style: TextStyle(
-                          fontSize: 11,
-                          color: appColors.textSecondary,
-                          fontWeight: FontWeight.w600),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            // ── Remark indicator ──────────────────────────────────
-            if (task.remarks.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.blue.withOpacity(0.05),
-                    borderRadius: BorderRadius.circular(10),
-                    border:
-                        Border.all(color: Colors.blue.withOpacity(0.1)),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.chat_bubble_rounded,
-                          size: 13, color: Colors.blue),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          task.remarks.last.remark,
-                          style: TextStyle(
-                              fontSize: 11,
-                              color: appColors.textSecondary,
-                              height: 1.3),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                            color: Colors.blue,
-                            borderRadius: BorderRadius.circular(8)),
-                        child: Text("${task.remarks.length}",
-                            style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 9,
-                                fontWeight: FontWeight.bold)),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-
-            // ── Footer ────────────────────────────────────────────
-            const SizedBox(height: 10),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              decoration: BoxDecoration(
-                color: Colors.grey.withValues(alpha: .1),
-                borderRadius:
-                    const BorderRadius.vertical(bottom: Radius.circular(16)),
-              ),
-              child: Row(
-                children: [
-                  _priorityTag(task.priority),
-                  const SizedBox(width: 8),
-                  _dateTag(task.dueDate, appColors),
+                  Container(width: 4, height: 4, decoration: BoxDecoration(color: appColors.textMuted.withOpacity(0.3), shape: BoxShape.circle)),
+                  const SizedBox(width: 12),
+                  Text(task.priority, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: _getPriorityColor(task.priority))),
+                  const SizedBox(width: 12),
+                  Container(width: 4, height: 4, decoration: BoxDecoration(color: appColors.textMuted.withOpacity(0.3), shape: BoxShape.circle)),
+                  const SizedBox(width: 12),
+                  Text(timeAgo, style: TextStyle(fontSize: 10, color: appColors.textMuted)),
                   const Spacer(),
-                  Icon(Icons.arrow_forward_ios_rounded,
-                      size: 13, color: appColors.textMuted),
+                  Icon(Icons.more_vert_rounded, size: 18, color: appColors.textMuted),
                 ],
-              ),
-            ),
-          ],
+              )
+            ],
+          ),
         ),
       ),
     );
+  }
+
+  String _formatDate(String date) {
+    if (date.isEmpty) return "N/A";
+    try {
+      final dt = DateTime.parse(date);
+      final months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+      return "${dt.day} ${months[dt.month - 1]}";
+    } catch (_) {
+      return date.split('T')[0];
+    }
+  }
+
+  String _getTimeAgo(String? dateStr) {
+    if (dateStr == null || dateStr.isEmpty) return "";
+    try {
+      final dt = DateTime.parse(dateStr);
+      final diff = DateTime.now().difference(dt);
+      if (diff.inDays > 0) return "${diff.inDays}d ago";
+      if (diff.inHours > 0) return "${diff.inHours}h ago";
+      if (diff.inMinutes > 0) return "${diff.inMinutes}m ago";
+      return "Just now";
+    } catch (_) {
+      return "";
+    }
   }
 
   // ─────────────────────────────────────────────────────────────────
@@ -880,4 +966,170 @@ class _MyTaskScreenState extends State<MyTaskScreen>
         return Colors.green;
     }
   }
+
+  void _showFilterDialog(AppColors appColors, Color primary) {
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return Dialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              backgroundColor: appColors.cardBackground,
+              insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+              child: Container(
+                width: 320,
+                padding: const EdgeInsets.all(24),
+                child: Consumer3<UserProvider, CategoryProvider, TagProvider>(
+                  builder: (ctx, userProv, catProv, tagProv, _) {
+                    final users = ["Anyone", ...userProv.users.map((e) => e.fullName)];
+                    final priorities = ["All Priority", "High", "Medium", "Low"];
+                    final categories = ["All Categories", ...catProv.categoryModels.map((e) => e.name)];
+                    final tags = ["All Tags", ...tagProv.tags.map((e) => e.name)];
+
+                    return Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Header
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text("FILTERS",
+                                style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.bold,
+                                    color: appColors.textPrimary,
+                                    letterSpacing: 1.2)),
+                            GestureDetector(
+                              onTap: () {
+                                setDialogState(() {
+                                  _assignedByFilter = "Anyone";
+                                  _priorityFilter = "All Priority";
+                                  _categoryFilter = "All Categories";
+                                  _tagFilter = "All Tags";
+                                });
+                                setState(() {
+                                  _assignedByFilter = "Anyone";
+                                  _priorityFilter = "All Priority";
+                                  _categoryFilter = "All Categories";
+                                  _tagFilter = "All Tags";
+                                });
+                              },
+                              child: Text("Clear All",
+                                  style: TextStyle(
+                                      color: primary,
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.bold)),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 24),
+
+                        // ASSIGNED BY
+                        _buildFilterDropdownLabel("ASSIGNED BY", appColors),
+                        _buildFilterDropdown(
+                          value: _assignedByFilter,
+                          items: users,
+                          appColors: appColors,
+                          onChanged: (val) {
+                            setDialogState(() => _assignedByFilter = val!);
+                            setState(() => _assignedByFilter = val!);
+                          },
+                        ),
+                        const SizedBox(height: 16),
+
+                        // PRIORITY
+                        _buildFilterDropdownLabel("PRIORITY", appColors),
+                        _buildFilterDropdown(
+                          value: _priorityFilter,
+                          items: priorities,
+                          appColors: appColors,
+                          onChanged: (val) {
+                            setDialogState(() => _priorityFilter = val!);
+                            setState(() => _priorityFilter = val!);
+                          },
+                        ),
+                        const SizedBox(height: 16),
+
+                        // CATEGORY
+                        _buildFilterDropdownLabel("CATEGORY", appColors),
+                        _buildFilterDropdown(
+                          value: _categoryFilter,
+                          items: categories,
+                          appColors: appColors,
+                          onChanged: (val) {
+                            setDialogState(() => _categoryFilter = val!);
+                            setState(() => _categoryFilter = val!);
+                          },
+                        ),
+                        const SizedBox(height: 16),
+
+                        // TAG
+                        _buildFilterDropdownLabel("TAG", appColors),
+                        _buildFilterDropdown(
+                          value: _tagFilter,
+                          items: tags,
+                          appColors: appColors,
+                          onChanged: (val) {
+                            setDialogState(() => _tagFilter = val!);
+                            setState(() => _tagFilter = val!);
+                          },
+                        ),
+                        const SizedBox(height: 8),
+                      ],
+                    );
+                  },
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildFilterDropdownLabel(String label, AppColors appColors) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Text(label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: appColors.textMuted, letterSpacing: 0.5)),
+    );
+  }
+
+  Widget _buildFilterDropdown({
+    required String value,
+    required List<String> items,
+    required AppColors appColors,
+    required ValueChanged<String?> onChanged,
+  }) {
+    // Make sure 'value' is actually inside 'items' to prevent assertion errors
+    final currentValue = items.contains(value) ? value : items.first;
+    
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      decoration: BoxDecoration(
+        color: appColors.inputBackground,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: appColors.cardBorder.withOpacity(0.5)),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: currentValue,
+          isExpanded: true,
+          icon: const Icon(Icons.keyboard_arrow_down_rounded, size: 20),
+          style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: appColors.textPrimary),
+          dropdownColor: appColors.cardBackground,
+          borderRadius: BorderRadius.circular(12),
+          items: items.map((item) {
+            return DropdownMenuItem(
+              value: item,
+              child: Text(item, overflow: TextOverflow.ellipsis),
+            );
+          }).toList(),
+          onChanged: onChanged,
+        ),
+      ),
+    );
+  }
 }
+

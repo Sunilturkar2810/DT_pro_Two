@@ -49,17 +49,20 @@ class UserProvider extends ChangeNotifier {
     }
   }
 
-  /// Select a member and fetch their detailed profile + task stats
+  /// Select a member and fetch their detailed profile from /auth/users/:userId
   Future<void> fetchMemberProfile(UserModel member) async {
     _selectedMember = member;
     _memberProfile = null;
     _isMemberLoading = true;
     notifyListeners();
     try {
-      _memberProfile = await _userService.getMemberProfile(member.id);
+      // ✅ New backend: use getUserById instead of getMemberProfile
+      _memberProfile = await _userService.getUserById(member.id);
       print("✅ Member profile fetched for: ${member.fullName}");
     } catch (e) {
-      print("❌ Member Profile Provider Error: $e");
+      // Fall back to user model data if fetch fails
+      _memberProfile = member.toJson();
+      print("⚠️ Member Profile fallback: $e");
     } finally {
       _isMemberLoading = false;
       notifyListeners();

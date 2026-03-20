@@ -15,7 +15,9 @@ class GroupProvider extends ChangeNotifier {
   String? get errorMessage => _errorMessage;
   List<GroupModel> get myGroups => _myGroups;
   GroupModel? get selectedGroup => _selectedGroup;
-  List<dynamic> get groupTasks => _groupTasks;
+  List<dynamic> get groupMembers => _groupTasks; // primary: members
+  List<dynamic> get groupTasks => _groupTasks;   // alias for backward compat
+
 
   Future<void> fetchMyGroups() async {
     _isLoading = true;
@@ -60,7 +62,8 @@ class GroupProvider extends ChangeNotifier {
     try {
       final data = await _service.getGroupById(id);
       _selectedGroup = GroupModel.fromJson(data);
-      _groupTasks = await _service.getGroupTasks(id);
+      // ✅ New backend: get group members instead of tasks
+      _groupTasks = await _service.getGroupMembers(id);
     } catch (e) {
       _errorMessage = e.toString();
     } finally {
@@ -69,14 +72,31 @@ class GroupProvider extends ChangeNotifier {
     }
   }
 
-  Future<bool> assignTaskToGroup(String groupId, Map<String, dynamic> taskData) async {
+  Future<bool> updateGroup(String groupId, Map<String, dynamic> data) async {
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
 
     try {
-      await _service.assignTaskToGroup(groupId, taskData);
-      await fetchGroupDetails(groupId); // Refresh details and tasks
+      await _service.updateGroup(groupId, data);
+      await fetchMyGroups();
+      return true;
+    } catch (e) {
+      _errorMessage = e.toString();
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<bool> assignTaskToGroup(String groupId, Map<String, dynamic> data) async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      await _service.assignTaskToGroup(groupId, data);
+      await fetchGroupDetails(groupId);
       return true;
     } catch (e) {
       _errorMessage = e.toString();

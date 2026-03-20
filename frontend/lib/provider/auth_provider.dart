@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:d_table_delegate_system/model/user_model.dart';
 import 'package:d_table_delegate_system/services/auth_service.dart';
@@ -38,8 +39,8 @@ class AuthProvider extends ChangeNotifier {
       await box.put('auth_token', data['token']);
       await box.put('auth_user', jsonEncode(data['user']));
 
-      // ✅ User ID nikalne ke liye backup check
-      String fetchedId = data['user']['userId'] ?? data['user']['id'] ?? '';
+      // ✅ New backend: user.id field use hota hai
+      String fetchedId = data['user']['id'] ?? data['user']['userId'] ?? '';
       await box.put('auth_user_id', fetchedId);
 
       _currentUser = UserModel.fromJson(data['user']);
@@ -59,45 +60,6 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  // --- FORGOT PASSWORD METHOD ---
-  Future<String?> forgotPassword(String workEmail) async {
-    _isLoading = true;
-    _errorMessage = null;
-    notifyListeners();
-
-    try {
-      final resp = await _authService.forgotPassword(workEmail);
-      print("🔑 FORGOT PASSWORD SENT! Response: ${jsonEncode(resp)}");
-      return resp['resetToken'] as String?;
-    } catch (e) {
-      _errorMessage = e.toString().replaceAll('Exception: ', '');
-      print("🛑 FORGOT PASSWORD FAILED! Error: $_errorMessage");
-      return null;
-    } finally {
-      _isLoading = false;
-      notifyListeners();
-    }
-  }
-
-  // --- RESET PASSWORD METHOD ---
-  Future<bool> resetPassword(String resetToken, String newPassword) async {
-    _isLoading = true;
-    _errorMessage = null;
-    notifyListeners();
-
-    try {
-      final resp = await _authService.resetPassword(resetToken, newPassword);
-      print("🔑 RESET PASSWORD SUCCESS! Response: ${jsonEncode(resp)}");
-      return true;
-    } catch (e) {
-      _errorMessage = e.toString().replaceAll('Exception: ', '');
-      print("🛑 RESET PASSWORD FAILED! Error: $_errorMessage");
-      return false;
-    } finally {
-      _isLoading = false;
-      notifyListeners();
-    }
-  }
 
   // --- REGISTER METHOD ---
   Future<bool> register({
@@ -175,17 +137,22 @@ class AuthProvider extends ChangeNotifier {
   }
 
   // --- UPDATE PROFILE (AND PICTURE) ---
+  // ✅ New backend: userId required — PUT /auth/users/:userId
   Future<bool> updateProfile(Map<String, dynamic> updates) async {
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
 
     try {
-      final updatedData = await _authService.updateProfile(updates);
-      
-      // Update local state and save to Hive
-      _currentUser = UserModel.fromJson(updatedData);
-      
+      final userId = _currentUser?.id ?? Hive.box('settingsBox').get('auth_user_id') ?? '';
+      if (userId.isEmpty) throw 'User ID not found — please login again';
+
+      final updatedData = await _authService.updateProfile(userId, updates);
+
+      // Merge updated data with existing user (backend may return partial)
+      final merged = {...(_currentUser?.toJson() ?? {}), ...updatedData};
+      _currentUser = UserModel.fromJson(merged);
+
       final box = Hive.box('settingsBox');
       await box.put('auth_user', jsonEncode(_currentUser!.toJson()));
 
@@ -194,6 +161,44 @@ class AuthProvider extends ChangeNotifier {
     } catch (e) {
       _errorMessage = e.toString().replaceAll('Exception: ', '');
       print("🛑 PROFILE UPDATE FAILED! Error: $_errorMessage");
+      return false;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  // --- UPLOAD PROFILE IMAGE ---
+  Future<bool> uploadProfileImage(File file) async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      // 1. Upload image and get URL from backend
+      final responseData = await _authService.uploadProfileImage(file);
+      final newUrl = responseData['url'];
+
+      if (newUrl == null) throw 'Failed to get image URL from server';
+
+      // 2. Update user profile with new URL using existing userId
+      final userId = _currentUser?.id ?? Hive.box('settingsBox').get('auth_user_id') ?? '';
+      if (userId.isEmpty) throw 'User ID not found';
+
+      final updatedData = await _authService.updateProfile(userId, {'profilePhotoUrl': newUrl});
+
+      // 3. Update local state & storage
+      final merged = {...(_currentUser?.toJson() ?? {}), ...updatedData};
+      _currentUser = UserModel.fromJson(merged);
+
+      final box = Hive.box('settingsBox');
+      await box.put('auth_user', jsonEncode(_currentUser!.toJson()));
+
+      print("✅ PROFILE IMAGE UPLOADED & UPDATED SUCCESSFULLY!");
+      return true;
+    } catch (e) {
+      _errorMessage = e.toString().replaceAll('Exception: ', '');
+      print("🛑 UPLOAD FAILED! Error: $_errorMessage");
       return false;
     } finally {
       _isLoading = false;
@@ -235,14 +240,22 @@ class AuthProvider extends ChangeNotifier {
   }
 
   // --- ADMIN: UPDATE TEAM MEMBER ---
+  // ✅ New backend: PUT /auth/users/:userId
   Future<bool> updateTeamMemberDetails(String memberId, Map<String, dynamic> updates) async {
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
 
     try {
-      final updatedData = await _authService.updateTeamMember(memberId, updates);
+      await _authService.updateUser(memberId, updates);
       print("✅ TEAM MEMBER UPDATED SUCCESSFULLY!");
+      // Refresh users list
+      final idx = _allUsers.indexWhere((u) => u.id == memberId);
+      if (idx != -1) {
+        final updated = {..._allUsers[idx].toJson(), ...updates};
+        _allUsers[idx] = UserModel.fromJson(updated);
+        notifyListeners();
+      }
       return true;
     } catch (e) {
       _errorMessage = e.toString().replaceAll('Exception: ', '');

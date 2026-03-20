@@ -4,6 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 
+// ✅ New Backend: Register requires ADMIN/MANAGER token
+// This screen is now only accessible by logged-in Admins/Managers to add new users.
+// Self-signup is NOT supported by the new backend (erprld.com/api).
 class SignupScreen extends StatefulWidget {
   const SignupScreen({super.key});
 
@@ -43,6 +46,21 @@ class _SignupScreenState extends State<SignupScreen> {
   @override
   Widget build(BuildContext context) {
     final primaryColor = const Color(0xFF20E19F);
+    final authProvider = context.read<AuthProvider>();
+
+    // ⚠️ If user is not authenticated (ajeeb case), show info screen
+    if (!authProvider.isAuthenticated) {
+      return _buildNotAvailableScreen(context, primaryColor);
+    }
+
+    // ⚠️ Only Admin/Manager can access this screen
+    final isAdminOrManager = authProvider.isAdmin ||
+        (authProvider.currentUser?.role?.toUpperCase() == 'MANAGER') ||
+        (authProvider.currentUser?.role?.toUpperCase() == 'SUPERADMIN');
+
+    if (!isAdminOrManager) {
+      return _buildNotAvailableScreen(context, primaryColor);
+    }
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -51,7 +69,7 @@ class _SignupScreenState extends State<SignupScreen> {
           children: [
             // Header with Gradient
             Container(
-              height: MediaQuery.of(context).size.height * 0.25,
+              height: MediaQuery.of(context).size.height * 0.22,
               width: double.infinity,
               decoration: BoxDecoration(
                 gradient: LinearGradient(
@@ -70,20 +88,28 @@ class _SignupScreenState extends State<SignupScreen> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   const Text(
-                    'Create Account',
+                    'Add New User',
                     style: TextStyle(
                       color: Colors.white,
-                      fontSize: 32,
+                      fontSize: 30,
                       fontWeight: FontWeight.bold,
                       letterSpacing: 1,
                     ),
                   ),
                   const SizedBox(height: 8),
-                  Text(
-                    'Fill the details to get started',
-                    style: TextStyle(
-                      color: Colors.white.withOpacity(0.9),
-                      fontSize: 16,
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      'Admin / Manager Access',
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.9),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
                   ),
                 ],
@@ -91,7 +117,7 @@ class _SignupScreenState extends State<SignupScreen> {
             ),
 
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 30),
+              padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 24),
               child: Form(
                 key: _formKey,
                 child: Column(
@@ -132,10 +158,11 @@ class _SignupScreenState extends State<SignupScreen> {
                     _buildTextField(
                       controller: mobileController,
                       label: 'Mobile Number',
-                      hint: '+1 234 567 890',
+                      hint: '+91 XXXXX XXXXX',
                       icon: Icons.phone_outlined,
                       keyboardType: TextInputType.phone,
                       primaryColor: primaryColor,
+                      isRequired: false,
                     ),
                     const SizedBox(height: 15),
                     Row(
@@ -147,6 +174,7 @@ class _SignupScreenState extends State<SignupScreen> {
                             hint: 'Manager',
                             icon: Icons.work_outline,
                             primaryColor: primaryColor,
+                            isRequired: false,
                           ),
                         ),
                         const SizedBox(width: 15),
@@ -157,19 +185,20 @@ class _SignupScreenState extends State<SignupScreen> {
                             hint: 'Sales',
                             icon: Icons.business_outlined,
                             primaryColor: primaryColor,
+                            isRequired: false,
                           ),
                         ),
                       ],
                     ),
                     const SizedBox(height: 15),
 
-                    // Role Dropdown
+                    // Role Dropdown — New backend roles: ADMIN, MANAGER, User
                     _buildDropdown(primaryColor),
 
                     const SizedBox(height: 15),
                     _buildTextField(
                       controller: passwordController,
-                      label: 'Password',
+                      label: 'Initial Password',
                       hint: '••••••••',
                       icon: Icons.lock_outline,
                       isPassword: true,
@@ -194,9 +223,9 @@ class _SignupScreenState extends State<SignupScreen> {
                       },
                     ),
 
-                    const SizedBox(height: 30),
+                    const SizedBox(height: 28),
 
-                    // Sign Up Button
+                    // Add User Button
                     Consumer<AuthProvider>(
                       builder: (context, auth, _) {
                         return SizedBox(
@@ -219,12 +248,16 @@ class _SignupScreenState extends State<SignupScreen> {
 
                               if (success && mounted) {
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text('Registration Successful! Please Login.'), backgroundColor: Colors.green)
+                                    const SnackBar(
+                                        content: Text('User Added Successfully!'),
+                                        backgroundColor: Colors.green)
                                 );
                                 Navigator.pop(context);
                               } else if (mounted) {
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(content: Text(auth.errorMessage ?? 'Signup Failed'), backgroundColor: Colors.redAccent)
+                                    SnackBar(
+                                        content: Text(auth.errorMessage ?? 'Failed to add user'),
+                                        backgroundColor: Colors.redAccent)
                                 );
                               }
                             },
@@ -244,40 +277,72 @@ class _SignupScreenState extends State<SignupScreen> {
                               child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
                             )
                                 : const Text(
-                              'SIGN UP',
+                              'ADD USER',
                               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, letterSpacing: 1.2),
                             ),
                           ),
                         );
                       },
                     ),
-
-                    const SizedBox(height: 25),
-
-                    // Login Navigation
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          "Already have an account? ",
-                          style: TextStyle(color: Colors.grey[600]),
-                        ),
-                        GestureDetector(
-                          onTap: () => Navigator.pop(context),
-                          child: Text(
-                            "Login",
-                            style: TextStyle(
-                              color: primaryColor,
-                              fontWeight: FontWeight.bold,
-                              decoration: TextDecoration.underline,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 30),
+                    const SizedBox(height: 20),
                   ],
                 ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Shown when non-admin tries to access this screen
+  Widget _buildNotAvailableScreen(BuildContext context, Color primaryColor) {
+    return Scaffold(
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        backgroundColor: primaryColor,
+        iconTheme: const IconThemeData(color: Colors.white),
+        title: const Text('Create Account', style: TextStyle(color: Colors.white)),
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(30),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: primaryColor.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.admin_panel_settings_outlined,
+                  size: 60, color: Color(0xFF20E19F)),
+            ),
+            const SizedBox(height: 28),
+            const Text(
+              'Admin Access Required',
+              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'New user registration requires an Administrator or Manager to add you to the system.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 15, color: Colors.grey[600], height: 1.5),
+            ),
+            const SizedBox(height: 36),
+            SizedBox(
+              width: double.infinity,
+              height: 52,
+              child: ElevatedButton(
+                onPressed: () => Navigator.pop(context),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: primaryColor,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                ),
+                child: const Text('BACK TO LOGIN',
+                    style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1.2)),
               ),
             ),
           ],
@@ -296,6 +361,7 @@ class _SignupScreenState extends State<SignupScreen> {
     VoidCallback? onTogglePassword,
     TextInputType? keyboardType,
     required Color primaryColor,
+    bool isRequired = true,
     String? Function(String?)? validator,
   }) {
     return Column(
@@ -315,14 +381,18 @@ class _SignupScreenState extends State<SignupScreen> {
             controller: controller,
             obscureText: obscureText,
             keyboardType: keyboardType,
-            validator: validator ?? (v) => v == null || v.isEmpty ? 'Required' : null,
+            validator: validator ?? (v) {
+              if (isRequired && (v == null || v.isEmpty)) return 'Required';
+              return null;
+            },
             decoration: InputDecoration(
               hintText: hint,
               hintStyle: TextStyle(color: Colors.grey[400], fontSize: 14),
               prefixIcon: Icon(icon, color: primaryColor, size: 22),
               suffixIcon: isPassword
                   ? IconButton(
-                icon: Icon(obscureText ? Icons.visibility_off : Icons.visibility, color: Colors.grey[400], size: 20),
+                icon: Icon(obscureText ? Icons.visibility_off : Icons.visibility,
+                    color: Colors.grey[400], size: 20),
                 onPressed: onTogglePassword,
               )
                   : null,
@@ -340,7 +410,8 @@ class _SignupScreenState extends State<SignupScreen> {
     return AppDropdown<String>(
       isCompact: false,
       value: _selectedRole,
-      items: const ['User', 'Admin', 'Manager'],
+      // New backend roles
+      items: const ['User', 'MANAGER', 'ADMIN'],
       labelBuilder: (v) => v,
       label: 'ROLE',
       prefixIcon: Icons.security_outlined,

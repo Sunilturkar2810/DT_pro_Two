@@ -32,20 +32,31 @@ class DelegationModel {
   String assingDoerId;
   String priority;
   String dueDate;
+  String? startDate;
   String status;
   bool evidenceRequired;
   List<RemarkModel> remarks;
+  String createdAt;
 
   // Additional fields from backend
   List<String> inLoopIds;
   String category;
   String? asset;
   List<Map<String, dynamic>> checklistItems;
+  List<String> tagsList;
 
   // Media & references
   String? voiceNoteUrl;       // uploaded voice recording URL
   List<String> referenceDocs; // uploaded attachment URLs
   String? reminderAt;         // ISO string of reminder time (stored in tags)
+  
+  // Recurrence
+  bool isRecurring;
+  String? recurringFrequency;
+  int? recurringInterval;
+  String? recurringType;
+  List<String> recurringDays;
+  int? periodicallyDays;
 
   // Backend se directly aane wale names (list API se)
   String delegatorName;
@@ -59,18 +70,27 @@ class DelegationModel {
     required this.assingDoerId,
     required this.priority,
     required this.dueDate,
+    this.startDate,
     this.status = "Pending",
     this.evidenceRequired = false,
     this.remarks = const [],
     this.inLoopIds = const [],
     this.category = "General",
     this.checklistItems = const [],
+    this.tagsList = const [],
     this.delegatorName = '',
     this.assigneeName = '',
     this.asset,
     this.voiceNoteUrl,
     this.referenceDocs = const [],
     this.reminderAt,
+    this.isRecurring = false,
+    this.recurringFrequency,
+    this.recurringInterval,
+    this.recurringType,
+    this.recurringDays = const [],
+    this.periodicallyDays,
+    this.createdAt = '',
   });
 
   factory DelegationModel.fromJson(Map<String, dynamic> json) {
@@ -103,11 +123,19 @@ class DelegationModel {
       } catch (_) {}
     }
 
-    // Parse reminderAt from tags jsonb
+    // Parse reminderAt from tags jsonb and also parse text tags
     String? reminderAt;
+    List<String> tagsList = [];
     final rawTags = json['tags'];
     if (rawTags is Map) {
       reminderAt = rawTags['reminderAt']?.toString();
+    } else if (rawTags is List) {
+      tagsList = rawTags.map((e) => e.toString()).toList();
+    } else if (rawTags is String && rawTags.isNotEmpty) {
+      try {
+        final parsed = rawTags.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
+        tagsList = parsed;
+      } catch (_) {}
     }
 
     return DelegationModel(
@@ -118,18 +146,27 @@ class DelegationModel {
       assingDoerId: json['doerId'] ?? json['doer_id'] ?? json['assingDoerId'] ?? json['assing_doer_id'] ?? '',
       priority: json['priority'] ?? 'Medium',
       dueDate: json['dueDate'] ?? json['due_date'] ?? '',
+      startDate: json['startDate'] ?? json['start_date'],
       status: json['status'] ?? 'Pending',
       evidenceRequired: json['evidenceRequired'] == true || json['evidence_required'] == true || json['evidenceRequired'] == 1 || json['evidence_required'] == 1,
       remarks: remarksList,
       inLoopIds: inLoopList,
       category: json['category'] ?? 'General',
       checklistItems: checklistItemsList,
+      tagsList: tagsList,
       delegatorName: '$delegatorFirst $delegatorLast'.trim(),
       assigneeName: '$assigneeFirst $assigneeLast'.trim(),
       asset: json['asset'],
       voiceNoteUrl: json['voiceNoteUrl'] ?? json['voice_note_url'],
       referenceDocs: refDocsList,
       reminderAt: reminderAt,
+      isRecurring: json['isRecurring'] == true || json['is_recurring'] == true,
+      recurringFrequency: json['recurringFrequency'] ?? json['recurring_frequency'],
+      recurringInterval: json['recurringInterval'] ?? json['recurring_interval'],
+      recurringType: json['recurringType'] ?? json['recurring_type'],
+      recurringDays: (json['recurringDays'] is List) ? List<String>.from(json['recurringDays']) : [],
+      periodicallyDays: json['periodicallyDays'] ?? json['periodically_days'],
+      createdAt: json['createdAt'] ?? json['created_at'] ?? json['date'] ?? '',
     );
   }
 
@@ -141,6 +178,7 @@ class DelegationModel {
       "doerId": assingDoerId,
       "priority": priority,
       "dueDate": dueDate,
+      "startDate": startDate,
       "status": status,
       "evidenceRequired": evidenceRequired,
       "inLoopIds": inLoopIds,
@@ -150,6 +188,12 @@ class DelegationModel {
       if (voiceNoteUrl != null) "voiceNoteUrl": voiceNoteUrl,
       if (referenceDocs.isNotEmpty) "referenceDocs": referenceDocs.join(','),
       if (reminderAt != null) "tags": {"reminderAt": reminderAt},
+      "isRecurring": isRecurring,
+      if (recurringFrequency != null) "recurringFrequency": recurringFrequency,
+      if (recurringInterval != null) "recurringInterval": recurringInterval,
+      if (recurringType != null) "recurringType": recurringType,
+      if (recurringDays.isNotEmpty) "recurringDays": recurringDays,
+      if (periodicallyDays != null) "periodicallyDays": periodicallyDays,
     };
   }
 

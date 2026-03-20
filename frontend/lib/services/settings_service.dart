@@ -1,10 +1,13 @@
 import 'package:dio/dio.dart';
 import '../config/api_constants.dart';
+import 'dio_client.dart';
 
 class SettingsService {
-  final Dio _dio;
+  late final Dio _dio;
 
-  SettingsService(this._dio);
+  SettingsService({Dio? dio}) {
+    _dio = dio ?? DioClient().dio;
+  }
 
   // General Settings
   Future<Map<String, dynamic>> getGeneralSettings() async {
@@ -103,6 +106,26 @@ class SettingsService {
         },
       );
       return response.data;
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  Future<void> changeCredentials({
+    required String userId,
+    required String oldPassword,
+    required String newPassword,
+    String? newEmail,
+  }) async {
+    try {
+      await _dio.put(
+        '/auth/users/$userId/credentials',
+        data: {
+          'oldPassword': oldPassword,
+          'newPassword': newPassword,
+          if (newEmail != null) 'newEmail': newEmail,
+        },
+      );
     } catch (e) {
       rethrow;
     }

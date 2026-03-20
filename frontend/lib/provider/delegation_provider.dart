@@ -6,10 +6,12 @@ class DelegationProvider extends ChangeNotifier {
   final DelegationService _service = DelegationService();
 
   List<DelegationModel> _delegations = [];
+  List<DelegationModel> _deletedDelegations = [];
   bool _isLoading = false;
   String? _errorMessage;
 
   List<DelegationModel> get delegations => _delegations;
+  List<DelegationModel> get deletedDelegations => _deletedDelegations;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
 
@@ -26,6 +28,45 @@ class DelegationProvider extends ChangeNotifier {
     } catch (e) {
       _errorMessage = e.toString();
       print("❌ Fetch Error: $_errorMessage");
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  // --- 1b. Fetch Deleted Delegations ---
+  Future<void> fetchDeleted() async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final List<dynamic> rawData = await _service.getDeletedDelegations();
+      _deletedDelegations = rawData.map((item) => DelegationModel.fromJson(item)).toList();
+      print("✅ Fetched ${_deletedDelegations.length} deleted delegations");
+    } catch (e) {
+      _errorMessage = e.toString();
+      print("❌ Fetch Deleted Error: $_errorMessage");
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+  
+  // --- Restore Delegation ---
+  Future<bool> restoreTask(String id) async {
+    _isLoading = true;
+    notifyListeners();
+    try {
+      await _service.restoreDelegation(id);
+      _deletedDelegations.removeWhere((item) => item.id == id);
+      // Wait for original list to refresh
+      await fetchAll();
+      return true;
+    } catch (e) {
+      _errorMessage = e.toString();
+      print("❌ Restore Error: $_errorMessage");
+      return false;
     } finally {
       _isLoading = false;
       notifyListeners();

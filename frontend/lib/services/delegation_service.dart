@@ -27,6 +27,16 @@ class DelegationService {
     }
   }
 
+  // 2b. GET DELETED DELEGATIONS
+  Future<List<dynamic>> getDeletedDelegations() async {
+    try {
+      final response = await _dio.get(ApiConstants.deletedDelegations);
+      return response.data['data'] ?? [];
+    } catch (e) {
+      rethrow;
+    }
+  }
+
   // 3. CREATE
   Future<Map<String, dynamic>> createDelegation(
       Map<String, dynamic> data) async {
@@ -69,6 +79,17 @@ class DelegationService {
     } on DioException catch (e) {
       print('❌ DELETE ERROR: ${e.response?.statusCode}');
       print('❌ BODY: ${e.response?.data}');
+      rethrow;
+    }
+  }
+
+  // 5b. RESTORE DELEGATION
+  Future<void> restoreDelegation(String id) async {
+    try {
+      final response = await _dio.post(ApiConstants.delegationRestore(id));
+      print('✅ RESTORE SUCCESS: ${response.statusCode}');
+    } on DioException catch (e) {
+      print('❌ RESTORE ERROR: ${e.response?.data}');
       rethrow;
     }
   }
@@ -136,8 +157,9 @@ class DelegationService {
 
       print('📤 Uploading file: $fileName to folder: $folder');
 
+      // ✅ New backend upload route: /upload/profile-image
       final response = await uploadDio.post(
-        '${ApiConstants.delegations}/upload?folder=$folder',
+        '${ApiConstants.uploadProfileImage}?folder=$folder',
         data: formData,
         options: Options(
           contentType: 'multipart/form-data',

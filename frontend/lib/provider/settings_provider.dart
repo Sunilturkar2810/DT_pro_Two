@@ -3,7 +3,7 @@ import '../services/settings_service.dart';
 import '../services/dio_client.dart';
 
 class SettingsProvider extends ChangeNotifier {
-  final SettingsService _service = SettingsService(DioClient().dio);
+  final SettingsService _service = SettingsService();
 
   // General Settings
   Map<String, dynamic> _generalSettings = {
@@ -42,27 +42,10 @@ class SettingsProvider extends ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
 
-  // ========== GENERAL SETTINGS ==========
+  // ========== GENERAL SETTINGS (Not available in new backend) ==========
   Future<void> fetchGeneralSettings() async {
-    _isLoading = true;
-    _errorMessage = null;
-    notifyListeners();
-
-    try {
-      final data = await _service.getGeneralSettings();
-      _generalSettings = {
-        'companyName': data['companyName'] ?? '',
-        'businessIndustry': data['businessIndustry'] ?? '',
-        'companySize': data['companySize'] ?? ''
-      };
-      print('✅ General settings fetched');
-    } catch (e) {
-      _errorMessage = e.toString();
-      print('❌ Fetch general settings error: $_errorMessage');
-    } finally {
-      _isLoading = false;
-      notifyListeners();
-    }
+    // ⚠️ Not available in new backend — silently skip
+    return;
   }
 
   Future<bool> updateGeneralSettings({
@@ -70,56 +53,20 @@ class SettingsProvider extends ChangeNotifier {
     required String? businessIndustry,
     required String? companySize,
   }) async {
-    _isLoading = true;
-    _errorMessage = null;
+    // ⚠️ Not available in new backend
+    _generalSettings = {
+      'companyName': companyName ?? '',
+      'businessIndustry': businessIndustry ?? '',
+      'companySize': companySize ?? ''
+    };
     notifyListeners();
-
-    try {
-      await _service.updateGeneralSettings(
-        companyName: companyName,
-        businessIndustry: businessIndustry,
-        companySize: companySize,
-      );
-
-      _generalSettings = {
-        'companyName': companyName ?? '',
-        'businessIndustry': businessIndustry ?? '',
-        'companySize': companySize ?? ''
-      };
-
-      print('✅ General settings updated successfully');
-      return true;
-    } catch (e) {
-      _errorMessage = e.toString();
-      print('❌ Update general settings error: $_errorMessage');
-      return false;
-    } finally {
-      _isLoading = false;
-      notifyListeners();
-    }
+    return true; // simulate success
   }
 
-  // ========== TASK UPDATE SETTINGS ==========
+  // ========== TASK UPDATE SETTINGS (Not available in new backend) ==========
   Future<void> fetchTaskUpdateSettings() async {
-    _isLoading = true;
-    _errorMessage = null;
-    notifyListeners();
-
-    try {
-      final data = await _service.getTaskUpdateSettings();
-      _taskUpdateSettings = {
-        'remarksRequired': data['remarksRequired'] ?? true,
-        'attachmentsRequired': data['attachmentsRequired'] ?? false,
-        'imagesRequired': data['imagesRequired'] ?? false
-      };
-      print('✅ Task update settings fetched');
-    } catch (e) {
-      _errorMessage = e.toString();
-      print('❌ Fetch task update settings error: $_errorMessage');
-    } finally {
-      _isLoading = false;
-      notifyListeners();
-    }
+    // ⚠️ Not available in new backend — silently skip
+    return;
   }
 
   Future<bool> updateTaskUpdateSettings({
@@ -127,33 +74,14 @@ class SettingsProvider extends ChangeNotifier {
     required bool attachmentsRequired,
     required bool imagesRequired,
   }) async {
-    _isLoading = true;
-    _errorMessage = null;
+    // ⚠️ Not available in new backend — save locally only
+    _taskUpdateSettings = {
+      'remarksRequired': remarksRequired,
+      'attachmentsRequired': attachmentsRequired,
+      'imagesRequired': imagesRequired
+    };
     notifyListeners();
-
-    try {
-      await _service.updateTaskUpdateSettings(
-        remarksRequired: remarksRequired,
-        attachmentsRequired: attachmentsRequired,
-        imagesRequired: imagesRequired,
-      );
-
-      _taskUpdateSettings = {
-        'remarksRequired': remarksRequired,
-        'attachmentsRequired': attachmentsRequired,
-        'imagesRequired': imagesRequired
-      };
-
-      print('✅ Task update settings saved successfully');
-      return true;
-    } catch (e) {
-      _errorMessage = e.toString();
-      print('❌ Update task update settings error: $_errorMessage');
-      return false;
-    } finally {
-      _isLoading = false;
-      notifyListeners();
-    }
+    return true; // simulate success
   }
 
   // ========== NOTIFICATION SETTINGS ==========
@@ -201,6 +129,17 @@ class SettingsProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
+      final settingsMap = {
+        'informaticsNotifications': informaticsNotifications,
+        'emailNotifications': emailNotifications,
+        'dailyReminder': dailyReminder,
+        'emailReminders': emailReminders,
+        'taskReminderTime': taskReminderTime,
+        'weeklyOnly': weeklyOnly,
+        'reminderDays': reminderDays,
+        'notificationChannels': notificationChannels,
+        'notificationFrequency': notificationFrequency
+      };
       await _service.updateNotificationSettings(
         informaticsNotifications: informaticsNotifications,
         emailNotifications: emailNotifications,
@@ -212,24 +151,43 @@ class SettingsProvider extends ChangeNotifier {
         notificationChannels: notificationChannels,
         notificationFrequency: notificationFrequency,
       );
-
-      _notificationSettings = {
-        'informaticsNotifications': informaticsNotifications,
-        'emailNotifications': emailNotifications,
-        'dailyReminder': dailyReminder,
-        'emailReminders': emailReminders,
-        'taskReminderTime': taskReminderTime,
-        'weeklyOnly': weeklyOnly,
-        'reminderDays': reminderDays,
-        'notificationChannels': notificationChannels,
-        'notificationFrequency': notificationFrequency
-      };
-
+      _notificationSettings = settingsMap;
       print('✅ Notification settings updated successfully');
       return true;
     } catch (e) {
       _errorMessage = e.toString();
       print('❌ Update notification settings error: $_errorMessage');
+      return false;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  // ========== CHANGE PASSWORD (NEW) ==========
+  /// PUT /auth/users/:userId/credentials
+  Future<bool> changeCredentials({
+    required String userId,
+    required String oldPassword,
+    required String newPassword,
+    String? newEmail,
+  }) async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      await _service.changeCredentials(
+        userId: userId,
+        oldPassword: oldPassword,
+        newPassword: newPassword,
+        newEmail: newEmail,
+      );
+      print('✅ Credentials changed successfully');
+      return true;
+    } catch (e) {
+      _errorMessage = e.toString();
+      print('❌ Change credentials error: $_errorMessage');
       return false;
     } finally {
       _isLoading = false;

@@ -1,0 +1,117 @@
+name: Deploy Kesariya (Node backend + Vite frontend) to EC2
+
+on:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: deploy-kesariya
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Prepare SSH values
+        shell: bash
+        run: |
+          echo "EC2_HOST=$(echo '${{ secrets.EC2_HOST }}' | tr -d '\r\n' | xargs)" >> $GITHUB_ENV
+          echo "EC2_USER=$(echo '${{ secrets.EC2_USER }}' | tr -d '\r\n' | xargs)" >> $GITHUB_ENV
+
+      - name: Write SSH key from base64
+        shell: bash
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.EC2_SSH_KEY_B64 }}" | base64 -d > ~/.ssh/ec2_key
+          chmod 600 ~/.ssh/ec2_key
+          ssh-keyscan -H "$EC2_HOST" >> ~/.ssh/known_hosts
+
+      - name: Test SSH connection
+        shell: bash
+        run: |
+          ssh -i ~/.ssh/ec2_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=no "$EC2_USER@$EC2_HOST" "echo SSH connected successfully"
+
+      - name: Deploy to EC2
+        shell: bash
+        run: |
+          ssh -i ~/.ssh/ec2_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=no "$EC2_USER@$EC2_HOST" << 'EOF'
+            set -e
+
+            PROJECT_DIR="/home/ubuntu/kesariyaGroup"
+            BACKEND_DIR="$PROJECT_DIR/backend"
+            FRONTEND_DIR="$PROJECT_DIR/Frontend"
+            NGINX_DIR="/var/www/html"
+
+            echo "📂 Moving to project directory..."
+            cd "$PROJECT_DIR"
+
+            echo "⬇️ Fetching latest code..."
+            git fetch origin
+
+            if git show-ref --verify --quiet refs/heads/main; then
+              git checkout main
+            else
+              git checkout -b main origin/main
+            fi
+
+            echo "🔄 Resetting to latest origin/main..."
+            git reset --hard origin/main
+
+            echo "🟢 Deploying backend..."
+            if [ -d "$BACKEND_DIR" ]; then
+              cd "$BACKEND_DIR"
+
+              echo "📦 Installing backend dependencies..."
+              npm install
+
+              echo "🔁 Restarting backend with PM2..."
+              if command -v pm2 >/dev/null 2>&1; then
+                if pm2 describe kesariya-backend >/dev/null 2>&1; then
+                  pm2 restart kesariya-backend --update-env
+                else
+                  pm2 start src/index.js --name "kesariya-backend"
+                fi
+              else
+                echo "📦 Installing PM2..."
+                sudo npm install -g pm2
+                pm2 start src/index.js --name "kesariya-backend"
+              fi
+
+              pm2 save
+              pm2 status
+              cd "$PROJECT_DIR"
+            else
+              echo "⚠️ Backend directory not found."
+            fi
+
+            echo "🧱 Deploying frontend..."
+            if [ -d "$FRONTEND_DIR" ]; then
+              cd "$FRONTEND_DIR"
+
+              echo "📦 Installing frontend dependencies..."
+              npm install
+
+              echo "🏗 Building frontend..."
+              npm run build
+
+              echo "📁 Copying dist to nginx root..."
+              sudo mkdir -p "$NGINX_DIR"
+              sudo rm -rf "$NGINX_DIR"/*
+              sudo cp -r dist/* "$NGINX_DIR"/
+
+              echo "🔁 Restarting nginx..."
+              sudo systemctl restart nginx
+              sudo systemctl enable nginx
+
+              cd "$PROJECT_DIR"
+            else
+              echo "⚠️ Frontend directory not found."
+            fi
+
+            echo "✅ Deployment completed successfully."
+          EOF

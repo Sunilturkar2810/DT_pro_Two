@@ -7,6 +7,9 @@ class DashboardProvider extends ChangeNotifier {
   String _selectedFilter = "All Time";
   String _selectedTab = "My Report";
   String _selectedCategory = "Category";
+  String _selectedTag = "Tag";
+  String _selectedFrequency = "Frequency";
+  String? _selectedUserId;
   String _selectedStatus = "Status";
   String _searchQuery = "";
   
@@ -21,11 +24,16 @@ class DashboardProvider extends ChangeNotifier {
     "total": 0, "pending": 0, "inProgress": 0, "done": 0, "overdue": 0, "onTime": 0, "delayed": 0
   };
   List<dynamic> _categoryStats = [];
+  List<dynamic> _overdueTasks = [];
   List<String> _categories = [];
+  Map<String, dynamic> _charts = {};
 
   String get selectedFilter => _selectedFilter;
   String get selectedTab => _selectedTab;
   String get selectedCategory => _selectedCategory;
+  String get selectedTag => _selectedTag;
+  String get selectedFrequency => _selectedFrequency;
+  String? get selectedUserId => _selectedUserId;
   String get selectedStatus => _selectedStatus;
   String get searchQuery => _searchQuery;
 
@@ -37,7 +45,9 @@ class DashboardProvider extends ChangeNotifier {
   String? get errorMessage => _errorMessage;
   Map<String, dynamic> get taskStats => _taskStats;
   List<dynamic> get categoryStats => _categoryStats;
+  List<dynamic> get overdueTasks => _overdueTasks;
   List<String> get categories => _categories;
+  Map<String, dynamic> get charts => _charts;
 
   void setFilter(String filter, {DateTime? startDate, DateTime? endDate}) {
     _selectedFilter = filter;
@@ -64,6 +74,24 @@ class DashboardProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  void setTag(String tag) {
+    _selectedTag = tag;
+    fetchDashboardStats();
+    notifyListeners();
+  }
+
+  void setFrequency(String freq) {
+    _selectedFrequency = freq;
+    fetchDashboardStats();
+    notifyListeners();
+  }
+
+  void setSelectedUserId(String? id) {
+    _selectedUserId = id;
+    fetchDashboardStats();
+    notifyListeners();
+  }
+
   void setStatus(String status) {
     _selectedStatus = status;
     fetchDashboardStats();
@@ -79,7 +107,10 @@ class DashboardProvider extends ChangeNotifier {
   void resetFilters() {
     _selectedFilter = "All Time";
     _selectedCategory = "Category";
+    _selectedTag = "Tag";
+    _selectedFrequency = "Frequency";
     _selectedStatus = "Status";
+    _selectedUserId = null;
     _searchQuery = "";
     fetchDashboardStats();
     notifyListeners();
@@ -101,19 +132,31 @@ class DashboardProvider extends ChangeNotifier {
         tab: _selectedTab,
         category: _selectedCategory,
         status: _selectedStatus,
+        tag: _selectedTag,
+        frequency: _selectedFrequency,
+        userId: _selectedUserId,
         search: _searchQuery,
         startDate: _customStartDate?.toIso8601String().split('T')[0],
         endDate: _customEndDate?.toIso8601String().split('T')[0],
       );
-      print("📊 Dashboard API Data: $data");
-      if (data != null && data['success'] == true) {
-        _taskStats = Map<String, dynamic>.from(data['stats'] ?? _taskStats);
-        _categoryStats = List<dynamic>.from(data['tableData']?['employees'] ?? []);
+      
+      if (data != null) {
+        _taskStats = {
+          "total": data['total'] ?? 0,
+          "done": data['completed'] ?? 0,
+          "inProgress": data['inProgress'] ?? 0,
+          "pending": data['pending'] ?? 0,
+          "overdue": data['overdue'] ?? 0,
+          "onTime": data['onTime'] ?? 0,
+          "delayed": data['delayed'] ?? 0,
+        };
         
-        // Populate categories from the stats if needed or keep as is
+        _categoryStats = List<dynamic>.from(data['tableData'] ?? []);
+        _overdueTasks = List<dynamic>.from(data['overdueTasks'] ?? []);
+        _charts = data['charts'] ?? {};
+        
         if (_selectedCategory == "Category" || _selectedCategory == "All") {
-          // You could extract unique categories from categoryStats here if backend doesn't provide them
-          _categories = _categoryStats.map((e) => e['category']?.toString() ?? "General").toSet().toList().cast<String>();
+          _categories = _categoryStats.map((e) => e['name']?.toString() ?? "General").toSet().toList().cast<String>();
         }
       }
     } catch (e) {

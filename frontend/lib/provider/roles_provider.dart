@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 import '../services/roles_service.dart';
-import '../services/dio_client.dart';
 
 class RolesProvider extends ChangeNotifier {
-  final RolesService _service = RolesService(DioClient().dio);
+  final RolesService _service = RolesService();
 
   List<Map<String, dynamic>> _roles = [];
   Map<String, dynamic>? _selectedRole;
@@ -22,8 +21,9 @@ class RolesProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
+      // ✅ New backend: getAllRoles returns List<dynamic> directly
       final response = await _service.getAllRoles();
-      _roles = List<Map<String, dynamic>>.from(response['roles'] ?? []);
+      _roles = response.map((e) => Map<String, dynamic>.from(e)).toList();
       print('✅ All roles fetched: ${_roles.length} roles');
     } catch (e) {
       _errorMessage = e.toString();
@@ -34,23 +34,11 @@ class RolesProvider extends ChangeNotifier {
     }
   }
 
-  // ========== GET SINGLE ROLE ==========
+  // ========== GET SINGLE ROLE (Not available via separate endpoint in new backend) ==========
   Future<void> fetchRoleWithPermissions(String roleId) async {
-    _isLoading = true;
-    _errorMessage = null;
+    // Fetch from cached list
+    _selectedRole = getRoleById(roleId);
     notifyListeners();
-
-    try {
-      final response = await _service.getRoleWithPermissions(roleId);
-      _selectedRole = response['role'] as Map<String, dynamic>;
-      print('✅ Role with permissions fetched: ${_selectedRole?['name']}');
-    } catch (e) {
-      _errorMessage = e.toString();
-      print('❌ Fetch role error: $_errorMessage');
-    } finally {
-      _isLoading = false;
-      notifyListeners();
-    }
   }
 
   // ========== CREATE ROLE ==========
@@ -82,95 +70,35 @@ class RolesProvider extends ChangeNotifier {
     }
   }
 
-  // ========== UPDATE ROLE ==========
+  // ========== UPDATE ROLE (Not available in new backend) ==========
   Future<bool> updateRole({
     required String roleId,
     required String name,
     required String? description,
   }) async {
-    _isLoading = true;
-    _errorMessage = null;
+    // ⚠️ Not available in new backend
+    _errorMessage = 'Update role not available in current backend';
     notifyListeners();
-
-    try {
-      await _service.updateRole(
-        roleId: roleId,
-        name: name,
-        description: description,
-      );
-
-      print('✅ Role updated successfully');
-      // Refresh all roles
-      await fetchAllRoles();
-      return true;
-    } catch (e) {
-      _errorMessage = e.toString();
-      print('❌ Update role error: $_errorMessage');
-      return false;
-    } finally {
-      _isLoading = false;
-      notifyListeners();
-    }
+    return false;
   }
 
-  // ========== DELETE ROLE ==========
+  // ========== DELETE ROLE (Not available in new backend) ==========
   Future<bool> deleteRole(String roleId) async {
-    _isLoading = true;
-    _errorMessage = null;
+    // ⚠️ Not available in new backend
+    _errorMessage = 'Delete role not available in current backend';
     notifyListeners();
-
-    try {
-      await _service.deleteRole(roleId);
-      print('✅ Role deleted successfully');
-      // Refresh all roles
-      await fetchAllRoles();
-      return true;
-    } catch (e) {
-      _errorMessage = e.toString();
-      print('❌ Delete role error: $_errorMessage');
-      return false;
-    } finally {
-      _isLoading = false;
-      notifyListeners();
-    }
+    return false;
   }
 
-  // ========== UPDATE ROLE PERMISSIONS ==========
+  // ========== UPDATE ROLE PERMISSIONS (Not available in new backend) ==========
   Future<bool> updateRolePermissions({
     required String roleId,
     required Map<String, bool> permissions,
   }) async {
-    _isLoading = true;
-    _errorMessage = null;
+    // ⚠️ Not available in new backend
+    _errorMessage = 'Update permissions not available in current backend';
     notifyListeners();
-
-    try {
-      final response = await _service.updateRolePermissions(
-        roleId: roleId,
-        permissions: permissions,
-      );
-
-      // Update selectedRole if it's the one being updated
-      if (_selectedRole?['id'] == roleId) {
-        _selectedRole?['permissions'] = response['data']['permissions'];
-      }
-
-      // Update in roles list
-      final roleIndex = _roles.indexWhere((role) => role['id'] == roleId);
-      if (roleIndex != -1) {
-        _roles[roleIndex]['permissions'] = response['data']['permissions'];
-      }
-
-      print('✅ Role permissions updated successfully');
-      return true;
-    } catch (e) {
-      _errorMessage = e.toString();
-      print('❌ Update permissions error: $_errorMessage');
-      return false;
-    } finally {
-      _isLoading = false;
-      notifyListeners();
-    }
+    return false;
   }
 
   // ========== GET ROLE BY ID (from cached list) ==========

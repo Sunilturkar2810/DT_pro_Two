@@ -74,6 +74,18 @@ class UserModel {
     );
   }
 
+  factory UserModel.empty() {
+    return UserModel(
+      id: '',
+      firstName: '',
+      lastName: '',
+      workEmail: '',
+      role: '',
+      designation: '',
+      department: '',
+    );
+  }
+
   Map<String, dynamic> toJson() {
     return {
       'id': id,

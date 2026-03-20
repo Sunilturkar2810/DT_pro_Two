@@ -11,6 +11,9 @@ import 'package:d_table_delegate_system/provider/settings_provider.dart';
 import 'package:d_table_delegate_system/provider/export_provider.dart';
 import 'package:d_table_delegate_system/provider/roles_provider.dart';
 import 'package:d_table_delegate_system/provider/holiday_provider.dart';
+import 'package:d_table_delegate_system/provider/tag_provider.dart';
+import 'package:d_table_delegate_system/provider/activity_provider.dart';
+import 'package:d_table_delegate_system/provider/task_template_provider.dart';
 import 'package:d_table_delegate_system/screen/animated_splash_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
@@ -46,6 +49,9 @@ void main() async {
         ChangeNotifierProvider(create: (_) => ExportProvider()),
         ChangeNotifierProvider(create: (_) => RolesProvider()),
         ChangeNotifierProvider(create: (_) => HolidayProvider()),
+        ChangeNotifierProvider(create: (_) => TagProvider()),
+        ChangeNotifierProvider(create: (_) => ActivityProvider()),
+        ChangeNotifierProvider(create: (_) => TaskTemplateProvider()),
       ],
       child: const MyApp(),
     ),

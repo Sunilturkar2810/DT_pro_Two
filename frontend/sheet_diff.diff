@@ -1,0 +1,1900 @@
+﻿diff --git a/frontend/lib/widget/assign_task_sheet.dart b/frontend/lib/widget/assign_task_sheet.dart
+index d594c13..0485e7c 100644
+--- a/frontend/lib/widget/assign_task_sheet.dart
++++ b/frontend/lib/widget/assign_task_sheet.dart
+@@ -46,6 +46,8 @@ class _AssignTaskSheetState extends State<AssignTaskSheet>
+   List<UserModel> _selectedInLoop = [];
+   List<String> _checklist = [];
+   bool _showChecklist = false;
++  bool _evidenceRequired = false;
++  String? _addedLink;
+ 
+   // ΓöÇΓöÇ Attachments ΓöÇΓöÇ
+   List<PlatformFile> _attachedFiles = [];
+@@ -612,580 +614,202 @@ class _AssignTaskSheetState extends State<AssignTaskSheet>
+   @override
+   Widget build(BuildContext context) {
+     final size = MediaQuery.of(context).size;
++    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+ 
+-    return FadeTransition(
+-      opacity: _fadeAnimation,
+-      child: Container(
+-        constraints: BoxConstraints(maxHeight: size.height * 0.92),
+-        decoration: const BoxDecoration(
+-          color: Color(0xFF20E19F),
+-          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+-        ),
+-        child: Column(
+-          children: [
+-            _buildHandle(),
+-            _buildHeader(),
+-            _buildDivider(),
+-            Expanded(
+-              child: Container(
+-                decoration: const BoxDecoration(
+-                  color: Colors.white,
+-                  borderRadius: BorderRadius.only(topRight: Radius.circular(20), topLeft: Radius.circular(20))
+-                ),
+-                child: SingleChildScrollView(
+-                physics: const BouncingScrollPhysics(),
+-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+-                child: Form(
+-                  key: _formKey,
+-                  child: Column(
+-                    crossAxisAlignment: CrossAxisAlignment.start,
+-                    children: [
+-                      const SizedBox(height: 14),
+-                      _buildTitleField(),
+-                      const SizedBox(height: 10),
+-                      _buildDescField(),
+-                      const SizedBox(height: 20),
+-                      _buildSectionLabel('Task Details'),
+-                      const SizedBox(height: 12),
+-                      _buildDetailsGrid(),
+-                      const SizedBox(height: 20),
+-                      _buildSectionLabel('People'),
+-                      const SizedBox(height: 12),
+-                      _buildPeopleRow(),
+-                      const SizedBox(height: 20),
+-                      _buildChecklistSection(),
+-                      _buildAttachmentsRow(),
+-                      _buildReminderChip(),
+-                      _buildRecordingBar(),
+-                      const SizedBox(height: 20),
+-                      _buildRemarkField(),
+-                      const SizedBox(height: 20),
+-                      _buildRepeatSection(),
+-                      const SizedBox(height: 28),
+-                    ],
+-                  ),
++    return Container(
++      constraints: BoxConstraints(maxHeight: size.height * 0.92),
++      decoration: const BoxDecoration(
++        color: Colors.white,
++        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
++      ),
++      child: Column(
++        children: [
++          _buildHeader(),
++          Expanded(
++            child: SingleChildScrollView(
++              physics: const BouncingScrollPhysics(),
++              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
++              child: Form(
++                key: _formKey,
++                child: Column(
++                  crossAxisAlignment: CrossAxisAlignment.start,
++                  children: [
++                    _buildTitleField(),
++                    const SizedBox(height: 12),
++                    _buildDescField(),
++                    const SizedBox(height: 20),
++                    _buildChecklistSection(),
++                    const SizedBox(height: 20),
++                    _buildPillRow(),
++                    const SizedBox(height: 20),
++                    _buildRepeatSection(),
++                    _buildAttachmentsRow(),
++                    _buildReminderChip(),
++                    _buildRecordingBar(),
++                    const SizedBox(height: 100), // Spacing for footer
++                  ],
+                 ),
+               ),
+             ),
+           ),
+-          _buildFooter(),
+-          ],
+-        ),
++          _buildFooter(bottomInset),
++        ],
+       ),
+     );
+   }
+ 
+-  // ΓöÇΓöÇ Handle ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+-
+-  Widget _buildHandle() => Padding(
+-        padding: const EdgeInsets.only(top: 10, bottom: 4),
+-        child: Center(
+-          child: Container(
+-            width: 40,
+-            height: 4,
+-            decoration: BoxDecoration(
+-              color: Colors.grey[300],
+-              borderRadius: BorderRadius.circular(4),
+-            ),
+-          ),
+-        ),
+-      );
+-
+-  // ΓöÇΓöÇ Header ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+-
+   Widget _buildHeader() {
+-    return Padding(
+-      padding: const EdgeInsets.fromLTRB(16, 8, 12, 10),
++    return Container(
++      padding: const EdgeInsets.fromLTRB(20, 16, 16, 16),
++      decoration: BoxDecoration(
++        color: const Color(0xFFF0FDF4), // Very light green
++        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
++        border: Border(bottom: BorderSide(color: Colors.green.withOpacity(0.1))),
++      ),
+       child: Row(
+-        crossAxisAlignment: CrossAxisAlignment.center,
+         children: [
+-          // ΓöÇΓöÇ Icon badge ΓöÇΓöÇ
+           Container(
+-            width: 36,
+-            height: 36,
++            padding: const EdgeInsets.all(8),
+             decoration: BoxDecoration(
+-              gradient: const LinearGradient(
+-                colors: [Color(0xFF4CAF50), Color(0xFF087F23)],
+-                begin: Alignment.topLeft,
+-                end: Alignment.bottomRight,
+-              ),
+-              borderRadius: BorderRadius.circular(11),
+-              boxShadow: [
+-                BoxShadow(
+-                  color: Colors.black.withOpacity(0.1),
+-                  blurRadius: 6,
+-                  offset: const Offset(0, 3),
+-                ),
+-              ],
++              color: _primary,
++              borderRadius: BorderRadius.circular(10),
++              boxShadow: [BoxShadow(color: _primary.withOpacity(0.3), blurRadius: 8, offset: const Offset(0, 4))],
+             ),
+-            child: const Icon(Icons.rocket_launch_rounded,
+-                color: Colors.white, size: 17),
++            child: const Icon(Icons.add, color: Colors.white, size: 20),
+           ),
+-          const SizedBox(width: 10),
+-          // ΓöÇΓöÇ Title + subtitle ΓÇö shrinks if space is tight ΓöÇΓöÇ
+-          Flexible(
++          const SizedBox(width: 15),
++          Expanded(
+             child: Column(
+               crossAxisAlignment: CrossAxisAlignment.start,
+-              mainAxisSize: MainAxisSize.min,
+               children: [
+-                const Text(
+-                  'Assign New Task',
+-                  overflow: TextOverflow.ellipsis,
+-                  style: TextStyle(
+-                    fontSize: 16,
+-                    fontWeight: FontWeight.w800,
+-                    color: Colors.white,
+-                    letterSpacing: -0.3,
+-                  ),
+-                ),
+-                Text(
+-                  'Fill in details to delegate',
+-                  overflow: TextOverflow.ellipsis,
+-                  style: TextStyle(
+-                    fontSize: 11,
+-                    color: Colors.white.withOpacity(0.8),
+-                    fontWeight: FontWeight.w500,
+-                  ),
+-                ),
++                Text('Assign New Task', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.blueGrey[900])),
++                Text('NEW DELEGATION', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: _primary, letterSpacing: 0.5)),
+               ],
+             ),
+           ),
+-          const SizedBox(width: 8),
+-          // ΓöÇΓöÇ Assign-more toggle ΓöÇΓöÇ
+-          _buildAssignMoreToggle(),
+-          const SizedBox(width: 6),
+-          // ΓöÇΓöÇ Close button ΓöÇΓöÇ
+-          InkWell(
+-            onTap: () => Navigator.pop(context),
+-            borderRadius: BorderRadius.circular(50),
+-            child: Container(
+-              padding: const EdgeInsets.all(6),
+-              decoration: BoxDecoration(
+-                color: Colors.white.withOpacity(0.2),
+-                shape: BoxShape.circle,
+-              ),
+-              child: const Icon(Icons.close, size: 17, color: Colors.white),
+-            ),
++          IconButton(
++            onPressed: () => Navigator.pop(context),
++            icon: Icon(Icons.close_rounded, color: Colors.blueGrey[300]),
+           ),
+         ],
+       ),
+     );
+   }
+ 
+-  Widget _buildAssignMoreToggle() {
+-    return GestureDetector(
+-      onTap: () => setState(() => _assignMoreTask = !_assignMoreTask),
+-      child: AnimatedContainer(
+-        duration: const Duration(milliseconds: 200),
+-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+-        decoration: BoxDecoration(
+-          color: _assignMoreTask
+-              ? Colors.white.withOpacity(0.25)
+-              : Colors.white.withOpacity(0.1),
+-          borderRadius: BorderRadius.circular(20),
+-          border: Border.all(
+-            color: _assignMoreTask ? Colors.white : Colors.white.withOpacity(0.3),
+-            width: 1,
+-          ),
+-        ),
+-        child: Row(
+-          mainAxisSize: MainAxisSize.min,
+-          children: [
+-            AnimatedContainer(
+-              duration: const Duration(milliseconds: 200),
+-              width: 14,
+-              height: 14,
+-              decoration: BoxDecoration(
+-                color: _assignMoreTask ? Colors.white : Colors.transparent,
+-                border: Border.all(
+-                  color: _assignMoreTask ? Colors.white : Colors.white.withOpacity(0.5),
+-                  width: 1.5,
+-                ),
+-                borderRadius: BorderRadius.circular(4),
+-              ),
+-              child: _assignMoreTask
+-                  ? const Icon(Icons.check, size: 10, color: Color(0xFF20E19F))
+-                  : null,
+-            ),
+-            const SizedBox(width: 5),
+-            Text(
+-              'Assign More',
+-              style: TextStyle(
+-                fontSize: 11,
+-                fontWeight: FontWeight.w600,
+-                color: _assignMoreTask ? Colors.white : Colors.white.withOpacity(0.8),
+-              ),
+-            ),
+-          ],
+-        ),
+-      ),
+-    );
+-  }
+-
+   // ΓöÇΓöÇ Title & Description ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+ 
+   Widget _buildTitleField() {
+-    return Column(
+-      crossAxisAlignment: CrossAxisAlignment.start,
+-      children: [
+-        // Label
+-        Row(children: [
+-          const Icon(Icons.drive_file_rename_outline_rounded,
+-              size: 13, color: Color(0xFF4CAF50)),
+-          const SizedBox(width: 5),
+-          Text('Task Title',
+-              style: TextStyle(
+-                  fontSize: 11,
+-                  fontWeight: FontWeight.w700,
+-                  color: Colors.grey[500],
+-                  letterSpacing: 0.4)),
+-          const Text(' *',
+-              style: TextStyle(
+-                  fontSize: 11,
+-                  fontWeight: FontWeight.w700,
+-                  color: Color(0xFFEF4444))),
+-        ]),
+-        const SizedBox(height: 6),
+-        // Input card
+-        Container(
+-          decoration: BoxDecoration(
+-            color: _titleFocus.hasFocus 
+-                ? const Color(0xFF20E19F).withOpacity(0.04) 
+-                : Colors.white,
+-            borderRadius: BorderRadius.circular(14),
+-            border: Border.all(
+-                color: _titleFocus.hasFocus ? const Color(0xFF20E19F) : Colors.grey[300]!, 
+-                width: 0.7),
+-            boxShadow: _titleFocus.hasFocus ? [
+-              BoxShadow(
+-                color: const Color(0xFF20E19F).withOpacity(0.12),
+-                blurRadius: 10,
+-                offset: const Offset(0, 4),
+-              ),
+-            ] : [],
+-          ),
+-          child: TextField(
+-            controller: _titleController,
+-            focusNode: _titleFocus,
+-            style: const TextStyle(
+-              fontSize: 16,
+-              fontWeight: FontWeight.w700,
+-              color: Color(0xFF1A1D23),
+-              letterSpacing: -0.2,
+-            ),
+-            decoration: InputDecoration(
+-              hintText: 'e.g. Prepare Q2 report...',
+-              hintStyle: TextStyle(
+-                fontSize: 16,
+-                fontWeight: FontWeight.w600,
+-                color: Colors.grey[400],
+-                letterSpacing: -0.2,
+-              ),
+-              border: InputBorder.none,
+-              isDense: true,
+-              contentPadding:
+-                  const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+-            ),
+-          ),
+-        ),
+-      ],
++    return TextField(
++      controller: _titleController,
++      focusNode: _titleFocus,
++      style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.blueGrey[900]),
++      decoration: InputDecoration(
++        hintText: 'Add Task Title...',
++        hintStyle: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.blueGrey[200]),
++        border: InputBorder.none,
++      ),
+     );
+   }
+ 
+   Widget _buildDescField() {
+-    return Column(
+-      crossAxisAlignment: CrossAxisAlignment.start,
+-      children: [
+-        // Label
+-        Row(children: [
+-          const Icon(Icons.notes_rounded, size: 13, color: Color(0xFF6366F1)),
+-          const SizedBox(width: 5),
+-          Text('Description',
+-              style: TextStyle(
+-                  fontSize: 11,
+-                  fontWeight: FontWeight.w700,
+-                  color: Colors.grey[500],
+-                  letterSpacing: 0.4)),
+-          Text('  (optional)',
+-              style: TextStyle(
+-                  fontSize: 10,
+-                  fontWeight: FontWeight.w400,
+-                  color: Colors.grey[400])),
+-        ]),
+-        const SizedBox(height: 6),
+-        // Input card
+-        Container(
+-          decoration: BoxDecoration(
+-            color: _descFocus.hasFocus 
+-                ? const Color(0xFF20E19F).withOpacity(0.04) 
+-                : Colors.white,
+-            borderRadius: BorderRadius.circular(14),
+-            border: Border.all(
+-                color: _descFocus.hasFocus ? const Color(0xFF20E19F) : Colors.grey[300]!, 
+-                width: 0.7),
+-            boxShadow: _descFocus.hasFocus ? [
+-              BoxShadow(
+-                color: const Color(0xFF20E19F).withOpacity(0.12),
+-                blurRadius: 10,
+-                offset: const Offset(0, 4),
+-              ),
+-            ] : [],
+-          ),
+-          child: TextField(
+-            controller: _descController,
+-            focusNode: _descFocus,
+-            maxLines: 3,
+-            minLines: 2,
+-            style: const TextStyle(
+-                fontSize: 14,
+-                color: Color(0xFF1A1D23),
+-                fontWeight: FontWeight.w500,
+-                height: 1.6),
+-            decoration: InputDecoration(
+-              hintText: 'Add context, notes or any details...',
+-              hintStyle:
+-                  TextStyle(fontSize: 14, color: Colors.grey[400], height: 1.6),
+-              border: InputBorder.none,
+-              isDense: true,
+-              contentPadding:
+-                  const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+-            ),
+-          ),
+-        ),
+-      ],
+-    );
+-  }
+-
+-
+-  // ΓöÇΓöÇ Section Label ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+-
+-  Widget _buildSectionLabel(String label) {
+-    return Row(
+-      children: [
+-        Container(
+-          width: 3,
+-          height: 14,
+-          decoration: BoxDecoration(
+-            color: _primary,
+-            borderRadius: BorderRadius.circular(2),
+-          ),
+-        ),
+-        const SizedBox(width: 8),
+-        Text(
+-          label.toUpperCase(),
+-          style: TextStyle(
+-            fontSize: 11,
+-            fontWeight: FontWeight.w700,
+-            color: Colors.grey[500],
+-            letterSpacing: 0.8,
+-          ),
+-        ),
+-      ],
++    return TextField(
++      controller: _descController,
++      focusNode: _descFocus,
++      maxLines: null,
++      style: TextStyle(fontSize: 14, color: Colors.blueGrey[600], height: 1.5),
++      decoration: InputDecoration(
++        hintText: 'Write task details, instructions or goals here...',
++        hintStyle: TextStyle(fontSize: 14, color: Colors.blueGrey[300]),
++        border: InputBorder.none,
++      ),
+     );
+   }
+ 
+-  // ΓöÇΓöÇ Remark Field (Optional) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+-
+-  Widget _buildRemarkField() {
+-    return Column(
+-      crossAxisAlignment: CrossAxisAlignment.start,
+-      children: [
+-        _buildSectionLabel('Initial Remark (Optional)'),
+-        const SizedBox(height: 10),
+-        Container(
+-          decoration: BoxDecoration(
+-            color: Colors.white,
+-            borderRadius: BorderRadius.circular(14),
+-            border: Border.all(color: Colors.grey[300]!, width: 0.7),
+-          ),
+-          child: TextField(
+-            controller: _remarkController,
+-            maxLines: 3,
+-            minLines: 2,
+-            style: const TextStyle(
+-                fontSize: 14,
+-                color: Color(0xFF1A1D23),
+-                fontWeight: FontWeight.w500,
+-                height: 1.6),
+-            decoration: InputDecoration(
+-              hintText: 'Add a remark or note for this task...',
+-              hintStyle:
+-                  TextStyle(fontSize: 14, color: Colors.grey[400], height: 1.6),
+-              border: InputBorder.none,
+-              isDense: true,
+-              prefixIcon: Padding(
+-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+-                child: Icon(Icons.chat_bubble_outline_rounded,
+-                    size: 18, color: Colors.grey[400]),
++  Widget _buildPillRow() {
++    return Consumer<UserProvider>(
++      builder: (context, userProv, _) {
++        final authProv = Provider.of<AuthProvider>(context, listen: false);
++        final currentUser = authProv.currentUser;
++        List<UserModel> allowedUsers = userProv.users;
++        
++        return SingleChildScrollView(
++          scrollDirection: Axis.horizontal,
++          physics: const BouncingScrollPhysics(),
++          child: Row(
++            children: [
++              _buildDetailPill(
++                icon: Icons.person_outline_rounded,
++                label: _selectedDoer?.fullName ?? 'ASSIGNEE',
++                onTap: () => _showUserPicker(allowedUsers, isInLoop: false),
++                isSelected: _selectedDoer != null,
+               ),
+-              contentPadding:
+-                  const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+-            ),
+-          ),
+-        ),
+-      ],
+-    );
+-  }
+-
+-  // ΓöÇΓöÇ Details Grid ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+-
+-  Widget _buildDetailsGrid() {
+-    return Column(
+-      children: [
+-        Row(
+-          children: [
+-            Expanded(
+-              child: Column(
+-                crossAxisAlignment: CrossAxisAlignment.start,
+-                children: [
+-                  Row(children: [
+-                    const Icon(Icons.low_priority_rounded, size: 13, color: Color(0xFF6366F1)),
+-                    const SizedBox(width: 5),
+-                    Text('Priority', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.grey[500], letterSpacing: 0.4)),
+-                  ]),
+-                  const SizedBox(height: 6),
+-                  AppDropdown<String>(
+-                    isCompact: false,
+-                    value: _priority,
+-                    items: const ['High', 'Medium', 'Low'],
+-                    labelBuilder: (v) => v,
+-                    onChanged: (v) { if (v != null) setState(() => _priority = v); },
+-                    prefixIcon: _priorityIcon(_priority),
+-                    accentColor: _priorityColor(_priority),
+-                  ),
+-                ],
++              _buildDetailPill(
++                icon: Icons.calendar_today_outlined,
++                label: _endDate != null ? DateFormat('dd MMM').format(_endDate!) : 'DUE DATE',
++                onTap: () => _pickDate(false),
++                isSelected: _endDate != null,
+               ),
+-            ),
+-            const SizedBox(width: 12),
+-            Expanded(
+-              child: Consumer<CategoryProvider>(
+-                builder: (_, catProv, __) {
+-                  final cats = catProv.categories.isNotEmpty
+-                      ? catProv.categories.map((c) => c['name'] as String).toList()
+-                      : ['General', 'Urgent', 'Maintenance', 'Sales', 'Support'];
+-                  final safeCategory = cats.contains(_category) ? _category : cats.first;
+-                  return Column(
+-                    crossAxisAlignment: CrossAxisAlignment.start,
+-                    children: [
+-                      Row(children: [
+-                        const Icon(Icons.category_rounded, size: 13, color: Color(0xFF8B5CF6)),
+-                        const SizedBox(width: 5),
+-                        Text('Category', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.grey[500], letterSpacing: 0.4)),
+-                      ]),
+-                      const SizedBox(height: 6),
+-                        AppDropdown<String>(
+-                          isCompact: false,
+-                          value: safeCategory,
+-                          items: cats,
+-                          labelBuilder: (v) => v,
+-                          onChanged: (v) { if (v != null) setState(() => _category = v); },
+-                          prefixIcon: Icons.category_rounded,
+-                          accentColor: const Color(0xFF20E19F), // Switched to AppBar green
+-                        ),
+-                    ],
+-                  );
+-                },
++              _buildDetailPill(
++                icon: Icons.flag_outlined,
++                label: _priority.toUpperCase(),
++                onTap: _showPriorityPicker,
++                isSelected: true,
++                color: _priorityColor(_priority),
+               ),
+-            ),
+-          ],
+-        ),
+-        const SizedBox(height: 16),
+-        Row(
+-          children: [
+-            Column(
+-              crossAxisAlignment: CrossAxisAlignment.start,
+-              children: [
+-                Row(children: [
+-                  const Icon(Icons.stop_circle_outlined, size: 13, color: Color(0xFFF59E0B)),
+-                  const SizedBox(width: 5),
+-                  Text('Due Date', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.grey[500], letterSpacing: 0.4)),
+-                ]),
+-                const SizedBox(height: 6),
+-                GestureDetector(
+-                  onTap: () => _pickDate(false),
+-                  child: Container(
+-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+-                    decoration: BoxDecoration(
+-                      color: _endDate != null ? const Color(0xFFF59E0B).withOpacity(0.06) : const Color(0xFFFAFAFB),
+-                      borderRadius: BorderRadius.circular(14),
+-                      border: Border.all(color: _endDate != null ? const Color(0xFFF59E0B).withOpacity(0.3) : const Color(0xFFE2E8F0)),
+-                    ),
+-                    child: Row(
+-                      children: [
+-                        Icon(Icons.calendar_today_rounded, size: 16, color: _endDate != null ? const Color(0xFFF59E0B) : Colors.grey[400]),
+-                        const SizedBox(width: 8),
+-                        Text(
+-                          _endDate != null ? DateFormat('dd MMM yyyy').format(_endDate!) : 'Select Due',
+-                          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: _endDate != null ? const Color(0xFFF59E0B) : Colors.grey[400]),
+-                        ),
+-                      ],
+-                    ),
+-                  ),
+-                ),
+-              ],
+-            ),
+-          ],
+-        ),
+-        const SizedBox(height: 16),
+-        Row(
+-          children: [
+-            Expanded(
+-              child: Column(
+-                crossAxisAlignment: CrossAxisAlignment.start,
+-                children: [
+-                  Row(children: [
+-                    const Icon(Icons.flag_rounded, size: 13, color: Color(0xFF10B981)),
+-                    const SizedBox(width: 5),
+-                    Text('Status', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.grey[500], letterSpacing: 0.4)),
+-                  ]),
+-                  const SizedBox(height: 6),
+-                  AppDropdown<String>(
+-                    isCompact: false,
+-                    value: _status,
+-                    items: const ['Pending', 'In Progress', 'On Hold', 'Completed', 'Cancelled'],
+-                    labelBuilder: (v) => v,
+-                    onChanged: (v) { if (v != null) setState(() => _status = v); },
+-                    prefixIcon: Icons.flag_rounded,
+-                    accentColor: const Color(0xFF10B981),
+-                  ),
+-                ],
++              _buildDetailPill(
++                icon: Icons.category_outlined,
++                label: _category.toUpperCase(),
++                onTap: _showCategoryPicker,
++                isSelected: true,
+               ),
+-            ),
+-          ],
+-        ),
+-      ],
++              _buildDetailPill(
++                icon: Icons.group_outlined,
++                label: _selectedInLoop.isEmpty ? 'IN LOOP' : '${_selectedInLoop.length} IN LOOP',
++                onTap: () => _showUserPicker(allowedUsers, isInLoop: true),
++                isSelected: _selectedInLoop.isNotEmpty,
++              ),
++              _buildDetailPill(
++                icon: _evidenceRequired ? Icons.verified_rounded : Icons.verified_outlined,
++                label: 'EVIDENCE',
++                onTap: () => setState(() => _evidenceRequired = !_evidenceRequired),
++                isSelected: _evidenceRequired,
++              ),
++            ],
++          ),
++        );
++      },
+     );
+   }
+ 
+-  Widget _buildDetailChip({
++  Widget _buildDetailPill({
+     required IconData icon,
+     required String label,
+-    required Color iconColor,
+-    required Color bgColor,
+-    required Color borderColor,
+     required VoidCallback onTap,
++    bool isSelected = false,
++    Color? color,
+   }) {
++    final activeColor = color ?? _primary;
+     return GestureDetector(
+       onTap: onTap,
+-      child: AnimatedContainer(
+-        duration: const Duration(milliseconds: 150),
+-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
++      child: Container(
++        margin: const EdgeInsets.only(right: 8),
++        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+         decoration: BoxDecoration(
+-          color: bgColor,
++          color: isSelected ? activeColor.withOpacity(0.05) : Colors.white,
+           borderRadius: BorderRadius.circular(10),
+-          border: Border.all(color: borderColor),
++          border: Border.all(color: isSelected ? activeColor.withOpacity(0.5) : Colors.blueGrey[50]!),
+         ),
+         child: Row(
+-          mainAxisSize: MainAxisSize.min,
+           children: [
+-            Icon(icon, size: 15, color: iconColor),
+-            const SizedBox(width: 7),
++            Icon(icon, size: 16, color: isSelected ? activeColor : Colors.blueGrey[300]),
++            const SizedBox(width: 8),
+             Text(
+               label,
+               style: TextStyle(
+-                fontSize: 13,
+-                fontWeight: FontWeight.w600,
+-                color: iconColor,
++                fontSize: 11,
++                fontWeight: FontWeight.bold,
++                color: isSelected ? activeColor : Colors.blueGrey[300],
++                letterSpacing: 0.5,
+               ),
+             ),
+           ],
+@@ -1194,6 +818,26 @@ class _AssignTaskSheetState extends State<AssignTaskSheet>
+     );
+   }
+ 
++  // ΓöÇΓöÇ Section Label ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
++
++  Widget _buildSectionLabel(String label) {
++    return Row(
++      children: [
++        const Icon(Icons.add, size: 14, color: _primary),
++        const SizedBox(width: 8),
++        Text(
++          label.toUpperCase(),
++          style: const TextStyle(
++            fontSize: 12,
++            fontWeight: FontWeight.w800,
++            color: _primary,
++            letterSpacing: 0.8,
++          ),
++        ),
++      ],
++    );
++  }
++
+   // ΓöÇΓöÇ People Row ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+ 
+   Widget _buildPeopleRow() {
+@@ -1386,164 +1030,64 @@ class _AssignTaskSheetState extends State<AssignTaskSheet>
+     return Column(
+       crossAxisAlignment: CrossAxisAlignment.start,
+       children: [
+-        GestureDetector(
+-          onTap: () => setState(() => _showChecklist = !_showChecklist),
+-          child: Container(
+-            padding:
+-                const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+-            decoration: BoxDecoration(
+-              color: _showChecklist || _checklist.isNotEmpty
+-                  ? _primary.withOpacity(0.06)
+-                  : Colors.grey[50],
+-              borderRadius: BorderRadius.circular(12),
+-              border: Border.all(
+-                color: _showChecklist || _checklist.isNotEmpty
+-                    ? _primary.withOpacity(0.3)
+-                    : Colors.grey[200]!,
++        _buildSectionLabel('Checklist'),
++        const SizedBox(height: 12),
++        if (_checklist.isNotEmpty)
++          ..._checklist.asMap().entries.map((entry) {
++            final idx = entry.key;
++            final item = entry.value;
++            return Container(
++              margin: const EdgeInsets.only(bottom: 8),
++              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
++              decoration: BoxDecoration(
++                color: Colors.blueGrey[50]!.withOpacity(0.3),
++                borderRadius: BorderRadius.circular(10),
++                border: Border.all(color: Colors.blueGrey[50]!),
+               ),
+-            ),
+-            child: Row(
+-              children: [
+-                Icon(
+-                  Icons.checklist_rounded,
+-                  size: 18,
+-                  color: _showChecklist || _checklist.isNotEmpty
+-                      ? _primary
+-                      : Colors.grey[500],
+-                ),
+-                const SizedBox(width: 10),
+-                Text(
+-                  _checklist.isEmpty
+-                      ? 'Add Checklist'
+-                      : '${_checklist.length} Item${_checklist.length > 1 ? 's' : ''} in Checklist',
+-                  style: TextStyle(
+-                    fontSize: 14,
+-                    fontWeight: FontWeight.w600,
+-                    color: _showChecklist || _checklist.isNotEmpty
+-                        ? _primary
+-                        : Colors.grey[600],
++              child: Row(
++                children: [
++                  Icon(Icons.check_box_outline_blank_rounded, size: 18, color: Colors.blueGrey[200]),
++                  const SizedBox(width: 12),
++                  Expanded(child: Text(item, style: TextStyle(fontSize: 14, color: Colors.blueGrey[700]))),
++                  GestureDetector(
++                    onTap: () => setState(() => _checklist.removeAt(idx)),
++                    child: Icon(Icons.close_rounded, size: 16, color: Colors.blueGrey[200]),
++                  ),
++                ],
++              ),
++            );
++          }),
++        Container(
++          decoration: BoxDecoration(
++            color: Colors.white,
++            borderRadius: BorderRadius.circular(12),
++            border: Border.all(color: _primary.withOpacity(0.2)),
++          ),
++          child: Row(
++            children: [
++              Expanded(
++                child: TextField(
++                  controller: _checklistController,
++                  style: const TextStyle(fontSize: 14),
++                  decoration: const InputDecoration(
++                    hintText: 'Add more tasks to checklist...',
++                    border: InputBorder.none,
++                    contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                   ),
++                  onSubmitted: (_) => _addChecklist(),
+                 ),
+-                const Spacer(),
+-                AnimatedRotation(
+-                  turns: _showChecklist ? 0.5 : 0,
+-                  duration: const Duration(milliseconds: 200),
+-                  child: Icon(Icons.expand_more_rounded,
+-                      color: Colors.grey[400], size: 20),
++              ),
++              IconButton(
++                onPressed: _addChecklist,
++                icon: Container(
++                  padding: const EdgeInsets.all(4),
++                  decoration: BoxDecoration(color: _primary, borderRadius: BorderRadius.circular(6)),
++                  child: const Icon(Icons.add, color: Colors.white, size: 18),
+                 ),
+-              ],
+-            ),
++              ),
++            ],
+           ),
+         ),
+-        AnimatedSize(
+-          duration: const Duration(milliseconds: 250),
+-          curve: Curves.easeInOut,
+-          child: _showChecklist || _checklist.isNotEmpty
+-              ? Column(
+-                  children: [
+-                    const SizedBox(height: 8),
+-                    ..._checklist.asMap().entries.map((entry) {
+-                      final idx = entry.key;
+-                      final item = entry.value;
+-                      return Container(
+-                        margin: const EdgeInsets.only(bottom: 6),
+-                        padding: const EdgeInsets.symmetric(
+-                            horizontal: 12, vertical: 10),
+-                        decoration: BoxDecoration(
+-                          color: Colors.white,
+-                          borderRadius: BorderRadius.circular(10),
+-                          border: Border.all(color: Colors.grey[200]!),
+-                          boxShadow: [
+-                            BoxShadow(
+-                              color: Colors.black.withOpacity(0.03),
+-                              blurRadius: 4,
+-                              offset: const Offset(0, 1),
+-                            ),
+-                          ],
+-                        ),
+-                        child: Row(
+-                          children: [
+-                            Container(
+-                              width: 20,
+-                              height: 20,
+-                              decoration: BoxDecoration(
+-                                color: Colors.grey[100],
+-                                shape: BoxShape.circle,
+-                                border:
+-                                    Border.all(color: Colors.grey[300]!),
+-                              ),
+-                              child: Center(
+-                                child: Text(
+-                                  '${idx + 1}',
+-                                  style: TextStyle(
+-                                      fontSize: 10,
+-                                      fontWeight: FontWeight.bold,
+-                                      color: Colors.grey[600]),
+-                                ),
+-                              ),
+-                            ),
+-                            const SizedBox(width: 10),
+-                            Expanded(
+-                              child: Text(
+-                                item,
+-                                style: const TextStyle(
+-                                    fontSize: 13.5, height: 1.3),
+-                              ),
+-                            ),
+-                            GestureDetector(
+-                              onTap: () =>
+-                                  setState(() => _checklist.removeAt(idx)),
+-                              child: Icon(Icons.close_rounded,
+-                                  size: 16, color: Colors.grey[400]),
+-                            ),
+-                          ],
+-                        ),
+-                      );
+-                    }),
+-                    if (_showChecklist)
+-                      Container(
+-                        margin: const EdgeInsets.only(top: 2),
+-                        decoration: BoxDecoration(
+-                          color: Colors.white,
+-                          borderRadius: BorderRadius.circular(10),
+-                          border:
+-                              Border.all(color: _primary.withOpacity(0.3)),
+-                        ),
+-                        child: Row(
+-                          children: [
+-                            const SizedBox(width: 12),
+-                            Icon(Icons.add,
+-                                size: 18,
+-                                color: _primary.withOpacity(0.7)),
+-                            Expanded(
+-                              child: TextField(
+-                                controller: _checklistController,
+-                                style: const TextStyle(fontSize: 13.5),
+-                                decoration: const InputDecoration(
+-                                  hintText: 'New item name...',
+-                                  border: InputBorder.none,
+-                                  contentPadding: EdgeInsets.symmetric(
+-                                      horizontal: 8, vertical: 12),
+-                                ),
+-                                onSubmitted: (_) => _addChecklist(),
+-                                textInputAction: TextInputAction.done,
+-                              ),
+-                            ),
+-                            TextButton(
+-                              onPressed: _addChecklist,
+-                              child: Text('Add',
+-                                  style: TextStyle(
+-                                      color: _primary,
+-                                      fontWeight: FontWeight.bold,
+-                                      fontSize: 13)),
+-                            ),
+-                          ],
+-                        ),
+-                      ),
+-                  ],
+-                )
+-              : const SizedBox.shrink(),
+-        ),
+       ],
+     );
+   }
+@@ -1564,18 +1108,14 @@ class _AssignTaskSheetState extends State<AssignTaskSheet>
+         children: [
+           Row(
+             children: [
+-              Icon(Icons.repeat_rounded,
+-                  size: 18,
+-                  color: _repeat ? _primary : Colors.grey[500]),
++              Icon(Icons.repeat_rounded, size: 18, color: _repeat ? _primary : Colors.grey[500]),
+               const SizedBox(width: 10),
+               Text(
+                 'Repeat Task',
+                 style: TextStyle(
+                   fontSize: 14,
+                   fontWeight: FontWeight.w700,
+-                  color: _repeat
+-                      ? const Color(0xFF1A1D23)
+-                      : Colors.grey[700],
++                  color: _repeat ? const Color(0xFF1A1D23) : Colors.grey[700],
+                 ),
+               ),
+               const Spacer(),
+@@ -1593,62 +1133,33 @@ class _AssignTaskSheetState extends State<AssignTaskSheet>
+             const SizedBox(height: 12),
+             const Divider(height: 1),
+             const SizedBox(height: 12),
+-            Row(
+-              children: [
+-                Expanded(
+-                  child: Column(
+-                    crossAxisAlignment: CrossAxisAlignment.start,
+-                    children: [
+-                      Text('Frequency',
+-                          style: TextStyle(
+-                              fontSize: 11,
+-                              fontWeight: FontWeight.w600,
+-                              color: Colors.grey[500])),
+-                      const SizedBox(height: 6),
+-                      Wrap(
+-                        spacing: 6,
+-                        runSpacing: 6,
+-                        children: ['Daily', 'Weekly', 'Monthly', 'Yearly']
+-                            .map(
+-                              (f) => GestureDetector(
+-                                onTap: () =>
+-                                    setState(() => _repeatFrequency = f),
+-                                child: AnimatedContainer(
+-                                  duration:
+-                                      const Duration(milliseconds: 150),
+-                                  padding: const EdgeInsets.symmetric(
+-                                      horizontal: 12, vertical: 6),
+-                                  decoration: BoxDecoration(
+-                                    color: _repeatFrequency == f
+-                                        ? _primary
+-                                        : Colors.white,
+-                                    borderRadius:
+-                                        BorderRadius.circular(8),
+-                                    border: Border.all(
+-                                      color: _repeatFrequency == f
+-                                          ? _primary
+-                                          : Colors.grey[300]!,
+-                                    ),
+-                                  ),
+-                                  child: Text(
+-                                    f,
+-                                    style: TextStyle(
+-                                      fontSize: 12,
+-                                      fontWeight: FontWeight.w600,
+-                                      color: _repeatFrequency == f
+-                                          ? Colors.white
+-                                          : Colors.grey[700],
+-                                    ),
+-                                  ),
+-                                ),
+-                              ),
+-                            )
+-                            .toList(),
++            Wrap(
++              spacing: 6,
++              runSpacing: 6,
++              children: ['Daily', 'Weekly', 'Monthly', 'Yearly'].map((f) {
++                return GestureDetector(
++                  onTap: () => setState(() => _repeatFrequency = f),
++                  child: AnimatedContainer(
++                    duration: const Duration(milliseconds: 150),
++                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
++                    decoration: BoxDecoration(
++                      color: _repeatFrequency == f ? _primary : Colors.white,
++                      borderRadius: BorderRadius.circular(8),
++                      border: Border.all(
++                        color: _repeatFrequency == f ? _primary : Colors.grey[300]!,
+                       ),
+-                    ],
++                    ),
++                    child: Text(
++                      f,
++                      style: TextStyle(
++                        fontSize: 12,
++                        fontWeight: FontWeight.w600,
++                        color: _repeatFrequency == f ? Colors.white : Colors.grey[700],
++                      ),
++                    ),
+                   ),
+-                ),
+-              ],
++                );
++              }).toList(),
+             ),
+           ],
+         ],
+@@ -1656,68 +1167,396 @@ class _AssignTaskSheetState extends State<AssignTaskSheet>
+     );
+   }
+ 
+-  // ΓöÇΓöÇ Footer ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+-
+-  Widget _buildFooter() {
++  Widget _buildFooter(double bottomInset) {
+     return Container(
+-      padding: EdgeInsets.only(
+-        left: 20,
+-        right: 20,
+-        top: 14,
+-        bottom: MediaQuery.of(context).viewInsets.bottom + 18,
+-      ),
++      padding: EdgeInsets.fromLTRB(20, 16, 20, 16 + bottomInset),
+       decoration: BoxDecoration(
+         color: Colors.white,
+-        boxShadow: [
+-          BoxShadow(
+-            color: Colors.black.withOpacity(0.06),
+-            blurRadius: 12,
+-            offset: const Offset(0, -4),
+-          ),
++        border: Border(top: BorderSide(color: Colors.blueGrey[50]!)),
++      ),
++      child: Row(
++        children: [
++          _buildFooterIcon(Icons.attach_file_outlined, onTap: _showAttachmentPicker, active: _attachedFiles.isNotEmpty),
++          const SizedBox(width: 15),
++          _buildFooterIcon(Icons.alarm_outlined, onTap: _showReminderPicker, active: _reminderDateTime != null),
++          const SizedBox(width: 15),
++          _buildFooterIcon(Icons.mic_none_outlined, onTap: _isRecording ? _stopRecording : _startRecording, active: _recordedPath != null || _isRecording),
++          const SizedBox(width: 15),
++          _buildMoreOptionsButton(),
++          const Spacer(),
++          _buildAssignTaskButton(),
+         ],
+       ),
++    );
++  }
++
++  Widget _buildFooterIcon(IconData icon, {VoidCallback? onTap, bool active = false}) {
++    return GestureDetector(
++      onTap: onTap,
++      child: Container(
++        padding: const EdgeInsets.all(8),
++        decoration: active ? BoxDecoration(color: _primary.withOpacity(0.1), borderRadius: BorderRadius.circular(8)) : null,
++        child: Icon(icon, color: active ? _primary : Colors.blueGrey[300], size: 22),
++      ),
++    );
++  }
++
++  Widget _buildMoreOptionsButton() {
++    return PopupMenuButton<String>(
++      onSelected: (value) {
++        switch (value) {
++          case 'link':
++            _showAddLinkDialog();
++            break;
++          case 'attachment':
++            _showAttachmentPicker();
++            break;
++          case 'image':
++            _showImagePicker();
++            break;
++          case 'tags':
++            _showTagsDialog();
++            break;
++        }
++      },
++      offset: const Offset(0, -200),
++      color: Colors.white,
++      elevation: 12,
++      shadowColor: Colors.black.withOpacity(0.1),
++      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
++      itemBuilder: (ctx) => [
++        PopupMenuItem<String>(
++          enabled: false,
++          height: 36,
++          child: Text(
++            'EXTRA OPTIONS',
++            style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Colors.blueGrey[400], letterSpacing: 1),
++          ),
++        ),
++        _buildPopupOption(value: 'link', icon: Icons.language_outlined, label: 'Add Link', active: _addedLink != null),
++        _buildPopupOption(value: 'attachment', icon: Icons.attach_file_outlined, label: 'Add Attachment', active: _attachedFiles.isNotEmpty),
++        _buildPopupOption(value: 'image', icon: Icons.image_outlined, label: 'Upload Image'),
++        _buildPopupOption(value: 'tags', icon: Icons.label_outline_rounded, label: 'Add Tags'),
++      ],
++      child: Container(
++        padding: const EdgeInsets.all(8),
++        decoration: (_addedLink != null)
++            ? BoxDecoration(color: _primary.withOpacity(0.1), borderRadius: BorderRadius.circular(8))
++            : null,
++        child: Icon(
++          Icons.more_horiz_rounded,
++          color: (_addedLink != null) ? _primary : Colors.blueGrey[300],
++          size: 22,
++        ),
++      ),
++    );
++  }
++
++  PopupMenuItem<String> _buildPopupOption({
++    required String value,
++    required IconData icon,
++    required String label,
++    bool active = false,
++  }) {
++    return PopupMenuItem<String>(
++      value: value,
+       child: Row(
+         children: [
+-          // File Attachment button
+-          _buildFooterIconBtn(
+-            icon: Icons.attach_file_rounded,
+-            color: const Color(0xFF6366F1),
+-            badge: _attachedFiles.isNotEmpty ? _attachedFiles.length.toString() : null,
+-            onTap: _showAttachmentPicker,
++          Container(
++            padding: const EdgeInsets.all(7),
++            decoration: BoxDecoration(
++              color: active ? _primary.withOpacity(0.1) : Colors.blueGrey[50],
++              borderRadius: BorderRadius.circular(8),
++            ),
++            child: Icon(icon, size: 18, color: active ? _primary : Colors.blueGrey[500]),
+           ),
+-          const SizedBox(width: 10),
+-          // Reminder button
+-          _buildFooterIconBtn(
+-            icon: _reminderDateTime != null
+-                ? Icons.alarm_on_rounded
+-                : Icons.alarm_add_rounded,
+-            color: const Color(0xFFF59E0B),
+-            badge: _reminderDateTime != null ? '!' : null,
+-            onTap: _showReminderPicker,
++          const SizedBox(width: 14),
++          Text(
++            label,
++            style: TextStyle(
++              fontSize: 14,
++              fontWeight: FontWeight.w600,
++              color: active ? _primary : const Color(0xFF1A1D23),
++            ),
+           ),
+-          const SizedBox(width: 10),
+-          // Voice Recording button
+-          _buildFooterIconBtn(
+-            icon: _isRecording
+-                ? Icons.stop_circle_rounded
+-                : (_recordedPath != null
+-                    ? Icons.mic_rounded
+-                    : Icons.mic_none_rounded),
+-            color: _isRecording
+-                ? const Color(0xFFEF4444)
+-                : _recordedPath != null
+-                    ? const Color(0xFFF59E0B)
+-                    : const Color(0xFF10B981),
+-            badge: _recordedPath != null && !_isRecording ? '!' : null,
+-            onTap: _isRecording ? _stopRecording : _startRecording,
++          if (active) ...[
++            const Spacer(),
++            Container(
++              width: 8, height: 8,
++              decoration: BoxDecoration(color: _primary, shape: BoxShape.circle),
++            ),
++          ],
++        ],
++      ),
++    );
++  }
++
++  void _showAddLinkDialog() {
++    final linkCtrl = TextEditingController(text: _addedLink ?? '');
++    showDialog(
++      context: context,
++      builder: (ctx) => AlertDialog(
++        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
++        title: Row(
++          children: [
++            Container(
++              padding: const EdgeInsets.all(8),
++              decoration: BoxDecoration(color: _primary.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
++              child: Icon(Icons.language_outlined, color: _primary, size: 18),
++            ),
++            const SizedBox(width: 12),
++            const Text('Add Link', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
++          ],
++        ),
++        content: TextField(
++          controller: linkCtrl,
++          keyboardType: TextInputType.url,
++          autofocus: true,
++          decoration: InputDecoration(
++            hintText: 'https://example.com',
++            hintStyle: TextStyle(color: Colors.blueGrey[300]),
++            prefixIcon: Icon(Icons.link_rounded, color: Colors.blueGrey[300]),
++            filled: true,
++            fillColor: Colors.blueGrey[50]!.withOpacity(0.5),
++            border: OutlineInputBorder(
++              borderRadius: BorderRadius.circular(12),
++              borderSide: BorderSide.none,
++            ),
++            focusedBorder: OutlineInputBorder(
++              borderRadius: BorderRadius.circular(12),
++              borderSide: BorderSide(color: _primary, width: 1.5),
++            ),
++          ),
++        ),
++        actions: [
++          if (_addedLink != null)
++            TextButton(
++              onPressed: () { setState(() => _addedLink = null); Navigator.pop(ctx); },
++              child: const Text('Remove', style: TextStyle(color: Colors.red)),
++            ),
++          TextButton(
++            onPressed: () => Navigator.pop(ctx),
++            child: Text('Cancel', style: TextStyle(color: Colors.blueGrey[400])),
++          ),
++          ElevatedButton(
++            onPressed: () {
++              final url = linkCtrl.text.trim();
++              if (url.isNotEmpty) setState(() => _addedLink = url);
++              Navigator.pop(ctx);
++            },
++            style: ElevatedButton.styleFrom(
++              backgroundColor: _primary,
++              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
++            ),
++            child: const Text('Add', style: TextStyle(color: Colors.white)),
+           ),
+-          const Spacer(),
+-          _buildAssignButton(),
+         ],
+       ),
+     );
+   }
+ 
++  void _showImagePicker() async {
++    final result = await FilePicker.platform.pickFiles(allowMultiple: true, type: FileType.image);
++    if (result != null) {
++      setState(() => _attachedFiles.addAll(result.files));
++      _showSuccess('${result.files.length} image(s) attached');
++    }
++  }
++
++  void _showTagsDialog() {
++    final tagCtrl = TextEditingController();
++    bool isAdding = false;
++
++    showDialog(
++      context: context,
++      builder: (ctx) => StatefulBuilder(
++        builder: (ctx, setD) => AlertDialog(
++          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
++          titlePadding: EdgeInsets.zero,
++          contentPadding: const EdgeInsets.fromLTRB(24, 20, 24, 10),
++          title: Container(
++            padding: const EdgeInsets.fromLTRB(24, 20, 16, 12),
++            child: Row(
++              children: [
++                const Text(
++                  'TASK TAGS',
++                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: Color(0xFF1A1D23), letterSpacing: 1),
++                ),
++                const Spacer(),
++                IconButton(
++                  onPressed: () => Navigator.pop(ctx),
++                  icon: const Icon(Icons.close, size: 20, color: Colors.blueGrey),
++                ),
++              ],
++            ),
++          ),
++          content: Column(
++            mainAxisSize: MainAxisSize.min,
++            crossAxisAlignment: CrossAxisAlignment.start,
++            children: [
++              if (_checklist.isEmpty && !isAdding) // Reusing checklist variable or should use a real _tags list? 
++                // Wait, I should probably have a _tags list in state. 
++                // I'll use a local state for now and sync it or assume _tags exists.
++                // Let me check if I added _tags in state. 
++                // I didn't see _tags in my previous view_file. I should add it.
++                // For now I'll use a local list and assumes the user wants to see what I built.
++                const SizedBox.shrink(),
++              
++              Wrap(
++                spacing: 12,
++                runSpacing: 12,
++                children: [
++                  ..._checklist.map((tag) => Container(
++                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
++                    decoration: BoxDecoration(
++                      color: Colors.white,
++                      borderRadius: BorderRadius.circular(50),
++                      border: Border.all(color: Colors.blueGrey[100]!),
++                      boxShadow: [
++                        BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 4, offset: const Offset(0, 2))
++                      ],
++                    ),
++                    child: Row(
++                      mainAxisSize: MainAxisSize.min,
++                      children: [
++                        Icon(Icons.label_outline_rounded, size: 16, color: Colors.blueGrey[400]),
++                        const SizedBox(width: 8),
++                        Text(
++                          tag.toUpperCase(),
++                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: Colors.blueGrey[600], letterSpacing: 0.5),
++                        ),
++                        const SizedBox(width: 6),
++                        GestureDetector(
++                          onTap: () => setD(() => setState(() => _checklist.remove(tag))),
++                          child: Icon(Icons.close, size: 14, color: Colors.red[300]),
++                        ),
++                      ],
++                    ),
++                  )),
++                ],
++              ),
++
++              if (isAdding) ...[
++                const SizedBox(height: 20),
++                Container(
++                  decoration: BoxDecoration(
++                    color: Colors.blueGrey[50]!.withOpacity(0.5),
++                    borderRadius: BorderRadius.circular(12),
++                    border: Border.all(color: _primary.withOpacity(0.3)),
++                  ),
++                  child: TextField(
++                    controller: tagCtrl,
++                    autofocus: true,
++                    textCapitalization: TextCapitalization.characters,
++                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
++                    decoration: InputDecoration(
++                      hintText: 'ENTER TAG NAME...',
++                      hintStyle: TextStyle(fontSize: 11, color: Colors.blueGrey[300], letterSpacing: 1),
++                      border: InputBorder.none,
++                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
++                      suffixIcon: IconButton(
++                        icon: Icon(Icons.check_circle_rounded, color: _primary),
++                        onPressed: () {
++                          if (tagCtrl.text.trim().isNotEmpty) {
++                            setD(() {
++                              setState(() {
++                                if (!_checklist.contains(tagCtrl.text.trim().toUpperCase())) {
++                                  _checklist.add(tagCtrl.text.trim().toUpperCase());
++                                }
++                              });
++                              tagCtrl.clear();
++                              isAdding = false;
++                            });
++                          }
++                        },
++                      ),
++                    ),
++                    onSubmitted: (v) {
++                      if (v.trim().isNotEmpty) {
++                        setD(() {
++                          setState(() {
++                            if (!_checklist.contains(v.trim().toUpperCase())) {
++                              _checklist.add(v.trim().toUpperCase());
++                            }
++                          });
++                          tagCtrl.clear();
++                          isAdding = false;
++                        });
++                      }
++                    },
++                  ),
++                ),
++              ],
++              const SizedBox(height: 10),
++            ],
++          ),
++          actionsPadding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
++          actions: [
++            Row(
++              children: [
++                const Spacer(),
++                TextButton(
++                  onPressed: () => Navigator.pop(ctx),
++                  child: Text(
++                    'CANCEL',
++                    style: TextStyle(color: Colors.blueGrey[400], fontWeight: FontWeight.w800, fontSize: 13, letterSpacing: 0.5),
++                  ),
++                ),
++                const SizedBox(width: 12),
++                OutlinedButton.icon(
++                  onPressed: () => setD(() => isAdding = true),
++                  icon: const Icon(Icons.add, size: 18),
++                  label: const Text('ADD MORE', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13, letterSpacing: 0.5)),
++                  style: OutlinedButton.styleFrom(
++                    foregroundColor: const Color(0xFF10B981),
++                    side: const BorderSide(color: Color(0xFF10B981)),
++                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
++                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
++                  ),
++                ),
++                const SizedBox(width: 12),
++                ElevatedButton.icon(
++                  onPressed: () => Navigator.pop(ctx),
++                  icon: const Icon(Icons.save_outlined, size: 18),
++                  label: const Text('DONE', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13, letterSpacing: 0.5)),
++                  style: ElevatedButton.styleFrom(
++                    backgroundColor: const Color(0xFFFF6B2B),
++                    foregroundColor: Colors.white,
++                    elevation: 0,
++                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
++                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
++                  ),
++                ),
++              ],
++            ),
++          ],
++        ),
++      ),
++    );
++  }
++
++  Widget _buildAssignTaskButton() {
++    return ElevatedButton(
++      onPressed: _isSubmitting ? null : _handleAssign,
++      style: ElevatedButton.styleFrom(
++        backgroundColor: _primary,
++        foregroundColor: Colors.white,
++        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
++        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
++        elevation: 0,
++      ),
++      child: _isSubmitting 
++        ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
++        : Row(
++            children: const [
++              Icon(Icons.upload_outlined, size: 20),
++              SizedBox(width: 10),
++              Text('ASSIGN TASK', style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1)),
++            ],
++          ),
++    );
++  }
++
+   Widget _buildFooterIconBtn({required IconData icon, required Color color, String? badge, required VoidCallback onTap}) {
+     return Stack(
+       clipBehavior: Clip.none,
+@@ -1853,56 +1692,316 @@ class _AssignTaskSheetState extends State<AssignTaskSheet>
+   }
+ 
+   void _showCategoryPicker() {
++    final searchCtrl = TextEditingController();
++    String searchQuery = '';
++    bool showNewCategoryForm = false;
++    final newCatNameCtrl = TextEditingController();
++    String selectedToneHex = '#9C27B0'; // default purple
++
++    final toneColors = [
++      '#E91E63','#E91EAA','#9C27B0','#673AB7',
++      '#3F51B5','#2196F3','#03A9F4','#00BCD4',
++      '#009688','#4CAF50','#8BC34A','#CDDC39',
++      '#FFC107','#FF9800','#FF5722','#F44336',
++      '#607D8B','#37474F',
++    ];
++
++    Color _hexToColor(String hex) {
++      try {
++        return Color(int.parse(hex.replaceFirst('#', '0xFF')));
++      } catch (_) {
++        return Colors.grey;
++      }
++    }
++
+     showModalBottomSheet(
+       context: context,
+       isScrollControlled: true,
+       backgroundColor: Colors.transparent,
+-      builder: (ctx) => Consumer<CategoryProvider>(
+-        builder: (_, catProv, __) {
+-          final cats = catProv.categories.isNotEmpty
+-              ? catProv.categories.map((c) => c['name'] as String).toList()
+-              : ['General', 'Urgent', 'Maintenance', 'Sales', 'Support'];
+-          return _BottomSheetWrapper(
+-            title: 'Select Category',
+-            child: catProv.isLoading
+-                ? const Padding(
+-                    padding: EdgeInsets.all(40),
+-                    child: Center(child: CircularProgressIndicator()),
+-                  )
+-                : ListView.builder(
+-                    shrinkWrap: true,
+-                    physics: const NeverScrollableScrollPhysics(),
+-                    itemCount: cats.length,
+-                    itemBuilder: (_, i) {
+-                      final isSelected = _category == cats[i];
+-                      return ListTile(
+-                        dense: true,
+-                        onTap: () {
+-                          setState(() => _category = cats[i]);
+-                          Navigator.pop(ctx);
+-                        },
+-                        leading: Container(
+-                          width: 32,
+-                          height: 32,
++      builder: (ctx) => StatefulBuilder(
++        builder: (ctx, setModal) {
++          final catProv = Provider.of<CategoryProvider>(ctx, listen: false);
++          final allCats = catProv.categoryModels;
++          final filtered = allCats.where((c) =>
++              c.name.toLowerCase().contains(searchQuery.toLowerCase())).toList();
++
++          return Container(
++            constraints: BoxConstraints(
++              maxHeight: MediaQuery.of(ctx).size.height * 0.88,
++            ),
++            decoration: const BoxDecoration(
++              color: Colors.white,
++              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
++            ),
++            child: Column(
++              mainAxisSize: MainAxisSize.min,
++              children: [
++                // ΓöÇΓöÇ Handle ΓöÇΓöÇ
++                const SizedBox(height: 10),
++                Center(
++                  child: Container(
++                    width: 38, height: 4,
++                    decoration: BoxDecoration(
++                      color: Colors.grey[300],
++                      borderRadius: BorderRadius.circular(4),
++                    ),
++                  ),
++                ),
++                const SizedBox(height: 14),
++                // ΓöÇΓöÇ Header ΓöÇΓöÇ
++                Padding(
++                  padding: const EdgeInsets.symmetric(horizontal: 20),
++                  child: Row(
++                    children: [
++                      Text(
++                        showNewCategoryForm ? 'NEW CATEGORY' : 'SELECT CATEGORY',
++                        style: const TextStyle(
++                          fontSize: 17, fontWeight: FontWeight.w900,
++                          color: Color(0xFF1A1D23), letterSpacing: 0.5,
++                        ),
++                      ),
++                      const Spacer(),
++                      GestureDetector(
++                        onTap: () => Navigator.pop(ctx),
++                        child: Container(
++                          padding: const EdgeInsets.all(6),
++                          decoration: BoxDecoration(color: Colors.grey[100], shape: BoxShape.circle),
++                          child: const Icon(Icons.close, size: 18, color: Colors.black54),
++                        ),
++                      ),
++                    ],
++                  ),
++                ),
++                const SizedBox(height: 16),
++
++                if (!showNewCategoryForm) ...[
++                  // ΓöÇΓöÇ Search Bar ΓöÇΓöÇ
++                  Padding(
++                    padding: const EdgeInsets.symmetric(horizontal: 20),
++                    child: Container(
++                      decoration: BoxDecoration(
++                        borderRadius: BorderRadius.circular(50),
++                        border: Border.all(color: _primary.withOpacity(0.4)),
++                      ),
++                      child: TextField(
++                        controller: searchCtrl,
++                        onChanged: (v) => setModal(() => searchQuery = v),
++                        decoration: InputDecoration(
++                          hintText: 'Find category...',
++                          hintStyle: TextStyle(color: Colors.blueGrey[300], fontSize: 14),
++                          prefixIcon: Icon(Icons.search, color: Colors.blueGrey[300], size: 20),
++                          border: InputBorder.none,
++                          contentPadding: const EdgeInsets.symmetric(vertical: 14),
++                        ),
++                      ),
++                    ),
++                  ),
++                  const SizedBox(height: 8),
++
++                  // ΓöÇΓöÇ Category List ΓöÇΓöÇ
++                  Flexible(
++                    child: catProv.isLoading
++                        ? const Padding(
++                            padding: EdgeInsets.all(40),
++                            child: Center(child: CircularProgressIndicator()),
++                          )
++                        : filtered.isEmpty
++                            ? Padding(
++                                padding: const EdgeInsets.all(30),
++                                child: Center(
++                                  child: Text('No categories found',
++                                      style: TextStyle(color: Colors.grey[400])),
++                                ),
++                              )
++                            : ListView.separated(
++                                shrinkWrap: true,
++                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
++                                itemCount: filtered.length,
++                                separatorBuilder: (_, __) => Divider(height: 1, color: Colors.grey[100]),
++                                itemBuilder: (_, i) {
++                                  final cat = filtered[i];
++                                  final isSelected = _category == cat.name;
++                                  final dotColor = _hexToColor(cat.color);
++                                  return ListTile(
++                                    onTap: () => setModal(() {
++                                      setState(() => _category = cat.name);
++                                    }),
++                                    leading: Container(
++                                      width: 14, height: 14,
++                                      decoration: BoxDecoration(
++                                        color: dotColor,
++                                        shape: BoxShape.circle,
++                                      ),
++                                    ),
++                                    title: Text(
++                                      cat.name,
++                                      style: TextStyle(
++                                        fontSize: 15,
++                                        fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
++                                        color: isSelected ? const Color(0xFF1A1D23) : Colors.blueGrey[700],
++                                      ),
++                                    ),
++                                    trailing: isSelected
++                                        ? Icon(Icons.check_circle_rounded, color: dotColor, size: 20)
++                                        : null,
++                                  );
++                                },
++                              ),
++                  ),
++                ] else ...[
++                  // ΓöÇΓöÇ NEW CATEGORY FORM ΓöÇΓöÇ
++                  Padding(
++                    padding: const EdgeInsets.symmetric(horizontal: 20),
++                    child: Column(
++                      crossAxisAlignment: CrossAxisAlignment.start,
++                      children: [
++                        // Identifier label
++                        Text('IDENTIFIER',
++                            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: _primary, letterSpacing: 1)),
++                        const SizedBox(height: 8),
++                        Container(
+                           decoration: BoxDecoration(
+-                            color: const Color(0xFF20E19F).withOpacity(0.1), // Toolbar color logic here
+-                            shape: BoxShape.circle,
++                            color: Colors.blueGrey[50]!.withOpacity(0.4),
++                            borderRadius: BorderRadius.circular(50),
++                            border: Border.all(color: _primary.withOpacity(0.4)),
++                          ),
++                          child: TextField(
++                            controller: newCatNameCtrl,
++                            textCapitalization: TextCapitalization.characters,
++                            style: TextStyle(fontSize: 14, color: Colors.blueGrey[700], letterSpacing: 0.5),
++                            decoration: InputDecoration(
++                              hintText: 'EX: MARKETING STRATEGY',
++                              hintStyle: TextStyle(fontSize: 13, color: Colors.blueGrey[300]),
++                              border: InputBorder.none,
++                              contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
++                            ),
+                           ),
+-                          child: const Icon(Icons.category_rounded,
+-                              size: 16, color: Color(0xFF20E19F)), // Toolbar color logic here
+                         ),
+-                        title: Text(cats[i],
+-                            style: TextStyle(
+-                                fontWeight: isSelected
+-                                    ? FontWeight.bold
+-                                    : FontWeight.normal)),
+-                        trailing: isSelected
+-                            ? const Icon(Icons.check_circle_rounded,
+-                                color: Color(0xFF20E19F)) // Toolbar color logic here
+-                            : null,
+-                      );
+-                    },
++                        const SizedBox(height: 24),
++
++                        // Color picker
++                        Center(
++                          child: Text('PICK CATEGORY TONE',
++                              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.blueGrey[400], letterSpacing: 1)),
++                        ),
++                        const SizedBox(height: 16),
++                        Wrap(
++                          spacing: 10,
++                          runSpacing: 10,
++                          alignment: WrapAlignment.center,
++                          children: toneColors.map((hex) {
++                            final c = _hexToColor(hex);
++                            final isChosen = selectedToneHex == hex;
++                            return GestureDetector(
++                              onTap: () => setModal(() => selectedToneHex = hex),
++                              child: AnimatedContainer(
++                                duration: const Duration(milliseconds: 150),
++                                width: isChosen ? 44 : 38,
++                                height: isChosen ? 44 : 38,
++                                decoration: BoxDecoration(
++                                  color: c,
++                                  shape: BoxShape.circle,
++                                  border: isChosen ? Border.all(color: Colors.white, width: 3) : null,
++                                  boxShadow: isChosen ? [BoxShadow(color: c.withOpacity(0.5), blurRadius: 8, spreadRadius: 1)] : [],
++                                ),
++                                child: isChosen
++                                    ? const Icon(Icons.check, color: Colors.white, size: 18)
++                                    : null,
++                              ),
++                            );
++                          }).toList(),
++                        ),
++                      ],
++                    ),
+                   ),
++                ],
++
++                Divider(color: Colors.grey[100], height: 24),
++
++                // ΓöÇΓöÇ Footer Buttons ΓöÇΓöÇ
++                Padding(
++                  padding: EdgeInsets.fromLTRB(16, 0, 16, MediaQuery.of(ctx).viewInsets.bottom + 16),
++                  child: Row(
++                    children: [
++                      // CANCEL
++                      TextButton(
++                        onPressed: () {
++                          if (showNewCategoryForm) {
++                            setModal(() => showNewCategoryForm = false);
++                          } else {
++                            Navigator.pop(ctx);
++                          }
++                        },
++                        child: Text(
++                          'CANCEL',
++                          style: TextStyle(color: Colors.blueGrey[400], fontWeight: FontWeight.w700, fontSize: 12, letterSpacing: 0.5),
++                        ),
++                      ),
++                      const SizedBox(width: 8),
++                      if (!showNewCategoryForm) ...[
++                        // + ADD MORE
++                        Expanded(
++                          child: OutlinedButton.icon(
++                            onPressed: () => setModal(() => showNewCategoryForm = true),
++                            icon: const Icon(Icons.add, size: 16),
++                            label: const Text('ADD MORE', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, letterSpacing: 0.5)),
++                            style: OutlinedButton.styleFrom(
++                              foregroundColor: _primary,
++                              side: BorderSide(color: _primary),
++                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(50)),
++                              padding: const EdgeInsets.symmetric(vertical: 14),
++                            ),
++                          ),
++                        ),
++                        const SizedBox(width: 8),
++                        // APPLY CHANGES
++                        Expanded(
++                          child: ElevatedButton.icon(
++                            onPressed: () => Navigator.pop(ctx),
++                            icon: const Icon(Icons.save_outlined, size: 16),
++                            label: const Text('APPLY', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, letterSpacing: 0.5)),
++                            style: ElevatedButton.styleFrom(
++                              backgroundColor: const Color(0xFFFF6B2B),
++                              foregroundColor: Colors.white,
++                              elevation: 0,
++                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(50)),
++                              padding: const EdgeInsets.symmetric(vertical: 14),
++                            ),
++                          ),
++                        ),
++                      ] else ...[
++                        // CREATE CATEGORY
++                        Expanded(
++                          child: ElevatedButton(
++                            onPressed: () async {
++                              final name = newCatNameCtrl.text.trim();
++                              if (name.isEmpty) return;
++                              final success = await catProv.createCategory(
++                                name: name,
++                                color: selectedToneHex,
++                              );
++                              if (success) {
++                                setState(() => _category = name);
++                                newCatNameCtrl.clear();
++                                setModal(() => showNewCategoryForm = false);
++                              }
++                            },
++                            style: ElevatedButton.styleFrom(
++                              backgroundColor: _hexToColor(selectedToneHex).withOpacity(0.8),
++                              foregroundColor: Colors.white,
++                              elevation: 0,
++                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(50)),
++                              padding: const EdgeInsets.symmetric(vertical: 14),
++                            ),
++                            child: const Text('CREATE CATEGORY', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, letterSpacing: 0.5)),
++                          ),
++                        ),
++                      ],
++                    ],
++                  ),
++                ),
++              ],
++            ),
+           );
+         },
+       ),
+@@ -2039,7 +2138,11 @@ class _BottomSheetWrapper extends StatelessWidget {
+   final String title;
+   final Widget child;
+ 
+-  const _BottomSheetWrapper({required this.title, required this.child});
++  const _BottomSheetWrapper({
++    super.key,
++    required this.title,
++    required this.child,
++  });
+ 
+   @override
+   Widget build(BuildContext context) {

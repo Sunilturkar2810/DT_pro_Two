@@ -106,31 +106,22 @@ class _GroupTaskDetailScreenState extends State<GroupTaskDetailScreen> {
                       ),
                       onPressed: () async {
                         if (_taskNameCtrl.text.trim().isEmpty) return;
-                        
-                        Map<String, dynamic> taskData = {
-                          "delegationName": _taskNameCtrl.text.trim(),
-                          "description": _taskDescCtrl.text.trim(),
-                        };
-                        
-                        if (selectedAssigneeId != null) {
-                          taskData["assigneeId"] = selectedAssigneeId;
-                        }
-                        
-                        final success = await context.read<GroupProvider>().assignTaskToGroup(
-                          widget.groupId,
-                          taskData
-                        );
 
-                        if (success && mounted) {
-                          Navigator.pop(ctx);
-                          _taskNameCtrl.clear();
-                          _taskDescCtrl.clear();
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text(selectedAssigneeId == null ? "Task assigned to all members!" : "Task assigned successfully!")),
-                          );
-                        }
+                        // ⚠️ assignTaskToGroup not available in new backend
+                        // Display info to user
+                        Navigator.pop(ctx);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              "Group task assignment is not available in the current backend. Use Delegations instead.",
+                            ),
+                            backgroundColor: Colors.orange,
+                            duration: Duration(seconds: 3),
+                          ),
+                        );
                       },
                       child: const Text("Assign Task", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+
                     ),
                   ),
                   const SizedBox(height: 20),

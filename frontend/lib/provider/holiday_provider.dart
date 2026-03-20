@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:dio/dio.dart';
-import '../config/api_config.dart';
+import '../config/api_constants.dart';
 
 class HolidayProvider with ChangeNotifier {
   final Dio _dio = Dio();
@@ -13,7 +13,7 @@ class HolidayProvider with ChangeNotifier {
   String? get error => _error;
 
   HolidayProvider() {
-    _dio.options.baseUrl = ApiConfig.baseUrl; // Using standardized base URL
+    _dio.options.baseUrl = ApiConstants.baseUrl; // Using standardized base URL
     _dio.options.headers['Content-Type'] = 'application/json';
   }
 

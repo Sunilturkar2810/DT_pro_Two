@@ -7,6 +7,7 @@ import 'package:dio/dio.dart';
 class UserService {
   final Dio _dio = DioClient().dio;
 
+  /// GET /auth/users — returns direct array in new backend
   Future<List<UserModel>> getAllUsers() async {
     try {
       final response = await _dio.get(ApiConstants.getAllUser);
@@ -24,13 +25,14 @@ class UserService {
     }
   }
 
+  /// GET /teams/my-members — replaced old /auth/my-team
   Future<List<UserModel>> getMyTeam() async {
     try {
-      final response = await _dio.get(ApiConstants.getMyTeam);
+      final response = await _dio.get(ApiConstants.myTeamMembers);
       final dynamic responseData = response.data;
       List<dynamic> usersList = [];
       if (responseData is Map) {
-        usersList = responseData['users'] ?? responseData['team'] ?? responseData['data'] ?? [];
+        usersList = responseData['members'] ?? responseData['data'] ?? responseData['users'] ?? [];
       } else if (responseData is List) {
         usersList = responseData;
       }
@@ -41,18 +43,16 @@ class UserService {
     }
   }
 
-  /// Fetch member profile + task stats from /reports/member/:userId
-  Future<Map<String, dynamic>> getMemberProfile(String userId) async {
+  /// GET /auth/users/:userId — get single user details
+  Future<Map<String, dynamic>> getUserById(String userId) async {
     try {
-      final response = await _dio.get('${ApiConstants.reportMemberProfile}/$userId');
+      final response = await _dio.get(ApiConstants.userById(userId));
       final data = response.data;
-      if (data is Map && data['success'] == true) {
-        return Map<String, dynamic>.from(data['data']);
-      }
+      if (data is Map) return Map<String, dynamic>.from(data);
       return {};
     } catch (e) {
-      print("❌ Member Profile Error: $e");
+      print("❌ Get User Error: $e");
       rethrow;
     }
   }
-}
+}

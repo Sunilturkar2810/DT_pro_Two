@@ -5,6 +5,7 @@ import 'package:d_table_delegate_system/provider/dashboard_provider.dart';
 import 'package:d_table_delegate_system/provider/delegation_provider.dart';
 import 'package:d_table_delegate_system/provider/theme_provider.dart';
 import 'package:d_table_delegate_system/provider/category_provider.dart';
+import 'package:d_table_delegate_system/provider/tag_provider.dart';
 import 'package:d_table_delegate_system/provider/user_provider.dart';
 import 'package:d_table_delegate_system/widget/app_dropdown.dart';
 import 'package:d_table_delegate_system/widget/custom_search_dropdown.dart';
@@ -42,6 +43,8 @@ class _DynamicDashboardState extends State<DynamicDashboard> {
       if (userProv.users.isEmpty) userProv.fetchUsers();
       final catProv = Provider.of<CategoryProvider>(context, listen: false);
       if (catProv.categories.isEmpty) catProv.fetchCategories();
+      final tagProv = Provider.of<TagProvider>(context, listen: false);
+      if (tagProv.tags.isEmpty) tagProv.fetchTags();
     });
   }
 
@@ -139,13 +142,15 @@ class _DynamicDashboardState extends State<DynamicDashboard> {
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                 child: Column(
                   children: [
-                    _buildSummaryCards(isMobile),
+                    dashPro.isTableView ? _buildSummaryCards(isMobile) : _buildTopDonutCharts(dashPro, isMobile),
                     const SizedBox(height: 25),
                     _buildActionRow(isMobile),
                     const SizedBox(height: 25),
                     _buildViewToggle(dashPro),
-                    const SizedBox(height: 25),
-                    _buildSubTabs(dashPro),
+                    if (dashPro.isTableView) ...[
+                      const SizedBox(height: 25),
+                      _buildSubTabs(dashPro),
+                    ],
                     const SizedBox(height: 10),
                     dashPro.isTableView ? _buildReportTable(isMobile) : _buildAnalyticsCharts(dashPro, isMobile),
                     const SizedBox(height: 40),
@@ -228,7 +233,7 @@ class _DynamicDashboardState extends State<DynamicDashboard> {
           _statusCard("PENDING",     (stats["pending"]    ?? 0).toString(), Colors.orangeAccent,     Icons.hourglass_empty_rounded),
           _statusCard("IN PROGRESS", (stats["inProgress"] ?? 0).toString(), Colors.blueAccent,       Icons.sync_rounded),
           _statusCard("COMPLETED",   (stats["done"]       ?? 0).toString(), primaryColor,            Icons.check_circle_outline_rounded),
-          _statusCard("ON TIME",     (stats["onTime"]     ?? 0).toString(), Colors.teal,             Icons.timer_outlined),
+          _statusCard("IN TIME",     (stats["onTime"]     ?? 0).toString(), Colors.teal,             Icons.timer_outlined),
           _statusCard("DELAYED",     (stats["delayed"]    ?? 0).toString(), Colors.deepOrangeAccent, Icons.history_rounded),
         ];
         if (isMobile) {
@@ -286,6 +291,7 @@ class _DynamicDashboardState extends State<DynamicDashboard> {
     final appColors3 = Theme.of(context).extension<AppColors>()!;
     var dashPro = Provider.of<DashboardProvider>(context);
     final userProv = Provider.of<UserProvider>(context);
+    final tagProv = Provider.of<TagProvider>(context);
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -305,11 +311,11 @@ class _DynamicDashboardState extends State<DynamicDashboard> {
             CustomSearchDropdown<UserModel>(
               label: "Assigned To",
               items: userProv.users,
-              value: _selectedUser,
+              value: userProv.users.where((u) => u.id == dashPro.selectedUserId).firstOrNull,
               width: 150,
               labelBuilder: (u) => "${u.firstName} ${u.lastName}",
               onChanged: (val) {
-                setState(() => _selectedUser = val);
+                dashPro.setSelectedUserId(val?.id);
               },
             ),
             const SizedBox(width: 12),
@@ -317,18 +323,29 @@ class _DynamicDashboardState extends State<DynamicDashboard> {
               items: ["All", ...dashPro.categories],
               value: dashPro.selectedCategory.isEmpty ? "All" : dashPro.selectedCategory,
               onChanged: (val) {
-                Provider.of<DashboardProvider>(context, listen: false).setCategory(val);
+                dashPro.setCategory(val);
+              },
+            ),
+            const SizedBox(width: 12),
+            CustomSimpleDropdown<String>(
+              label: "Tag",
+              items: ["Tag", "All", ...tagProv.tags.map((e) => e.name)],
+              value: dashPro.selectedTag,
+              width: 150,
+              labelBuilder: (t) => t,
+              onChanged: (val) {
+                if (val != null) dashPro.setTag(val);
               },
             ),
             const SizedBox(width: 12),
             CustomSimpleDropdown<String>(
               label: "Frequency",
-              items: const ["All", "Daily", "Weekly", "Monthly", "Yearly"],
-              value: _selectedFrequency,
+              items: const ["Frequency", "Daily", "Weekly", "monthly", "Yearly", "Periodically", "Custom", "Once"],
+              value: dashPro.selectedFrequency,
               width: 150,
               labelBuilder: (f) => f,
               onChanged: (val) {
-                setState(() => _selectedFrequency = val);
+                if (val != null) dashPro.setFrequency(val);
               },
             ),
             const SizedBox(width: 12),
@@ -388,7 +405,7 @@ class _DynamicDashboardState extends State<DynamicDashboard> {
         padding: const EdgeInsets.all(4),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
           _toggleBtn("Table", Icons.table_chart_rounded, provider.isTableView, () => provider.toggleView(true)),
-          _toggleBtn("Analytics", Icons.analytics_rounded, !provider.isTableView, () => provider.toggleView(false)),
+          _toggleBtn("Bar Chart", Icons.bar_chart_rounded, !provider.isTableView, () => provider.toggleView(false)),
         ]),
       ),
     );
@@ -478,6 +495,15 @@ class _DynamicDashboardState extends State<DynamicDashboard> {
       builder: (context, provider, _) {
         if (provider.isLoading) return Center(child: Padding(padding: const EdgeInsets.all(40), child: CircularProgressIndicator(color: primaryColor)));
         final acTable = Theme.of(context).extension<AppColors>()!;
+        
+        String firstColLabel = "Employee Name";
+        if (provider.selectedTab == 'Groups') firstColLabel = "Group";
+        else if (provider.selectedTab == 'My Report' || provider.selectedTab == 'Categories') firstColLabel = "Category";
+        else if (provider.selectedTab == 'Delegated') firstColLabel = "Assigned To";
+        else if (provider.selectedTab == 'Daily') firstColLabel = "Date";
+        else if (provider.selectedTab == 'Monthly') firstColLabel = "Month";
+        else if (provider.selectedTab == 'Tags') firstColLabel = "Tag";
+
         return Container(
           decoration: BoxDecoration(color: acTable.cardBackground, borderRadius: BorderRadius.circular(16), boxShadow: [BoxShadow(color: acTable.shadowColor, blurRadius: 10)]),
           clipBehavior: Clip.antiAlias,
@@ -488,6 +514,64 @@ class _DynamicDashboardState extends State<DynamicDashboard> {
               double tableMinWidth = 864;
               double screenAvailableWidth = MediaQuery.of(context).size.width - 32;
               double finalWidth = screenAvailableWidth > tableMinWidth ? screenAvailableWidth : tableMinWidth;
+              
+              if (provider.selectedTab == 'Overdue') {
+                return SizedBox(
+                  width: finalWidth,
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Container(
+                      width: finalWidth,
+                      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+                      color: const Color(0xFF1A1D1E),
+                      child: Row(children: [
+                        _cell(180, _th("Task"), isHeader: true),
+                        _cell(120, _th("Due Date", color: Colors.redAccent), isHeader: true),
+                        _cell(120, _th("Overdue Since", color: Colors.redAccent), isHeader: true),
+                        _cell(100, _th("Status"), isHeader: true),
+                      ]),
+                    ),
+                    if (provider.overdueTasks.isEmpty)
+                      const Padding(padding: EdgeInsets.all(60), child: Center(child: Text("No overdue tasks 🎉", style: TextStyle(color: Colors.grey))))
+                    else
+                      ListView.separated(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        itemCount: provider.overdueTasks.length,
+                        separatorBuilder: (context, index) => Divider(height: 1, color: acTable.divider),
+                        itemBuilder: (context, index) {
+                          final task = provider.overdueTasks[index];
+                          final dueDateStr = task['dueDate'];
+                          String dueFormat = "N/A";
+                          String overdueSince = "N/A";
+                          if (dueDateStr != null) {
+                            final d = DateTime.tryParse(dueDateStr);
+                            if (d != null) {
+                              dueFormat = "${d.day}/${d.month}/${d.year}";
+                              final diff = DateTime.now().difference(d);
+                              if (diff.inDays > 0) overdueSince = "${diff.inDays} days ago";
+                              else if (diff.inHours > 0) overdueSince = "${diff.inHours}h ago";
+                              else overdueSince = "${diff.inMinutes}m ago";
+                            }
+                          }
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+                            child: Row(children: [
+                              _cell(180, Text(task['taskTitle']?.toString() ?? "Untitled", style: TextStyle(fontWeight: FontWeight.bold, color: acTable.textPrimary))),
+                              _cell(120, Text(dueFormat, textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.red))),
+                              _cell(120, Text(overdueSince, textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.bold, color: acTable.textSecondary))),
+                              _cell(100, Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                decoration: BoxDecoration(color: Colors.red.withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
+                                child: Text(task['status']?.toString().toUpperCase() ?? "OVERDUE", textAlign: TextAlign.center, style: const TextStyle(color: Colors.red, fontSize: 10, fontWeight: FontWeight.bold)),
+                              )),
+                            ]),
+                          );
+                        },
+                      ),
+                  ]),
+                );
+              }
+
               return SizedBox(
                 width: finalWidth,
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -496,14 +580,14 @@ class _DynamicDashboardState extends State<DynamicDashboard> {
                     padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
                     color: const Color(0xFF1A1D1E),
                     child: Row(children: [
-                      _cell(180, _th("Employee Name"), isHeader: true),
+                      _cell(180, _th(firstColLabel), isHeader: true),
                       _cell(80, _th("Total"), isHeader: true),
                       _cell(80, _th("Score"), isHeader: true),
-                      _cell(100, _th("Overdue"), isHeader: true),
-                      _cell(100, _th("Pending"), isHeader: true),
-                      _cell(100, _th("In-Progress"), isHeader: true),
-                      _cell(100, _th("In Time"), isHeader: true),
-                      _cell(100, _th("Delayed"), isHeader: true),
+                      _cell(100, _th("Overdue", color: Colors.redAccent), isHeader: true),
+                      _cell(100, _th("Pending", color: Colors.orangeAccent), isHeader: true),
+                      _cell(100, _th("In-Progress", color: Colors.blueAccent), isHeader: true),
+                      _cell(100, _th("In Time", color: Colors.teal), isHeader: true),
+                      _cell(100, _th("Delayed", color: Colors.deepOrangeAccent), isHeader: true),
                     ]),
                   ),
                   if (provider.categoryStats.isEmpty)
@@ -528,7 +612,7 @@ class _DynamicDashboardState extends State<DynamicDashboard> {
     );
   }
 
-  Widget _th(String t) => Text(t, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.bold, fontSize: 11));
+  Widget _th(String t, {Color color = Colors.white70}) => Text(t, textAlign: TextAlign.center, style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 11));
 
   Widget _tdRow(String title, String total, String score, String overdue, String pending, String inProgress, String inTime, String delayed) {
     final acTd = Theme.of(context).extension<AppColors>()!;
@@ -577,10 +661,9 @@ class _DynamicDashboardState extends State<DynamicDashboard> {
     );
   }
 
-  Widget _buildAnalyticsCharts(DashboardProvider dashPro, bool isMobile) {
-    if (dashPro.isLoading) return const SizedBox(height: 300, child: Center(child: CircularProgressIndicator()));
+  Widget _buildTopDonutCharts(DashboardProvider dashPro, bool isMobile) {
+    if (dashPro.isLoading) return const SizedBox(height: 130, child: Center(child: CircularProgressIndicator()));
     final stats = dashPro.taskStats;
-    final ac = Theme.of(context).extension<AppColors>()!;
 
     // 1. OVERDUE, PENDING & IN-PROGRESS
     int overdue = stats["overdue"] ?? 0;
@@ -599,122 +682,236 @@ class _DynamicDashboardState extends State<DynamicDashboard> {
     int delayed = stats["delayed"] ?? 0;
     int total3 = onTime + delayed;
 
-    return Column(
-      children: [
-        if (!isMobile)
-          Row(
-            children: [
-              Expanded(child: _chartCard("OVERDUE, PENDING & IN-PROGRESS", total1, [
-                _chartSection(overdue, Colors.redAccent, "Overdue"),
-                _chartSection(pending, Colors.orangeAccent, "Pending"),
-                _chartSection(inProgress, Colors.blueAccent, "In Progress"),
-              ])),
-              const SizedBox(width: 16),
-              Expanded(child: _chartCard("COMPLETED & NOT COMPLETED", total2, [
-                _chartSection(completed, primaryColor, "Completed"),
-                _chartSection(notCompleted, Colors.grey.withOpacity(0.5), "Not Completed"),
-              ])),
-            ],
-          )
-        else ...[
-          _chartCard("OVERDUE, PENDING & IN-PROGRESS", total1, [
-            _chartSection(overdue, Colors.redAccent, "Overdue"),
-            _chartSection(pending, Colors.orangeAccent, "Pending"),
-            _chartSection(inProgress, Colors.blueAccent, "In Progress"),
-          ]),
-          const SizedBox(height: 16),
-          _chartCard("COMPLETED & NOT COMPLETED", total2, [
-            _chartSection(completed, primaryColor, "Completed"),
-            _chartSection(notCompleted, Colors.grey.withOpacity(0.5), "Not Completed"),
-          ]),
-        ],
-        const SizedBox(height: 16),
-        _chartCard("IN-TIME & DELAYED", total3, [
-          _chartSection(onTime, Colors.teal, "In-Time"),
-          _chartSection(delayed, Colors.deepOrangeAccent, "Delayed"),
-        ], isFullWidth: true),
-      ],
+    final widgets = [
+      _chartCardSmall("Overdue, Pending & In-Progress", total1, [
+        _chartSection(overdue, Colors.redAccent, "Overdue"),
+        _chartSection(pending, Colors.orangeAccent, "Pending"),
+        _chartSection(inProgress, Colors.blueAccent, "In Progress"),
+      ]),
+      _chartCardSmall("Completed & Not Completed", total2, [
+        _chartSection(completed, primaryColor, "Completed"),
+        _chartSection(notCompleted, Colors.grey.withOpacity(0.3), "Not Completed"),
+      ]),
+      _chartCardSmall("In-Time & Delayed", total3, [
+        _chartSection(onTime, Colors.teal, "In-Time"),
+        _chartSection(delayed, Colors.deepOrangeAccent, "Delayed"),
+      ]),
+    ];
+
+    if (isMobile) {
+      return SizedBox(
+        height: 150,
+        child: ListView.separated(
+          scrollDirection: Axis.horizontal,
+          physics: const BouncingScrollPhysics(),
+          itemCount: widgets.length,
+          separatorBuilder: (_, __) => const SizedBox(width: 12),
+          itemBuilder: (_, i) => SizedBox(width: 280, child: widgets[i]),
+        ),
+      );
+    }
+
+    return Row(
+      children: widgets.map((w) => Expanded(child: Padding(padding: const EdgeInsets.symmetric(horizontal: 4), child: w))).toList(),
     );
   }
 
-  Widget _chartCard(String title, int total, List<PieChartSectionData> sections, {bool isFullWidth = false}) {
+  Widget _chartCardSmall(String title, int total, List<PieChartSectionData> sections) {
     final ac = Theme.of(context).extension<AppColors>()!;
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: ac.cardBackground,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [BoxShadow(color: ac.shadowColor, blurRadius: 10)],
       ),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 80, height: 80,
+            child: Stack(
+              children: [
+                PieChart(PieChartData(sectionsSpace: 1, centerSpaceRadius: 25, sections: sections)),
+                Center(child: Text("$total", style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: ac.textPrimary))),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 10)),
+                const SizedBox(height: 6),
+                ...sections.map((s) {
+                   double perc = total > 0 ? (s.value / total) * 100 : 0;
+                   return Row(children: [
+                     Container(width: 6, height: 6, decoration: BoxDecoration(color: s.color, shape: BoxShape.circle)),
+                     const SizedBox(width: 4),
+                     Expanded(child: Text("${perc.toStringAsFixed(0)}%", style: const TextStyle(fontSize: 9))),
+                   ]);
+                }).toList(),
+              ],
+            ),
+          )
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAnalyticsCharts(DashboardProvider dashPro, bool isMobile) {
+    final charts = dashPro.charts;
+    if (dashPro.isLoading) return const SizedBox(height: 150, child: Center(child: CircularProgressIndicator()));
+    if (charts.isEmpty) return const SizedBox(height: 100, child: Center(child: Text("No chart data available")));
+
+    return Column(
+      children: [
+        _buildBarChartCard("EMPLOYEE WISE", charts['employeeWise'] as Map<String, dynamic>? ?? {}, isMobile),
+        const SizedBox(height: 20),
+        _buildBarChartCard("CATEGORY WISE", charts['categoryWise'] as Map<String, dynamic>? ?? {}, isMobile),
+        const SizedBox(height: 20),
+        _buildBarChartCard("DAILY REPORT", charts['dailyReport'] as Map<String, dynamic>? ?? {}, isMobile),
+        const SizedBox(height: 20),
+        _buildBarChartCard("MONTHLY REPORT", charts['monthlyReport'] as Map<String, dynamic>? ?? {}, isMobile),
+        const SizedBox(height: 20),
+        _buildBarChartCard("DELEGATED TASKS REPORT", charts['delegatedReport'] as Map<String, dynamic>? ?? {}, isMobile),
+      ],
+    );
+  }
+
+  Widget _buildBarChartCard(String title, Map<String, dynamic> data, bool isMobile) {
+    final acVisible = Theme.of(context).extension<AppColors>()!;
+    if (data.isEmpty) return const SizedBox.shrink();
+
+    final entries = data.entries.toList();
+    entries.sort((a, b) {
+      int sumA = (a.value as Map).values.fold(0, (p, c) => (p as int) + (c as int));
+      int sumB = (b.value as Map).values.fold(0, (p, c) => (p as int) + (c as int));
+      return sumB.compareTo(sumA);
+    });
+    
+    // Increased limit to 50 but with scrolling management
+    final limitedEntries = entries.take(50).toList();
+    
+    // Dynamic width calculation: 60px per bar, min width is screen width
+    double chartContentWidth = limitedEntries.length * 60.0;
+    if (chartContentWidth < 300) chartContentWidth = 300; 
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: acVisible.cardBackground,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [BoxShadow(color: acVisible.shadowColor, blurRadius: 10)],
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, letterSpacing: 0.5)),
-          const SizedBox(height: 20),
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              SizedBox(
-                width: 120,
-                height: 120,
-                child: Stack(
-                  children: [
-                    PieChart(
-                      PieChartData(
-                        sectionsSpace: 2,
-                        centerSpaceRadius: 40,
-                        sections: sections,
-                      ),
-                    ),
-                    Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text("$total", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: ac.textPrimary)),
-                          Text("TOTAL", style: TextStyle(fontSize: 8, color: ac.textMuted, fontWeight: FontWeight.bold)),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 24),
-              Expanded(
-                child: Column(
-                  children: sections.map((s) {
-                    double perc = total > 0 ? (s.value / total) * 100 : 0;
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 4),
-                      child: Row(
-                        children: [
-                          Container(width: 10, height: 10, decoration: BoxDecoration(color: s.color, shape: BoxShape.circle)),
-                          const SizedBox(width: 8),
-                          Expanded(child: Text(s.title, style: TextStyle(fontSize: 12, color: ac.textSecondary))),
-                          Text("${s.value.toInt()} (${perc.toStringAsFixed(0)}%)", style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                        ],
-                      ),
-                    );
-                  }).toList(),
-                ),
-              ),
+              Expanded(child: Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, letterSpacing: 0.8))),
+              const Row(
+                children: [
+                   _LegendItem(color: Colors.orangeAccent, label: "Pend"),
+                   SizedBox(width: 4),
+                   _LegendItem(color: Colors.redAccent, label: "Ovr"),
+                ],
+              )
             ],
+          ),
+          const SizedBox(height: 30),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            physics: const BouncingScrollPhysics(),
+            child: SizedBox(
+              height: 240,
+              width: chartContentWidth,
+              child: BarChart(
+                BarChartData(
+                  alignment: BarChartAlignment.spaceAround,
+                  maxY: _calculateMaxY(limitedEntries),
+                  barTouchData: BarTouchData(enabled: true),
+                  titlesData: FlTitlesData(
+                    show: true,
+                    bottomTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        reservedSize: 40,
+                        getTitlesWidget: (value, meta) {
+                          int idx = value.toInt();
+                          if (idx < 0 || idx >= limitedEntries.length) return const SizedBox.shrink();
+                          String label = limitedEntries[idx].key;
+                          if (label.length > 10) label = "${label.substring(0, 8)}..";
+                          return Padding(
+                            padding: const EdgeInsets.only(top: 8),
+                            child: Text(label, style: TextStyle(fontSize: 9, color: acVisible.textMuted, fontWeight: FontWeight.bold)),
+                          );
+                        },
+                      ),
+                    ),
+                    leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: true, reservedSize: 30, getTitlesWidget: (v, m) => Text(v.toInt().toString(), style: TextStyle(fontSize: 9, color: acVisible.textMuted)))),
+                    topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                    rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  ),
+                  gridData: FlGridData(show: true, drawVerticalLine: false, getDrawingHorizontalLine: (v) => FlLine(color: acVisible.divider, strokeWidth: 1)),
+                  borderData: FlBorderData(show: false),
+                  barGroups: List.generate(limitedEntries.length, (index) {
+                    final entry = limitedEntries[index].value as Map;
+                    return BarChartGroupData(
+                      x: index,
+                      barRods: [
+                        BarChartRodData(
+                          toY: (entry['Pending'] ?? 0).toDouble() + (entry['Overdue'] ?? 0).toDouble() + (entry['In Progress'] ?? 0).toDouble() + (entry['Completed'] ?? 0).toDouble(),
+                          color: Colors.orangeAccent,
+                          width: 20,
+                          borderRadius: BorderRadius.circular(4),
+                          rodStackItems: [
+                            BarChartRodStackItem(0, (entry['Pending'] ?? 0).toDouble(), Colors.orangeAccent),
+                            BarChartRodStackItem((entry['Pending'] ?? 0).toDouble(), (entry['Pending'] ?? 0).toDouble() + (entry['Overdue'] ?? 0).toDouble(), Colors.redAccent),
+                            BarChartRodStackItem((entry['Pending'] ?? 0).toDouble() + (entry['Overdue'] ?? 0).toDouble(), (entry['Pending'] ?? 0).toDouble() + (entry['Overdue'] ?? 0).toDouble() + (entry['In Progress'] ?? 0).toDouble(), Colors.blueAccent),
+                            BarChartRodStackItem((entry['Pending'] ?? 0).toDouble() + (entry['Overdue'] ?? 0).toDouble() + (entry['In Progress'] ?? 0).toDouble(), (entry['Pending'] ?? 0).toDouble() + (entry['Overdue'] ?? 0).toDouble() + (entry['In Progress'] ?? 0).toDouble() + (entry['Completed'] ?? 0).toDouble(), primaryColor),
+                          ],
+                        ),
+                      ],
+                    );
+                  }),
+                ),
+              ),
+            ),
           ),
         ],
       ),
     );
   }
 
-  PieChartSectionData _chartSection(int value, Color color, String title) {
-    return PieChartSectionData(
-      color: color,
-      value: value.toDouble(),
-      title: '', // We show title in legent instead
-      radius: 12,
-      showTitle: false,
-    );
+  double _calculateMaxY(List<MapEntry<String, dynamic>> entries) {
+    double max = 5;
+    for (var e in entries) {
+      double sum = (e.value as Map).values.fold(0.0, (p, c) => p + (c as int).toDouble());
+      if (sum > max) max = sum;
+    }
+    return max * 1.2;
   }
 
-  Widget _buildPlaceholderChart() {
-    // Keep for fallback or just remove
-    return const SizedBox.shrink();
+  PieChartSectionData _chartSection(int value, Color color, String title) {
+    return PieChartSectionData(
+      color: color, value: value.toDouble(), title: '', radius: 12, showTitle: false,
+    );
+  }
+}
+
+class _LegendItem extends StatelessWidget {
+  final Color color; final String label;
+  const _LegendItem({required this.color, required this.label});
+  @override
+  Widget build(BuildContext context) {
+    return Row(children: [
+      Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+      const SizedBox(width: 4),
+      Text(label, style: const TextStyle(fontSize: 8, color: Colors.grey, fontWeight: FontWeight.bold)),
+    ]);
   }
 }
