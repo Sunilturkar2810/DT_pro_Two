@@ -3,7 +3,6 @@ import 'package:d_table_delegate_system/provider/auth_provider.dart';
 import 'package:d_table_delegate_system/provider/theme_provider.dart';
 import 'package:d_table_delegate_system/screen/auth/login/login_screen.dart';
 import 'package:d_table_delegate_system/screen/home/delegate_task_screen.dart';
-import 'package:d_table_delegate_system/screen/home/group_task.dart';
 import 'package:d_table_delegate_system/screen/home/all_tasks_screen.dart';
 import 'package:d_table_delegate_system/screen/home/my_task.dart';
 import 'package:d_table_delegate_system/screen/home/my_team.dart';
@@ -20,318 +19,167 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 class MyCustomDrawer extends StatelessWidget {
+  const MyCustomDrawer({super.key});
+
   @override
   Widget build(BuildContext context) {
     final auth = Provider.of<AuthProvider>(context);
     final user = auth.currentUser;
-    final userName = user != null
-        ? "${user.firstName} ${user.lastName}"
-        : "Loading User...";
+    final userName = user != null ? "${user.firstName} ${user.lastName}" : "Loading User...";
     final userEmail = user != null ? user.workEmail : "loading@erp.com";
-    final initial = user != null && user.firstName.isNotEmpty
-        ? user.firstName[0].toUpperCase()
-        : "U";
+    final initial = user != null && user.firstName.isNotEmpty ? user.firstName[0].toUpperCase() : "U";
+    final appColors = Theme.of(context).extension<AppColors>()!;
 
     return Drawer(
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       child: Column(
         children: [
-          UserAccountsDrawerHeader(
-            decoration: BoxDecoration(color: Color(0xFF20E19F)),
-            accountName: Text(
-              userName,
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
-            accountEmail: Text(userEmail),
-            currentAccountPicture: CircleAvatar(
-              backgroundColor: Colors.white,
-              backgroundImage:
-                  (user != null &&
-                      user.profilePhotoUrl != null &&
-                      user.profilePhotoUrl!.isNotEmpty)
-                  ? MemoryImage(
-                      dart_convert.base64Decode(
-                        user.profilePhotoUrl!.split(',').last,
-                      ),
-                    )
-                  : null,
-              child:
-                  (user == null ||
-                      user.profilePhotoUrl == null ||
-                      user.profilePhotoUrl!.isEmpty)
-                  ? Text(
-                      initial,
-                      style: const TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF20E19F),
-                      ),
-                    )
-                  : null,
-            ),
-          ),
+          _buildHeader(context, userName, userEmail, initial, user?.profilePhotoUrl),
           Expanded(
             child: ListView(
-              padding: EdgeInsets.symmetric(horizontal: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               children: [
-                _drawerTile(
-                  context,
-                  Icons.dashboard_outlined,
-                  "Dashboard",
-                  false,
-                  () {
-                    Navigator.pop(context); // Dashboard already home par hai
-                  },
-                ),
-                _drawerTile(context, Icons.task_alt, "My Tasks", false, () {
-                  Navigator.pop(context);
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => MyTaskScreen(title: 'My Task'),
-                    ),
-                  );
-                }),
-                _drawerTile(
-                  context,
-                  Icons.format_list_bulleted_rounded,
-                  "All Tasks",
-                  false,
-                  () {
-                    Navigator.pop(context);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) =>
-                            const AllTasksScreen(title: 'All Tasks'),
-                      ),
-                    );
-                  },
-                ),
-                _drawerTile(
-                  context,
-                  Icons.loop_outlined,
-                  "In-Loop Tasks",
-                  false,
-                  () {
-                    Navigator.pop(context);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const InLoopTasksScreen(),
-                      ),
-                    );
-                  },
-                ),
-                _drawerTile(
-                  context,
-                  Icons.delete_outline,
-                  "Deleted Tasks",
-                  false,
-                  () {
-                    Navigator.pop(context);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const DeletedTasksScreen(),
-                      ),
-                    );
-                  },
-                ),
-                _drawerTile(
-                  context,
-                  Icons.assignment_ind_outlined,
-                  "Delegate Task",
-                  false,
-                  () {
-                    Navigator.pop(context);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => DelegateTasksScreen(),
-                      ),
-                    );
-                  },
-                ),
-                _drawerTile(
-                  context,
-                  Icons.file_copy_outlined,
-                  "Task Templates",
-                  false,
-                  () {
-                    Navigator.pop(context);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const TaskTemplatesScreen(),
-                      ),
-                    );
-                  },
-                ),
-                _drawerTile(context, Icons.people_outline, "Groups", false, () {
-                  Navigator.pop(context);
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const MyGroupsScreen(),
-                    ),
-                  );
-                }),
+                _buildSectionHeader("DASHBOARD"),
+                _drawerTile(context, Icons.grid_view_rounded, "Overview", true, () => Navigator.pop(context)),
                 
-                // ONLY SHOW IF ADMIN
+                const SizedBox(height: 20),
+                _buildSectionHeader("TASKS"),
+                _drawerTile(context, Icons.task_alt_rounded, "My Tasks", false, () {
+                  Navigator.pop(context);
+                  Navigator.push(context, MaterialPageRoute(builder: (context) => MyTaskScreen(title: 'My Task')));
+                }),
+                _drawerTile(context, Icons.format_list_bulleted_rounded, "All Tasks", false, () {
+                  Navigator.pop(context);
+                  Navigator.push(context, MaterialPageRoute(builder: (context) => const AllTasksScreen(title: 'All Tasks')));
+                }),
+                _drawerTile(context, Icons.loop_rounded, "In-Loop Tasks", false, () {
+                  Navigator.pop(context);
+                  Navigator.push(context, MaterialPageRoute(builder: (context) => const InLoopTasksScreen()));
+                }),
+                _drawerTile(context, Icons.delete_outline_rounded, "Deleted Tasks", false, () {
+                  Navigator.pop(context);
+                  Navigator.push(context, MaterialPageRoute(builder: (context) => const DeletedTasksScreen()));
+                }),
+                _drawerTile(context, Icons.file_copy_outlined, "Task Templates", false, () {
+                  Navigator.pop(context);
+                  Navigator.push(context, MaterialPageRoute(builder: (context) => const TaskTemplatesScreen()));
+                }),
+
+                const SizedBox(height: 20),
+                _buildSectionHeader("COLLABORATION"),
+                _drawerTile(context, Icons.groups_rounded, "My Team", false, () {
+                  Navigator.pop(context);
+                  Navigator.push(context, MaterialPageRoute(builder: (context) => MyTeamScreen()));
+                }),
+                _drawerTile(context, Icons.category_outlined, "Groups", false, () {
+                  Navigator.pop(context);
+                  Navigator.push(context, MaterialPageRoute(builder: (context) => const MyGroupsScreen()));
+                }),
+
+                const SizedBox(height: 20),
+                _buildSectionHeader("SYSTEM"),
+                _drawerTile(context, Icons.event_note_rounded, "Holidays", false, () {
+                  Navigator.pop(context);
+                  Navigator.push(context, MaterialPageRoute(builder: (context) => const HolidaysScreen()));
+                }),
+                _drawerTile(context, Icons.history_rounded, "Activities", false, () {
+                  Navigator.pop(context);
+                  Navigator.push(context, MaterialPageRoute(builder: (context) => const ActivitiesScreen()));
+                }),
+                _drawerTile(context, Icons.support_agent_rounded, "Support & Help", false, () {
+                  Navigator.pop(context);
+                  Navigator.push(context, MaterialPageRoute(builder: (context) => const SupportScreen()));
+                }),
+
+                const SizedBox(height: 20),
+                _buildSectionHeader("ADMINISTRATION"),
                 if (auth.isAdmin)
-                  _drawerTile(
-                    context,
-                    Icons.person_add_alt_1_outlined,
-                    "Add Multiple Users",
-                    false,
-                    () {
-                      Navigator.pop(context);
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const AddUserScreen(),
-                        ),
-                      );
-                    },
-                  ),
-                  
-                _drawerTile(
-                  context,
-                  Icons.groups_3_outlined,
-                  "My Team",
-                  false,
-                  () {
+                  _drawerTile(context, Icons.person_add_alt_1_rounded, "User Management", false, () {
                     Navigator.pop(context);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (context) => MyTeamScreen()),
-                    );
-                  },
-                ),
-                _drawerTile(
-                  context,
-                  Icons.event_available_outlined,
-                  "Holidays",
-                  false,
-                  () {
-                    Navigator.pop(context);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const HolidaysScreen(),
-                      ),
-                    );
-                  },
-                ),
-                _drawerTile(
-                  context,
-                  Icons.local_activity_outlined,
-                  "Activities",
-                  false,
-                  () {
-                    Navigator.pop(context);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const ActivitiesScreen(),
-                      ),
-                    );
-                  },
-                ),
-                _drawerTile(
-                  context,
-                  Icons.settings_outlined,
-                  "Settings",
-                  false,
-                  () {
-                    Navigator.pop(context);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const SettingsScreen(),
-                      ),
-                    );
-                  },
-                ),
-                _drawerTile(
-                  context,
-                  Icons.support_agent_outlined,
-                  "Support",
-                  false,
-                  () {
-                    Navigator.pop(context);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const SupportScreen(),
-                      ),
-                    );
-                  },
-                ),
+                    Navigator.push(context, MaterialPageRoute(builder: (context) => const AddUserScreen()));
+                  }),
+                _drawerTile(context, Icons.settings_rounded, "Settings", false, () {
+                  Navigator.pop(context);
+                  Navigator.push(context, MaterialPageRoute(builder: (context) => const SettingsScreen()));
+                }),
               ],
             ),
           ),
-          Divider(height: 1),
-          _drawerTile(context, Icons.logout, "Logout", false, () async {
-            // 1. AuthProvider ka access lo
-            final auth = Provider.of<AuthProvider>(context, listen: false);
-
-            // 2. Logout function call karo (Jo aapne dikhaya hai)
-            await auth.logout();
-
-            // 3. User ko Login Screen par dhakka de do aur purani memory clear kar do
-            if (context.mounted) {
-              Navigator.pushAndRemoveUntil(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const LoginScreen(),
-                ), // Apni LoginScreen ka sahi naam likhein
-                (route) =>
-                    false, // Ye line piche jane ka rasta band kar deti hai
-              );
-            }
-          }, color: Colors.redAccent),
-          SizedBox(height: 10),
+          _buildFooter(context, auth),
         ],
       ),
     );
   }
 
-  Widget _drawerTile(
-    BuildContext context,
-    IconData icon,
-    String title,
-    bool isSelected,
-    VoidCallback onTap, {
-    Color? color,
-  }) {
+  Widget _buildHeader(BuildContext context, String name, String email, String initial, String? photoUrl) {
+    return Container(
+      padding: EdgeInsets.only(top: MediaQuery.of(context).padding.top + 20, bottom: 20, left: 20, right: 20),
+      decoration: BoxDecoration(
+        color: ThemeProvider.primaryGreen,
+        borderRadius: const BorderRadius.only(bottomRight: Radius.circular(30)),
+      ),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 30,
+            backgroundColor: Colors.white,
+            backgroundImage: (photoUrl != null && photoUrl.isNotEmpty)
+                ? MemoryImage(dart_convert.base64Decode(photoUrl.split(',').last))
+                : null,
+            child: (photoUrl == null || photoUrl.isEmpty)
+                ? Text(initial, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Color(0xFF20E19F)))
+                : null,
+          ),
+          const SizedBox(width: 15),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(name, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18), maxLines: 1, overflow: TextOverflow.ellipsis),
+                Text(email, style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 12), maxLines: 1, overflow: TextOverflow.ellipsis),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSectionHeader(String title) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 16, bottom: 8, top: 4),
+      child: Text(title, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Colors.grey.shade500, letterSpacing: 1.2)),
+    );
+  }
+
+  Widget _drawerTile(BuildContext context, IconData icon, String title, bool isSelected, VoidCallback onTap, {Color? color}) {
     final appColors = Theme.of(context).extension<AppColors>()!;
     return Container(
-      margin: EdgeInsets.symmetric(vertical: 2),
+      margin: const EdgeInsets.symmetric(vertical: 2),
       decoration: BoxDecoration(
-        color: isSelected
-            ? ThemeProvider.primaryGreen.withOpacity(0.1)
-            : Colors.transparent,
-        borderRadius: BorderRadius.circular(10),
+        color: isSelected ? ThemeProvider.primaryGreen.withOpacity(0.1) : Colors.transparent,
+        borderRadius: BorderRadius.circular(12),
       ),
       child: ListTile(
-        leading: Icon(
-          icon,
-          color: isSelected
-              ? ThemeProvider.primaryGreen
-              : (color ?? appColors.textMuted),
-        ),
-        title: Text(
-          title,
-          style: TextStyle(
-            color: isSelected
-                ? appColors.textPrimary
-                : (color ?? appColors.textSecondary),
-            fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-          ),
-        ),
+        dense: true,
+        leading: Icon(icon, color: isSelected ? ThemeProvider.primaryGreen : (color ?? appColors.textMuted), size: 22),
+        title: Text(title, style: TextStyle(color: isSelected ? ThemeProvider.primaryGreen : (color ?? appColors.textSecondary), fontWeight: isSelected ? FontWeight.bold : FontWeight.w600, fontSize: 14)),
         onTap: onTap,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
+    );
+  }
+
+  Widget _buildFooter(BuildContext context, AuthProvider auth) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(border: Border(top: BorderSide(color: Colors.grey.shade200))),
+      child: _drawerTile(context, Icons.logout_rounded, "Logout", false, () async {
+        await auth.logout();
+        if (context.mounted) {
+          Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (context) => const LoginScreen()), (route) => false);
+        }
+      }, color: Colors.redAccent),
     );
   }
 }

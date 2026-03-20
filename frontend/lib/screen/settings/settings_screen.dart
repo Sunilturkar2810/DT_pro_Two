@@ -1,126 +1,138 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../../provider/auth_provider.dart';
 import 'general_settings_screen.dart';
 import 'categories_screen.dart';
-import 'holidays_screen.dart'; // Added Holidays screen import
-import 'tag_settings_screen.dart'; // 🆕 Added Tag Settings screen import
+import 'holidays_screen.dart';
+import 'tag_settings_screen.dart';
+import 'role_permission_screen.dart';
+import 'notifications_reminders_screen.dart'; // ✅ Added import
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final auth = Provider.of<AuthProvider>(context);
+    final userRole = auth.currentUser?.role?.toUpperCase() ?? 'USER';
+    final isAdmin = userRole == 'ADMIN' || userRole == 'SUPERADMIN';
+
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FD), // Very light clean background
+      backgroundColor: const Color(0xFFF8F9FD),
       appBar: AppBar(
-        title: const Text(
-          "SETTINGS",
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-            fontSize: 18,
-            letterSpacing: 1.2,
-          ),
-        ),
-        backgroundColor: const Color(0xFF20E19F),
+        backgroundColor: Colors.transparent,
         elevation: 0,
-        centerTitle: true,
-        iconTheme: const IconThemeData(color: Colors.white),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.black),
+          onPressed: () => Navigator.pop(context),
+        ),
       ),
       body: SingleChildScrollView(
         physics: const BouncingScrollPhysics(),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 24.0),
+          padding: const EdgeInsets.symmetric(horizontal: 20.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Section Header
-              const Padding(
-                padding: EdgeInsets.only(left: 8.0, bottom: 12.0),
-                child: Text(
-                  "SYSTEM SETTINGS",
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 1.2,
-                    color: Color(0xFF8B95A5), // Subtle grey matching the screenshot
+              // Page Header - Matched with Web Settings.jsx
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF10B981).withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: const Icon(Icons.settings, color: Color(0xFF10B981), size: 32),
                   ),
-                ),
+                  const SizedBox(width: 16),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          "Settings",
+                          style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: Color(0xFF0F172A), letterSpacing: -0.5),
+                        ),
+                        Text(
+                          "Manage your workspace preferences",
+                          style: TextStyle(fontSize: 14, color: Color(0xFF64748B), fontWeight: FontWeight.w500),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
-              
-              // Settings Form/Card
-              Container(
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.02),
-                      blurRadius: 10,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  children: [
-                    _buildSettingsTile(
-                      icon: Icons.settings_outlined,
-                      title: "General",
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const GeneralSettingsScreen(),
-                          ),
-                        );
-                      },
-                      isTop: true,
-                    ),
-                    _buildSettingsTile(
-                      icon: Icons.folder_open_outlined,
-                      title: "Categories",
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const CategoriesScreen(),
-                          ),
-                        );
-                      },
-                    ),
-                    _buildSettingsTile(
-                      icon: Icons.local_offer_outlined,
-                      title: "Tags",
-                      onTap: () {
-                        // 🆕 Navigate to TagSettingsScreen
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const TagSettingsScreen(),
-                          ),
-                        );
-                      },
-                    ),
-                    _buildSettingsTile(
-                      icon: Icons.calendar_today_outlined,
-                      title: "Holidays",
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const HolidaysScreen(),
-                          ),
-                        );
-                      },
-                    ),
-                    _buildSettingsTile(
-                      icon: Icons.notifications_none_outlined,
-                      title: "Notification",
-                      onTap: () {},
-                      isBottom: true,
-                    ),
-                  ],
-                ),
+              const SizedBox(height: 32),
+
+              _buildWebStyleSection("WORKSPACE PREFERENCES"),
+              _buildSettingsTile(
+                icon: Icons.settings_outlined,
+                title: "General",
+                description: "Update profile and workspace preferences",
+                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const GeneralSettingsScreen())),
               ),
+              _buildSettingsTile(
+                icon: Icons.folder_open_outlined,
+                title: "Categories",
+                description: "Manage your task categories",
+                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const CategoriesScreen())),
+              ),
+              _buildSettingsTile(
+                icon: Icons.local_offer_outlined,
+                title: "Tags",
+                description: "Manage task tags and labels",
+                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const TagSettingsScreen())),
+              ),
+              _buildSettingsTile(
+                icon: Icons.calendar_today_outlined,
+                title: "Holidays",
+                description: "View and manage office holidays",
+                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const HolidaysScreen())),
+              ),
+
+              const SizedBox(height: 24),
+              _buildWebStyleSection("ACCESS & SECURITY"),
+              if (isAdmin)
+                _buildSettingsTile(
+                  icon: Icons.people_outline,
+                  title: "Roles and Permissions",
+                  description: "Manage user access and feature permissions",
+                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const RolePermissionScreen())),
+                ),
+              _buildSettingsTile(
+                icon: Icons.notifications_none_outlined,
+                title: "Notifications",
+                description: "Configure alert preferences",
+                onTap: () {
+                  // ✅ Linked to the screen
+                  Navigator.push(context, MaterialPageRoute(builder: (context) => const NotificationsRemindersScreen()));
+                },
+              ),
+              _buildSettingsTile(
+                icon: Icons.shield_outlined,
+                title: "Security",
+                description: "Password and access controls",
+                onTap: () {},
+              ),
+
+              if (isAdmin) ...[
+                const SizedBox(height: 24),
+                _buildWebStyleSection("ADMINISTRATION"),
+                _buildSettingsTile(
+                  icon: Icons.description_outlined,
+                  title: "Notification Templates",
+                  description: "Manage system-wide alert templates",
+                  onTap: () {},
+                ),
+                _buildSettingsTile(
+                  icon: Icons.storage_outlined,
+                  title: "Data Management",
+                  description: "Export and manage system data",
+                  onTap: () {},
+                ),
+              ],
+              const SizedBox(height: 40),
             ],
           ),
         ),
@@ -128,56 +140,49 @@ class SettingsScreen extends StatelessWidget {
     );
   }
 
+  Widget _buildWebStyleSection(String title) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 4, bottom: 12),
+      child: Text(
+        title,
+        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Color(0xFF94A3B8), letterSpacing: 1.0),
+      ),
+    );
+  }
+
   Widget _buildSettingsTile({
     required IconData icon,
     required String title,
+    required String description,
     required VoidCallback onTap,
-    bool isTop = false,
-    bool isBottom = false,
   }) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0), width: 1),
+      ),
+      child: ListTile(
         onTap: onTap,
-        borderRadius: BorderRadius.only(
-          topLeft: Radius.circular(isTop ? 16 : 0),
-          topRight: Radius.circular(isTop ? 16 : 0),
-          bottomLeft: Radius.circular(isBottom ? 16 : 0),
-          bottomRight: Radius.circular(isBottom ? 16 : 0),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        leading: Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(color: const Color(0xFFF1F5F9), borderRadius: BorderRadius.circular(12)),
+          child: Icon(icon, color: const Color(0xFF475569), size: 22),
         ),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-          decoration: BoxDecoration(
-            border: isBottom 
-                ? null 
-                : Border(bottom: BorderSide(color: Colors.grey.withOpacity(0.1))),
-          ),
-          child: Row(
-            children: [
-              Icon(
-                icon,
-                color: const Color(0xFF5E6B81), // Color matching the icon grey from screenshot
-                size: 22,
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF334155), // Dark slate text color
-                  ),
-                ),
-              ),
-              const Icon(
-                Icons.chevron_right_rounded,
-                color: Color(0xFFCBD5E1),
-                size: 20,
-              ),
-            ],
+        title: Text(
+          title,
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF1E293B)),
+        ),
+        subtitle: Padding(
+          padding: const EdgeInsets.only(top: 2),
+          child: Text(
+            description,
+            style: const TextStyle(fontSize: 12, color: Color(0xFF64748B), fontWeight: FontWeight.w500),
           ),
         ),
+        trailing: const Icon(Icons.chevron_right_rounded, color: Color(0xFFCBD5E1)),
       ),
     );
   }

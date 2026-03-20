@@ -51,6 +51,7 @@ dependencies:
   url_launcher: ^6.3.2
   audioplayers: ^6.6.0
   fl_chart: ^0.70.2
+  lucide_icons: ^0.257.0
 
 dependency_overrides:
   record_linux: ^1.2.0

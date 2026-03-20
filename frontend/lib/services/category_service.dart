@@ -8,11 +8,15 @@ class CategoryService {
   // Get all categories with task count
   Future<List<Map<String, dynamic>>> getAllCategories() async {
     try {
-      final response = await _dio.get(ApiConstants.categories);
-      final categories = List<Map<String, dynamic>>.from(response.data ?? []);
-      return categories;
+      // Backend ref uses: GET /api/categories/list
+      final response = await _dio.get('${ApiConstants.categories}/list');
+      if (response.data != null && response.data['success'] == true) {
+        return List<Map<String, dynamic>>.from(response.data['data'] ?? []);
+      }
+      return [];
     } catch (e) {
-      throw Exception('Failed to fetch categories: $e');
+      print('❌ Error in CategoryService.getAllCategories: $e');
+      return [];
     }
   }
 
@@ -105,8 +109,10 @@ class CategoryService {
         '${ApiConstants.categories}/search',
         queryParameters: {'search': query},
       );
-      final categories = List<Map<String, dynamic>>.from(response.data ?? []);
-      return categories;
+      if (response.data is List) {
+        return List<Map<String, dynamic>>.from(response.data);
+      }
+      return [];
     } catch (e) {
       throw Exception('Failed to search categories: $e');
     }
@@ -114,12 +120,6 @@ class CategoryService {
 
   // Legacy method for backward compatibility
   Future<List<dynamic>> getCategories() async {
-    try {
-      final response = await _dio.get(ApiConstants.categories);
-      return response.data;
-    } catch (e) {
-      rethrow;
-    }
+    return await getAllCategories();
   }
 }
-

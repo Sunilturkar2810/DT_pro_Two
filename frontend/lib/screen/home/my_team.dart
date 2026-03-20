@@ -1,437 +1,249 @@
-import 'package:d_table_delegate_system/model/delegate_model.dart';
 import 'package:d_table_delegate_system/model/user_model.dart';
 import 'package:d_table_delegate_system/provider/auth_provider.dart';
-import 'package:d_table_delegate_system/provider/delegation_provider.dart';
 import 'package:d_table_delegate_system/provider/theme_provider.dart';
 import 'package:d_table_delegate_system/provider/user_provider.dart';
-import 'package:d_table_delegate_system/widget/app_dropdown.dart';
 import 'package:d_table_delegate_system/screen/auth/signup/signup_screen.dart';
-import 'package:d_table_delegate_system/screen/home/edit_team_member.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 
 class MyTeamScreen extends StatefulWidget {
+  const MyTeamScreen({super.key});
+
   @override
   _MyTeamScreenState createState() => _MyTeamScreenState();
 }
 
-class _MyTeamScreenState extends State<MyTeamScreen>
-    with SingleTickerProviderStateMixin {
-  late TabController _tabController;
+class _MyTeamScreenState extends State<MyTeamScreen> {
   final TextEditingController _searchCtrl = TextEditingController();
-
-  // States for Dropdowns
   String _selectedRole = "All";
-  String _selectedManager = "Reporting Manager";
-  String _selectedAccess = "Access Type";
+  String _selectedManager = "All";
+  String _selectedAccess = "All";
 
-  final Color _green = ThemeProvider.primaryGreen;
+  final Color _primaryGreen = const Color(0xFF00D094);
+
+  // Custom Slate Colors (Replacement for Colors.slate which is not standard)
+  final Color slate50 = const Color(0xFFF8FAFC);
+  final Color slate100 = const Color(0xFFF1F5F9);
+  final Color slate200 = const Color(0xFFE2E8F0);
+  final Color slate400 = const Color(0xFF94A3B8);
+  final Color slate600 = const Color(0xFF475569);
+  final Color slate800 = const Color(0xFF1E293B);
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final prov = context.read<UserProvider>();
-      prov.fetchMyTeam();
-      prov.clearSelectedMember();
-      prov.fetchUsers();
+      context.read<UserProvider>().fetchUsers();
     });
   }
 
   @override
   void dispose() {
-    _tabController.dispose();
     _searchCtrl.dispose();
     super.dispose();
   }
 
-  void _onMemberTap(UserModel member) {
-    context.read<UserProvider>().fetchMemberProfile(member);
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => FractionallySizedBox(
-        heightFactor: 0.85,
-        child: MemberDetailPanel(
-          member: member,
-          onClose: () => Navigator.pop(ctx),
-          tabController: _tabController,
-          green: _green,
-          appColors: Theme.of(context).extension<AppColors>()!,
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
-    final appColors = Theme.of(context).extension<AppColors>()!;
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: isDark
-          ? Theme.of(context).scaffoldBackgroundColor
-          : Colors.grey.shade50,
+      backgroundColor: isDark ? const Color(0xFF12161B) : Colors.white,
       appBar: AppBar(
         title: Text(
           "My Team",
           style: TextStyle(
-            color: isDark ? Colors.white : Colors.black87,
-            fontWeight: FontWeight.w900,
-            fontSize: 20,
+            color: isDark ? Colors.white : const Color(0xFF1E293B),
+            fontWeight: FontWeight.w900, // Fixed FontWeight.black error
+            fontSize: 18,
           ),
         ),
-        centerTitle: false,
-        backgroundColor: isDark ? appColors.toolbarBackground : Colors.white,
-        elevation: 1,
-        shadowColor: Colors.black12,
+        elevation: 0,
+        backgroundColor: isDark ? const Color(0xFF12161B) : Colors.white,
         iconTheme: IconThemeData(color: isDark ? Colors.white : Colors.black87),
       ),
       body: Consumer<UserProvider>(
         builder: (context, userProv, child) {
           if (userProv.isLoading) {
-            return Center(child: CircularProgressIndicator(color: _green));
+            return Center(child: CircularProgressIndicator(color: _primaryGreen));
           }
 
-          // Apply filters
-          final team = userProv.users.where((u) {
+          final allMembers = userProv.users;
+          
+          // Filters logic
+          final filteredMembers = allMembers.where((u) {
             final q = _searchCtrl.text.toLowerCase();
-            final matchesSearch =
-                q.isEmpty ||
+            final matchesSearch = q.isEmpty ||
                 u.fullName.toLowerCase().contains(q) ||
-                u.workEmail.toLowerCase().contains(q) ||
-                u.role.toLowerCase().contains(q);
-
-            final matchesRole =
-                _selectedRole == "All" ||
-                u.role.toLowerCase() == _selectedRole.toLowerCase();
-
-            return matchesSearch && matchesRole;
+                u.workEmail.toLowerCase().contains(q);
+            
+            final matchesRole = _selectedRole == "All" || u.role == _selectedRole;
+            final matchesManager = _selectedManager == "All" || (u.manager != null && u.manager == _selectedManager);
+            
+            return matchesSearch && matchesRole && matchesManager;
           }).toList();
 
-          return SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildTopToolbar(appColors),
-                _buildBadges(team.length),
-                _buildTable(team, appColors, isDark),
-                const SizedBox(height: 100),
-              ],
-            ),
+          final uniqueRoles = ["All", ...allMembers.map((m) => m.role).toSet().toList()];
+          final uniqueManagers = ["All", ...allMembers.map((m) => m.manager).whereType<String>().toSet().toList()];
+
+          return Column(
+            children: [
+              _buildFilterBar(uniqueRoles, uniqueManagers, isDark),
+              _buildStats(allMembers.length, isDark),
+              Expanded(
+                child: _buildTable(filteredMembers, isDark),
+              ),
+            ],
           );
         },
       ),
     );
   }
 
-  Widget _buildTopToolbar(AppColors ac) {
-    final bool isDark = Theme.of(context).brightness == Brightness.dark;
+  Widget _buildFilterBar(List<String> roles, List<String> managers, bool isDark) {
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Row(
         children: [
-          // Add Member Button
-          ElevatedButton.icon(
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const SignupScreen()),
-              ).then((_) {
-                // Refresh team after adding member
-                context.read<UserProvider>().fetchMyTeam();
-                context.read<UserProvider>().fetchUsers();
-              });
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: _green,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(4),
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-              elevation: 0,
-            ),
-            icon: const Icon(
-              Icons.person_add_alt_1_rounded,
-              size: 16,
-              color: Colors.white,
-            ),
-            label: const Text(
-              "Add Member",
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 13,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
+          _actionButton(LucideIcons.plus, "Create Team", _primaryGreen),
           const SizedBox(width: 8),
-          // Upload User Button
-          ElevatedButton.icon(
-            onPressed: () {},
-            style: ElevatedButton.styleFrom(
-              backgroundColor: _green,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(4),
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-              elevation: 0,
-            ),
-            icon: const Icon(
-              Icons.upload_rounded,
-              size: 16,
-              color: Colors.white,
-            ),
-            label: const Text(
-              "Upload User",
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 13,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
+          _actionButton(LucideIcons.userPlus, "Add Member", _primaryGreen, onTap: () {
+            Navigator.push(context, MaterialPageRoute(builder: (_) => const SignupScreen()));
+          }),
           const SizedBox(width: 12),
-          // Dropdowns
-          _buildDropdownHeader(
-            ac,
-            ["All", "Admin", "Manager", "Team Member"],
-            _selectedRole,
-            (v) => setState(() => _selectedRole = v!),
-            isDark,
-          ),
+          _buildDropdown(roles, _selectedRole, (v) => setState(() => _selectedRole = v!), isDark, "Role"),
           const SizedBox(width: 8),
-          _buildDropdownHeader(
-            ac,
-            ["Reporting Manager"],
-            _selectedManager,
-            (v) => setState(() => _selectedManager = v!),
-            isDark,
-          ),
+          _buildDropdown(managers, _selectedManager, (v) => setState(() => _selectedManager = v!), isDark, "Manager"),
           const SizedBox(width: 8),
-          // Search
-          Container(
-            height: 48,
-            width: 220,
-            padding: const EdgeInsets.symmetric(horizontal: 10),
-            decoration: BoxDecoration(
-              border: Border.all(color: Colors.grey.shade300),
-              borderRadius: BorderRadius.circular(4),
-              color: isDark ? ac.inputBackground : Colors.white,
-            ),
-            child: TextField(
-              controller: _searchCtrl,
-              onChanged: (v) => setState(() {}),
-              decoration: InputDecoration(
-                hintText: "Search Team Member",
-                hintStyle: TextStyle(color: Colors.grey.shade400),
-                border: InputBorder.none,
-                isDense: true,
-                contentPadding: const EdgeInsets.symmetric(vertical: 16),
-                suffixIcon: Icon(
-                  Icons.search,
-                  color: Colors.grey.shade400,
-                  size: 18,
-                ),
-                suffixIconConstraints: const BoxConstraints(minWidth: 30),
-              ),
-              style: TextStyle(fontSize: 13, color: ac.textPrimary),
-            ),
-          ),
+          _buildSearchField(isDark),
           const SizedBox(width: 8),
-          _buildDropdownHeader(
-            ac,
-            ["Access Type"],
-            _selectedAccess,
-            (v) => setState(() => _selectedAccess = v!),
-            isDark,
-          ),
+          _buildDropdown(["All", "Task App", "Leave App"], _selectedAccess, (v) => setState(() => _selectedAccess = v!), isDark, "Access"),
         ],
       ),
     );
   }
 
-  Widget _buildDropdownHeader(
-    AppColors ac,
-    List<String> items,
-    String currentVal,
-    Function(String?) onChanged,
-    bool isDark,
-  ) {
-    if (!items.contains(currentVal)) items = [currentVal, ...items];
-    return Container(
-      height: 48,
-      alignment: Alignment.center,
-      child: AppDropdown<String>(
-        isCompact: true,
-        value: currentVal,
-        items: items,
-        labelBuilder: (v) => v,
-        accentColor: _green,
-        onChanged: (v) {
-          if (v != null) onChanged(v);
-        },
+  Widget _actionButton(IconData icon, String label, Color color, {VoidCallback? onTap}) {
+    return ElevatedButton.icon(
+      onPressed: onTap ?? () {},
+      icon: Icon(icon, size: 16, color: Colors.white),
+      label: Text(label, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: color,
+        elevation: 0,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       ),
     );
   }
 
-  Widget _buildBadges(int memberCount) {
+  Widget _buildDropdown(List<String> items, String current, Function(String?) onChanged, bool isDark, String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1E293B) : Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: isDark ? slate800 : slate200), // Fixed slate error
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: items.contains(current) ? current : items.first,
+          items: items.map((i) => DropdownMenuItem(value: i, child: Text(i, style: TextStyle(fontSize: 12, color: isDark ? Colors.white : Colors.black87)))).toList(),
+          onChanged: onChanged,
+          icon: const Icon(LucideIcons.chevronDown, size: 14),
+          style: const TextStyle(fontWeight: FontWeight.w500),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSearchField(bool isDark) {
+    return Container(
+      width: 200,
+      height: 44,
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1E293B) : Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: isDark ? slate800 : slate200), // Fixed slate error
+      ),
+      child: TextField(
+        controller: _searchCtrl,
+        onChanged: (v) => setState(() {}),
+        style: TextStyle(fontSize: 13, color: isDark ? Colors.white : Colors.black87),
+        decoration: InputDecoration(
+          hintText: "Search Team Member",
+          hintStyle: TextStyle(color: slate400, fontSize: 12), // Fixed slate error
+          prefixIcon: Icon(LucideIcons.search, size: 16, color: slate400), // Fixed slate error
+          border: InputBorder.none,
+          contentPadding: const EdgeInsets.symmetric(vertical: 10),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStats(int count, bool isDark) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
-      child: Wrap(
-        alignment: WrapAlignment.center,
-        spacing: 10,
-        runSpacing: 10,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          _badge(
-            "$memberCount",
-            "Members",
-            const Color(0xFFE0F7FA),
-            Colors.teal.shade700,
-          ),
-          _badge(
-            "$memberCount/0",
-            "Task App",
-            const Color(0xFFE3F2FD),
-            Colors.blue.shade700,
-          ),
-          _badge(
-            "$memberCount/0",
-            "Leave & Attendance App",
-            const Color(0xFFE3F2FD),
-            Colors.blue.shade700,
-          ),
+          _statBadge("$count Members", const Color(0xFFB4F5E1), const Color(0xFF2C7A63), isDark),
+          const SizedBox(width: 8),
+          _statBadge("$count/$count Task App", const Color(0xFFCFEAFF), const Color(0xFF2B6FB5), isDark),
         ],
       ),
     );
   }
 
-  Widget _badge(String countText, String labelText, Color bg, Color textColor) {
+  Widget _statBadge(String text, Color bg, Color textCol, bool isDark) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: textColor.withOpacity(0.3)),
+        color: isDark ? textCol.withOpacity(0.1) : bg,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: isDark ? textCol.withOpacity(0.3) : bg.withOpacity(0.5)),
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            countText,
-            style: TextStyle(
-              fontSize: 16,
-              color: textColor,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            labelText,
-            style: TextStyle(fontSize: 10, color: textColor.withOpacity(0.8)),
-          ),
-        ],
-      ),
+      child: Text(text, style: TextStyle(color: textCol, fontWeight: FontWeight.bold, fontSize: 12)),
     );
   }
 
-  TextStyle _thStyle() => const TextStyle(
-    color: Colors.white,
-    fontWeight: FontWeight.bold,
-    fontSize: 13,
-  );
-
-  Widget _buildTable(List<UserModel> team, AppColors ac, bool isDark) {
+  Widget _buildTable(List<UserModel> members, bool isDark) {
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
-      child: ConstrainedBox(
-        constraints: BoxConstraints(
-          minWidth: MediaQuery.of(context).size.width,
-        ),
+      child: SingleChildScrollView(
         child: Container(
           margin: const EdgeInsets.symmetric(horizontal: 16),
           decoration: BoxDecoration(
-            border: Border.all(color: Colors.grey.shade300),
-            borderRadius: BorderRadius.circular(8),
-            color: isDark ? ac.cardBackground : Colors.white,
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.02),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
-              ),
-            ],
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: isDark ? slate800 : slate100), // Fixed slate error
           ),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Header
               Container(
-                padding: const EdgeInsets.symmetric(
-                  vertical: 14,
-                  horizontal: 10,
-                ),
+                padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
                 decoration: BoxDecoration(
-                  color: _green,
-                  borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(7),
-                  ),
+                  color: _primaryGreen,
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(15)),
                 ),
                 child: Row(
                   children: [
-                    SizedBox(
-                      width: 60,
-                      child: Text(
-                        "Select",
-                        style: _thStyle(),
-                        textAlign: TextAlign.center,
-                      ),
-                    ),
-                    SizedBox(
-                      width: 300,
-                      child: Text("User", style: _thStyle()),
-                    ),
-                    SizedBox(
-                      width: 150,
-                      child: Text("Mobile", style: _thStyle()),
-                    ),
-                    SizedBox(
-                      width: 200,
-                      child: Text("Reports To", style: _thStyle()),
-                    ),
-                    SizedBox(
-                      width: 120,
-                      child: Text("Role", style: _thStyle()),
-                    ),
-                    SizedBox(
-                      width: 80,
-                      child: Text(
-                        "Actions",
-                        style: _thStyle(),
-                        textAlign: TextAlign.center,
-                      ),
-                    ),
+                    _th("Select", 60),
+                    _th("User", 250),
+                    _th("Mobile", 120),
+                    _th("Reports To", 150),
+                    _th("Role", 100),
+                    _th("Actions", 80, align: TextAlign.center),
                   ],
                 ),
               ),
-              // Rows
-              if (team.isEmpty)
-                Container(
-                  width: MediaQuery.of(context).size.width - 32,
-                  padding: const EdgeInsets.all(40),
-                  alignment: Alignment.center,
-                  child: Text(
-                    "No team members found",
-                    style: TextStyle(color: ac.textMuted, fontSize: 15),
-                  ),
-                )
+              // Body
+              if (members.isEmpty)
+                Container(padding: const EdgeInsets.all(40), child: const Text("No members found"))
               else
-                ...team
-                    .map((user) => _buildTableRow(user, ac, isDark))
-                    .toList(),
+                ...members.map((m) => _buildRow(m, isDark)),
             ],
           ),
         ),
@@ -439,180 +251,58 @@ class _MyTeamScreenState extends State<MyTeamScreen>
     );
   }
 
-  Widget _buildTableRow(UserModel user, AppColors ac, bool isDark) {
+  Widget _th(String label, double width, {TextAlign align = TextAlign.left}) {
+    return SizedBox(
+      width: width,
+      child: Text(label, textAlign: align, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
+    );
+  }
+
+  Widget _buildRow(UserModel m, bool isDark) {
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 10),
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
       decoration: BoxDecoration(
-        border: Border(
-          bottom: BorderSide(
-            color: isDark ? Colors.grey.shade800 : Colors.grey.shade200,
-          ),
-        ),
+        border: Border(bottom: BorderSide(color: isDark ? slate800 : slate50)), // Fixed slate error
       ),
       child: Row(
         children: [
+          SizedBox(width: 60, child: Checkbox(value: false, onChanged: (v) {}, activeColor: _primaryGreen)),
           SizedBox(
-            width: 60,
-            child: Checkbox(
-              value: false,
-              onChanged: (v) {},
-              activeColor: _green,
-            ),
-          ),
-          SizedBox(
-            width: 300,
-            child: InkWell(
-              onTap: () => _onMemberTap(user),
-              child: Row(
-                children: [
-                  _avatar(user),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Flexible(
-                              child: Text(
-                                user.fullName,
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: ac.textPrimary,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                            const SizedBox(width: 6),
-                            const Icon(
-                              Icons.verified,
-                              color: ThemeProvider.primaryGreen,
-                              size: 14,
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          user.workEmail,
-                          style: TextStyle(fontSize: 12, color: ac.textMuted),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          SizedBox(
-            width: 150,
-            child: Text(
-              user.mobileNumber ?? "NA",
-              style: TextStyle(fontSize: 13, color: ac.textSecondary),
-            ),
-          ),
-          SizedBox(
-            width: 200,
-            child: Text(
-              user.manager ?? "NA",
-              style: TextStyle(fontSize: 13, color: ac.textSecondary),
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-          SizedBox(
-            width: 120,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-              decoration: BoxDecoration(
-                color: _roleColor(user.role).withOpacity(0.12),
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: UnconstrainedBox(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  user.role,
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: _roleColor(user.role),
-                    fontWeight: FontWeight.bold,
+            width: 250,
+            child: Row(
+              children: [
+                _avatar(m),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(m.fullName, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: isDark ? Colors.white : Colors.black87)),
+                      Text(m.workEmail, style: TextStyle(fontSize: 11, color: slate400)), // Fixed slate error
+                    ],
                   ),
                 ),
+              ],
+            ),
+          ),
+          SizedBox(width: 120, child: Text(m.mobileNumber ?? "N/A", style: const TextStyle(fontSize: 13))),
+          SizedBox(width: 150, child: Text(m.manager ?? "N/A", style: const TextStyle(fontSize: 13))),
+          SizedBox(
+            width: 100,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: _getRoleColor(m.role).withOpacity(0.1),
+                borderRadius: BorderRadius.circular(6),
               ),
+              child: Text(m.role, style: TextStyle(color: _getRoleColor(m.role), fontWeight: FontWeight.bold, fontSize: 10), textAlign: TextAlign.center),
             ),
           ),
           SizedBox(
             width: 80,
-            child: PopupMenuButton<String>(
-              icon: const Icon(
-                Icons.more_vert_rounded,
-                size: 20,
-                color: Colors.grey,
-              ),
-              onSelected: (value) {
-                if (value == 'Profile') {
-                  _onMemberTap(user);
-                } else if (value == 'Edit') {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => EditTeamMemberScreen(member: user),
-                    ),
-                  ).then((_) {
-                    // Refresh team data after editing
-                    context.read<UserProvider>().fetchMyTeam();
-                  });
-                }
-                // Add your other actions here
-              },
-              itemBuilder: (BuildContext context) {
-                final isAdmin = context.read<AuthProvider>().isAdmin;
-                final items = [
-                  const PopupMenuItem(
-                    value: 'Profile',
-                    child: Text('View Profile', style: TextStyle(fontSize: 13)),
-                  ),
-                ];
-                
-                if (isAdmin) {
-                  items.addAll([
-                    const PopupMenuItem(
-                      value: 'Edit',
-                      child: Text('Edit', style: TextStyle(fontSize: 13)),
-                    ),
-                    const PopupMenuItem(
-                      value: 'Reassign',
-                      child: Text(
-                        'Reassign All Tasks',
-                        style: TextStyle(fontSize: 13),
-                      ),
-                    ),
-                    const PopupMenuItem(
-                      value: 'Credentials',
-                      child: Text(
-                        'Update Credentials',
-                        style: TextStyle(fontSize: 13),
-                      ),
-                    ),
-                    const PopupMenuItem(
-                      value: 'DeleteTasks',
-                      child: Text(
-                        'Delete All Tasks',
-                        style: TextStyle(fontSize: 13, color: Colors.red),
-                      ),
-                    ),
-                    const PopupMenuItem(
-                      value: 'DeleteUser',
-                      child: Text(
-                        'Delete User',
-                        style: TextStyle(fontSize: 13, color: Colors.red),
-                      ),
-                    ),
-                  ]);
-                }
-                
-                return items;
-              },
+            child: IconButton(
+              icon: Icon(LucideIcons.moreVertical, size: 18, color: slate400), // Fixed slate error
+              onPressed: () {},
             ),
           ),
         ],
@@ -620,673 +310,20 @@ class _MyTeamScreenState extends State<MyTeamScreen>
     );
   }
 
-  Widget _avatar(UserModel user) {
-    final initials = user.firstName.isNotEmpty
-        ? user.firstName[0].toUpperCase() +
-              (user.lastName.isNotEmpty ? user.lastName[0].toUpperCase() : '')
-        : '?';
+  Widget _avatar(UserModel m) {
+    final initials = (m.firstName.isNotEmpty ? m.firstName[0] : "") + (m.lastName.isNotEmpty ? m.lastName[0] : "");
     return CircleAvatar(
       radius: 18,
-      backgroundColor: _roleColor(user.role).withOpacity(0.15),
-      child: Text(
-        initials,
-        style: TextStyle(
-          fontSize: 13,
-          fontWeight: FontWeight.bold,
-          color: _roleColor(user.role),
-        ),
-      ),
+      backgroundColor: _getRoleColor(m.role),
+      child: Text(initials.toUpperCase(), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
     );
   }
 
-  Color _roleColor(String role) {
-    switch (role.toLowerCase()) {
-      case 'admin':
-        return Colors.green;
-      case 'manager':
-        return Colors.blue;
-      default:
-        return Colors.deepOrange;
+  Color _getRoleColor(String role) {
+    switch (role.toUpperCase()) {
+      case 'ADMIN': return const Color(0xFFEC4899);
+      case 'MANAGER': return const Color(0xFF38BDF8);
+      default: return const Color(0xFFFB923C);
     }
-  }
-}
-
-// ─── MEMBER DETAIL PANEL (Kept from original codebase) ────────────────────────
-class MemberDetailPanel extends StatefulWidget {
-  final UserModel member;
-  final VoidCallback onClose;
-  final TabController tabController;
-  final Color green;
-  final AppColors appColors;
-
-  const MemberDetailPanel({
-    required this.member,
-    required this.onClose,
-    required this.tabController,
-    required this.green,
-    required this.appColors,
-  });
-
-  @override
-  State<MemberDetailPanel> createState() => _MemberDetailPanelState();
-}
-
-class _MemberDetailPanelState extends State<MemberDetailPanel> {
-  final Color _green = ThemeProvider.primaryGreen;
-
-  void _showEditDialog(String label, String fieldKey, String currentValue) {
-    final TextEditingController _editController = TextEditingController(
-      text: currentValue == "N/A" ? "" : currentValue,
-    );
-    showDialog(
-      context: context,
-      builder: (ctx) {
-        final ac = widget.appColors;
-        return AlertDialog(
-          backgroundColor: ac.cardBackground,
-          title: Text("Edit $label", style: TextStyle(color: ac.textPrimary)),
-          content: TextField(
-            controller: _editController,
-            decoration: InputDecoration(
-              hintText: "Enter $label",
-              hintStyle: TextStyle(color: ac.textMuted),
-              enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: _green)),
-              focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: _green)),
-            ),
-            style: TextStyle(color: ac.textPrimary),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: Text("Cancel", style: TextStyle(color: ac.textMuted)),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: _green),
-              onPressed: () async {
-                final newValue = _editController.text.trim();
-                if (newValue != (currentValue == "N/A" ? "" : currentValue)) {
-                  final provider = Provider.of<AuthProvider>(context, listen: false);
-                  Navigator.pop(ctx);
-                  
-                  bool success = await provider.updateProfile({fieldKey: newValue});
-                  
-                  if (success) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text("$label updated successfully"), backgroundColor: Colors.green),
-                    );
-                    // Refresh current user if needed, though updateProfile usually updates the provider state
-                  } else {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text(provider.errorMessage ?? "Failed to update"), backgroundColor: Colors.red),
-                    );
-                  }
-                } else {
-                  Navigator.pop(ctx);
-                }
-              },
-              child: const Text("Save", style: TextStyle(color: Colors.white)),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final ac = widget.appColors;
-    final bool isDark = Theme.of(context).brightness == Brightness.dark;
-    return Container(
-      decoration: BoxDecoration(
-        color: ac.cardBackground,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      child: Consumer<UserProvider>(
-        builder: (ctx, userProv, _) {
-          final profile = userProv.memberProfile;
-          final isLoading = userProv.isMemberLoading;
-          final taskStats =
-              profile?['taskStats'] as Map<String, dynamic>? ?? {};
-          final recentTasks = profile?['recentTasks'] as List<dynamic>? ?? [];
-
-          return Column(
-            children: [
-              // ── Header ──────────────────────────────────────────────
-              Container(
-                padding: const EdgeInsets.fromLTRB(16, 20, 16, 16),
-                decoration: BoxDecoration(
-                  color: isDark
-                      ? ac.toolbarBackground
-                      : _green.withOpacity(0.06),
-                  borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(20),
-                  ),
-                  border: Border(bottom: BorderSide(color: ac.divider)),
-                ),
-                child: Column(
-                  children: [
-                    Row(
-                      children: [
-                        _bigAvatar(widget.member),
-                        const SizedBox(width: 14),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                widget.member.fullName,
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w900,
-                                  fontSize: 18,
-                                  color: ac.textPrimary,
-                                ),
-                              ),
-                              const SizedBox(height: 6),
-                              _roleBadge(widget.member.role),
-                            ],
-                          ),
-                        ),
-                        IconButton(
-                          icon: Icon(
-                            Icons.close,
-                            color: ac.textMuted,
-                            size: 24,
-                          ),
-                          onPressed: widget.onClose,
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    // Contact Info
-                    _infoRow(Icons.email_outlined, widget.member.workEmail, ac),
-                    const SizedBox(height: 6),
-                    _infoRow(
-                      Icons.phone_outlined,
-                      widget.member.mobileNumber ?? "N/A",
-                      ac,
-                    ),
-                    const SizedBox(height: 6),
-                    _infoRow(
-                      Icons.supervisor_account_outlined,
-                      "Reports To: ${widget.member.manager ?? 'NA'}",
-                      ac,
-                    ),
-                    const SizedBox(height: 16),
-                  ],
-                ),
-              ),
-
-              // ── Tabs ──────────────────────────────────────────────────
-              TabBar(
-                controller: widget.tabController,
-                labelColor: _green,
-                unselectedLabelColor: ac.textMuted,
-                indicatorColor: _green,
-                labelStyle: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 13,
-                ),
-                tabs: const [
-                  Tab(text: "Tasks"),
-                  Tab(text: "Groups"),
-                  Tab(text: "Info"),
-                ],
-              ),
-
-              // ── Tab Content ──────────────────────────────────────────
-              Expanded(
-                child: TabBarView(
-                  controller: widget.tabController,
-                  children: [
-                    isLoading
-                        ? Center(
-                            child: CircularProgressIndicator(color: _green),
-                          )
-                        : _buildTasksTab(taskStats, recentTasks, ac),
-                    _buildGroupsTab(ac),
-                    _buildInfoTab(widget.member, ac),
-                  ],
-                ),
-              ),
-            ],
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildTasksTab(
-    Map<String, dynamic> taskStats,
-    List<dynamic> recentTasks,
-    AppColors ac,
-  ) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            "Task Statistics",
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 14,
-              color: ac.textPrimary,
-            ),
-          ),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            children: [
-              _statChip("Overdue", "${taskStats['overdue'] ?? 0}", Colors.red),
-              _statChip(
-                "Pending",
-                "${taskStats['pending'] ?? 0}",
-                Colors.orange,
-              ),
-              _statChip(
-                "In Progress",
-                "${taskStats['inProgress'] ?? 0}",
-                Colors.blue,
-              ),
-              _statChip("Completed", "${taskStats['done'] ?? 0}", _green),
-              _statChip("Total", "${taskStats['total'] ?? 0}", Colors.grey),
-            ],
-          ),
-          const SizedBox(height: 20),
-          if (taskStats.isNotEmpty) ...[
-            Row(
-              children: [
-                Text(
-                  "Completion Rate",
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: ac.textSecondary,
-                  ),
-                ),
-                const Spacer(),
-                Text(
-                  "${taskStats['completionRate'] ?? 0}%",
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: _green,
-                    fontSize: 14,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(4),
-              child: LinearProgressIndicator(
-                value: ((taskStats['completionRate'] ?? 0) as num) / 100,
-                backgroundColor: ac.cardBorder,
-                color: _green,
-                minHeight: 8,
-              ),
-            ),
-            const SizedBox(height: 20),
-          ],
-          Text(
-            "Task Details",
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 14,
-              color: ac.textPrimary,
-            ),
-          ),
-          const SizedBox(height: 10),
-          if (recentTasks.isEmpty)
-            Center(
-              child: Padding(
-                padding: const EdgeInsets.all(20),
-                child: Text(
-                  "No tasks found",
-                  style: TextStyle(color: ac.textMuted, fontSize: 13),
-                ),
-              ),
-            )
-          else
-            Column(
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    vertical: 10,
-                    horizontal: 10,
-                  ),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF1A1D1E),
-                    borderRadius: const BorderRadius.vertical(
-                      top: Radius.circular(8),
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        flex: 4,
-                        child: Text(
-                          "Task Name",
-                          style: const TextStyle(
-                            color: Colors.white54,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 11,
-                          ),
-                        ),
-                      ),
-                      Expanded(
-                        flex: 2,
-                        child: Text(
-                          "Status",
-                          style: const TextStyle(
-                            color: Colors.white54,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 11,
-                          ),
-                        ),
-                      ),
-                      Expanded(
-                        flex: 2,
-                        child: Text(
-                          "Due",
-                          style: const TextStyle(
-                            color: Colors.white54,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 11,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                ...recentTasks.take(10).map((t) {
-                  final taskMap = t as Map<String, dynamic>;
-                  final status = taskMap['status'] ?? '';
-                  final statusColor =
-                      status.toLowerCase() == 'done' ||
-                          status.toLowerCase() == 'completed'
-                      ? Colors.green
-                      : (status.toLowerCase() == 'pending'
-                            ? Colors.orange
-                            : Colors.grey);
-                  String due = taskMap['dueDate'] ?? '';
-                  if (due.length > 10) due = due.substring(0, 10);
-                  return Container(
-                    padding: const EdgeInsets.symmetric(
-                      vertical: 10,
-                      horizontal: 10,
-                    ),
-                    decoration: BoxDecoration(
-                      border: Border(bottom: BorderSide(color: ac.divider)),
-                    ),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          flex: 4,
-                          child: Text(
-                            taskMap['delegationName'] ?? '',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: ac.textPrimary,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        Expanded(
-                          flex: 2,
-                          child: Align(
-                            alignment: Alignment.centerLeft,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 3,
-                              ),
-                              decoration: BoxDecoration(
-                                color: statusColor.withOpacity(0.15),
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              child: Text(
-                                status,
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  color: statusColor,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                        Expanded(
-                          flex: 2,
-                          child: Text(
-                            due,
-                            style: TextStyle(fontSize: 11, color: ac.textMuted),
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                }).toList(),
-              ],
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildGroupsTab(AppColors ac) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.group_outlined, size: 48, color: ac.textMuted),
-          const SizedBox(height: 12),
-          Text(
-            "No groups assigned yet",
-            style: TextStyle(color: ac.textMuted, fontSize: 14),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildInfoTab(UserModel member, AppColors ac) {
-    final currentUser = context.watch<AuthProvider>().currentUser;
-    final bool isOwnProfile = currentUser?.id == member.id;
-    final displayMember = isOwnProfile ? currentUser! : member;
-
-    String addressText = [
-      if (displayMember.address != null && displayMember.address!.isNotEmpty) displayMember.address,
-      if (displayMember.city != null && displayMember.city!.isNotEmpty) displayMember.city,
-      if (displayMember.state != null && displayMember.state!.isNotEmpty) displayMember.state,
-      if (displayMember.nationality != null && displayMember.nationality!.isNotEmpty) displayMember.nationality,
-    ].where((e) => e != null).join(', ');
-    if (addressText.isEmpty) addressText = "N/A";
-
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        children: [
-          _infoCard("Personal Info", [
-            _infoItem(Icons.person_outline, "First Name", displayMember.firstName, ac, fieldKey: 'firstName', canEdit: isOwnProfile),
-            _infoItem(Icons.person_outline, "Last Name", displayMember.lastName, ac, fieldKey: 'lastName', canEdit: isOwnProfile),
-            _infoItem(Icons.favorite_outline, "Gender", displayMember.gender ?? "N/A", ac, fieldKey: 'gender', canEdit: isOwnProfile),
-            _infoItem(Icons.calendar_today_outlined, "Date of Birth", displayMember.dateOfBirth ?? "N/A", ac, fieldKey: 'dateOfBirth', canEdit: isOwnProfile),
-            _infoItem(Icons.family_restroom_outlined, "Marital Status", displayMember.maritalStatus ?? "N/A", ac, fieldKey: 'maritalStatus', canEdit: isOwnProfile),
-          ], ac),
-          const SizedBox(height: 16),
-          _infoCard("Communication Details", [
-            _infoItem(Icons.email_outlined, "Work Email", displayMember.workEmail, ac), // Email usually not editable by user
-            _infoItem(Icons.mail_outline, "Personal Email", displayMember.personalEmail ?? "N/A", ac, fieldKey: 'personalEmail', canEdit: isOwnProfile),
-            _infoItem(Icons.phone_outlined, "Primary Mobile", displayMember.mobileNumber ?? "N/A", ac, fieldKey: 'mobileNumber', canEdit: isOwnProfile),
-            _infoItem(Icons.phone_in_talk_outlined, "Emergency Contact", displayMember.emergencyMobileNo ?? "N/A", ac, fieldKey: 'emergencyMobileNo', canEdit: isOwnProfile),
-            _infoItem(Icons.location_on_outlined, "Address", displayMember.address ?? "N/A", ac, fieldKey: 'address', canEdit: isOwnProfile),
-            _infoItem(Icons.location_city_outlined, "City", displayMember.city ?? "N/A", ac, fieldKey: 'city', canEdit: isOwnProfile),
-            _infoItem(Icons.map_outlined, "State", displayMember.state ?? "N/A", ac, fieldKey: 'state', canEdit: isOwnProfile),
-            _infoItem(Icons.flag_outlined, "Nationality", displayMember.nationality ?? "N/A", ac, fieldKey: 'nationality', canEdit: isOwnProfile),
-          ], ac),
-          const SizedBox(height: 16),
-          _infoCard("Employment & Career", [
-            _infoItem(Icons.work_outline, "Role", displayMember.role, ac),
-            _infoItem(Icons.badge_outlined, "Designation", displayMember.designation, ac, fieldKey: 'designation', canEdit: isOwnProfile),
-            _infoItem(Icons.business_outlined, "Department", displayMember.department, ac, fieldKey: 'department', canEdit: isOwnProfile),
-            _infoItem(Icons.supervisor_account_outlined, "Reports To", displayMember.manager ?? "N/A", ac),
-            _infoItem(Icons.access_time_outlined, "Joining Date", displayMember.joiningDate ?? "N/A", ac, fieldKey: 'joiningDate', canEdit: isOwnProfile),
-            _infoItem(Icons.account_balance_wallet_outlined, "Current Salary", displayMember.currentSalary != null ? "₹${displayMember.currentSalary}" : "N/A", ac),
-          ], ac),
-        ],
-      ),
-    );
-  }
-
-  Widget _infoCard(String title, List<Widget> items, AppColors ac) {
-    return Container(
-      decoration: BoxDecoration(
-        color: ac.cardBackground,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: ac.cardBorder),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
-            child: Text(
-              title,
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 13,
-                color: _green,
-              ),
-            ),
-          ),
-          const Divider(height: 1),
-          ...items,
-          const SizedBox(height: 8),
-        ],
-      ),
-    );
-  }
-
-  Widget _infoItem(IconData icon, String label, String value, AppColors ac, {String? fieldKey, bool canEdit = false}) {
-    bool isNA = value == "N/A" || value.isEmpty;
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      child: InkWell(
-        onTap: (canEdit && (isNA || true)) ? () => _showEditDialog(label, fieldKey!, value) : null,
-        child: Row(
-          children: [
-            Icon(icon, size: 18, color: _green.withOpacity(0.7)),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    label,
-                    style: TextStyle(fontSize: 11, color: ac.textMuted),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    value,
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: ac.textPrimary,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            if (canEdit)
-              Icon(
-                isNA ? Icons.add_circle_outline : Icons.edit_outlined,
-                size: 16,
-                color: isNA ? _green : ac.textMuted,
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _bigAvatar(UserModel user) {
-    final initials = user.firstName.isNotEmpty
-        ? user.firstName[0].toUpperCase() +
-              (user.lastName.isNotEmpty ? user.lastName[0].toUpperCase() : '')
-        : '?';
-    return CircleAvatar(
-      radius: 36,
-      backgroundColor: Colors.blue.withOpacity(0.15),
-      child: Text(
-        initials,
-        style: const TextStyle(
-          fontSize: 22,
-          fontWeight: FontWeight.bold,
-          color: Colors.blue,
-        ),
-      ),
-    );
-  }
-
-  Widget _roleBadge(String role) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-      decoration: BoxDecoration(
-        color: Colors.blue.withOpacity(0.15),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Text(
-        role,
-        style: const TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.bold,
-          color: Colors.blue,
-        ),
-      ),
-    );
-  }
-
-  Widget _infoRow(IconData icon, String text, AppColors ac) {
-    return Row(
-      children: [
-        Icon(icon, size: 16, color: ac.textMuted),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            text,
-            style: TextStyle(fontSize: 13, color: ac.textSecondary),
-            overflow: TextOverflow.ellipsis,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _statChip(String label, String value, Color color) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: color.withOpacity(0.3)),
-      ),
-      child: Column(
-        children: [
-          Text(
-            value,
-            style: TextStyle(
-              fontWeight: FontWeight.w900,
-              fontSize: 18,
-              color: color,
-            ),
-          ),
-          Text(
-            label,
-            style: TextStyle(fontSize: 10, color: color.withOpacity(0.8)),
-          ),
-        ],
-      ),
-    );
   }
 }

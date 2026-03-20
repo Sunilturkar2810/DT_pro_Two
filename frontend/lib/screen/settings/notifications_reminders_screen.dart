@@ -1,99 +1,35 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../provider/settings_provider.dart';
+import '../../provider/notification_provider.dart';
 
 class NotificationsRemindersScreen extends StatefulWidget {
-  const NotificationsRemindersScreen({Key? key}) : super(key: key);
+  const NotificationsRemindersScreen({super.key});
 
   @override
   State<NotificationsRemindersScreen> createState() => _NotificationsRemindersScreenState();
 }
 
 class _NotificationsRemindersScreenState extends State<NotificationsRemindersScreen> with SingleTickerProviderStateMixin {
-  // Notification Settings
-  bool _informaticsNotificationsEnabled = true;
-  bool _emailNotificationsEnabled = false;
+  late TabController _mainTabController;
+  int _activeRoleTab = 0; // 0: Admin, 1: Manager, 2: Member
 
-  // Reminder Settings
-  bool _dailyReminderEnabled = true;
-  bool _emailRemindersEnabled = false;
-
-  // Task Reminder
-  final _reminderTimeController = TextEditingController(text: '09:00');
-  bool _weeklyOnlyEnabled = false;
-  Map<String, bool> _selectedDays = {
-    'Mon': true,
-    'Tue': true,
-    'Wed': true,
-    'Thu': true,
-    'Fri': true,
-    'Sat': false,
-    'Sun': false,
-  };
-
-  // Notification Channels
-  late TabController _tabController;
-
-  final List<String> _notificationTypes = [
-    'New Task',
-    'Task Edit',
-    'Task Assigned',
-    'Task In Progress',
-    'Task Complete',
-    'Task No Start',
-  ];
-
-  Map<String, Map<String, bool>> _notificationChannels = {
-    'New Task': {'Admin': true, 'Manager': true, 'Member': true},
-    'Task Edit': {'Admin': true, 'Manager': true, 'Member': false},
-    'Task Assigned': {'Admin': true, 'Manager': true, 'Member': true},
-    'Task In Progress': {'Admin': true, 'Manager': false, 'Member': true},
-    'Task Complete': {'Admin': true, 'Manager': true, 'Member': true},
-    'Task No Start': {'Admin': true, 'Manager': true, 'Member': false},
-  };
-
-  Map<String, Map<String, String>> _notificationFrequency = {
-    'New Task': {'Admin': 'Real-time', 'Manager': 'Real-time', 'Member': 'Daily'},
-    'Task Edit': {'Admin': 'Real-time', 'Manager': 'Hourly', 'Member': 'Daily'},
-    'Task Assigned': {'Admin': 'Real-time', 'Manager': 'Real-time', 'Member': 'Real-time'},
-    'Task In Progress': {'Admin': 'Real-time', 'Manager': 'Daily', 'Member': 'Weekly'},
-    'Task Complete': {'Admin': 'Real-time', 'Manager': 'Real-time', 'Member': 'Daily'},
-    'Task No Start': {'Admin': 'Daily', 'Manager': 'Daily', 'Member': 'Weekly'},
+  final List<String> _roles = ['Admin', 'Manager', 'Member'];
+  final Map<String, String> _eventLabels = {
+    'newTask': 'New Task',
+    'taskEdit': 'Task Edited',
+    'taskComment': 'Task Comment',
+    'taskInProgress': 'Task In-Progress',
+    'taskComplete': 'Task Complete',
+    'taskReOpen': 'Task Re-Open',
+    'dailyPendingReminders': 'Daily Pending Task Reminders'
   };
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
-    
-    // Load notification settings from provider
+    _mainTabController = TabController(length: 2, vsync: this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final settingsProvider = context.read<SettingsProvider>();
-      settingsProvider.fetchNotificationSettings().then((_) {
-        final notif = settingsProvider.notificationSettings;
-        setState(() {
-          _informaticsNotificationsEnabled = notif['informaticsNotifications'] ?? true;
-          _emailNotificationsEnabled = notif['emailNotifications'] ?? true;
-          _dailyReminderEnabled = notif['dailyReminder'] ?? true;
-          _emailRemindersEnabled = notif['emailReminders'] ?? true;
-          _reminderTimeController.text = notif['taskReminderTime'] ?? '09:00';
-          _weeklyOnlyEnabled = notif['weeklyOnly'] ?? false;
-          
-          // Load reminder days
-          if (notif['reminderDays'] != null && notif['reminderDays'] is List) {
-            List<String> days = List<String>.from(notif['reminderDays']);
-            _selectedDays = {
-              'Mon': days.contains('Monday'),
-              'Tue': days.contains('Tuesday'),
-              'Wed': days.contains('Wednesday'),
-              'Thu': days.contains('Thursday'),
-              'Fri': days.contains('Friday'),
-              'Sat': days.contains('Saturday'),
-              'Sun': days.contains('Sunday'),
-            };
-          }
-        });
-      });
+      context.read<NotificationProvider>().fetchNotificationSettings();
     });
   }
 
@@ -102,458 +38,286 @@ class _NotificationsRemindersScreenState extends State<NotificationsRemindersScr
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FD),
       appBar: AppBar(
-        title: const Text(
-          "NOTIFICATIONS & REMINDERS",
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18, letterSpacing: 1.2),
-        ),
+        title: const Text("NOTIFICATIONS", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18, letterSpacing: 1.2)),
         backgroundColor: const Color(0xFF20E19F),
         elevation: 0,
         centerTitle: true,
         iconTheme: const IconThemeData(color: Colors.white),
-      ),
-      body: SingleChildScrollView(
-        physics: const BouncingScrollPhysics(),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 24.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Notification Settings
-              const _SectionHeader(title: 'Notification Settings', subtitle: 'Manage how you receive notifications'),
-              _buildNotificationSettingsCard(),
-              const SizedBox(height: 28),
-
-              // Reminder Settings
-              const _SectionHeader(title: 'Reminder Settings', subtitle: 'Manage your reminders'),
-              _buildReminderSettingsCard(),
-              const SizedBox(height: 28),
-
-              // Task Reminder
-              const _SectionHeader(title: 'Task Reminder', subtitle: 'Set up task reminders'),
-              _buildTaskReminderCard(),
-              const SizedBox(height: 28),
-
-              // Notification Channels
-              const _SectionHeader(title: 'Notification Channels', subtitle: 'Select platforms where you receive notifications'),
-              _buildNotificationChannelsTable(),
-              const SizedBox(height: 28),
-
-              // Notification Frequency
-              const _SectionHeader(title: 'Notification Frequency', subtitle: 'Choose how often you receive notifications'),
-              _buildNotificationFrequencyTable(),
-              const SizedBox(height: 32),
-
-              // Save Button
-              SizedBox(
-                width: double.infinity,
-                height: 48,
-                child: Consumer<SettingsProvider>(
-                  builder: (context, settingsProvider, _) => ElevatedButton(
-                    onPressed: () async {
-                      // Convert selected days to full day names
-                      List<String> reminderDays = _selectedDays.entries
-                          .where((e) => e.value)
-                          .map((e) => e.key == 'Mon'
-                              ? 'Monday'
-                              : e.key == 'Tue'
-                                  ? 'Tuesday'
-                                  : e.key == 'Wed'
-                                      ? 'Wednesday'
-                                      : e.key == 'Thu'
-                                          ? 'Thursday'
-                                          : e.key == 'Fri'
-                                              ? 'Friday'
-                                              : e.key == 'Sat'
-                                                  ? 'Saturday'
-                                                  : 'Sunday')
-                          .toList();
-
-                      final success = await settingsProvider.updateNotificationSettings(
-                        informaticsNotifications: _informaticsNotificationsEnabled,
-                        emailNotifications: _emailNotificationsEnabled,
-                        dailyReminder: _dailyReminderEnabled,
-                        emailReminders: _emailRemindersEnabled,
-                        taskReminderTime: _reminderTimeController.text,
-                        weeklyOnly: _weeklyOnlyEnabled,
-                        reminderDays: reminderDays,
-                        notificationChannels: _notificationChannels,
-                        notificationFrequency: _notificationFrequency,
-                      );
-
-                      if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(success
-                                ? 'Notification settings saved successfully'
-                                : 'Error: ${settingsProvider.errorMessage}'),
-                            backgroundColor: success
-                                ? const Color(0xFF20E19F)
-                                : Colors.red,
-                          ),
-                        );
-                      }
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF20E19F),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                    ),
-                    child: settingsProvider.isLoading
-                        ? const SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                            ),
-                          )
-                        : const Text('Save Settings',
-                            style: TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 16)),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildNotificationSettingsCard() {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10, offset: const Offset(0, 4))],
-      ),
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        children: [
-          _buildToggleTileWithTabs('Informatics Notifications', _informaticsNotificationsEnabled, (value) {
-            setState(() => _informaticsNotificationsEnabled = value);
-          }, ['Timestamps', 'In Pro Details']),
-          const SizedBox(height: 16),
-          _buildToggleTile('Email Notifications', _emailNotificationsEnabled, (value) {
-            setState(() => _emailNotificationsEnabled = value);
-          }),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildReminderSettingsCard() {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10, offset: const Offset(0, 4))],
-      ),
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        children: [
-          _buildToggleTile('Daily Reminder-Every Knows when time', _dailyReminderEnabled, (value) {
-            setState(() => _dailyReminderEnabled = value);
-          }),
-          const SizedBox(height: 16),
-          _buildToggleTile('Email Reminders', _emailRemindersEnabled, (value) {
-            setState(() => _emailRemindersEnabled = value);
-          }),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTaskReminderCard() {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10, offset: const Offset(0, 4))],
-      ),
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        children: [
-          // Time Input
-          TextFormField(
-            controller: _reminderTimeController,
-            decoration: InputDecoration(
-              labelText: 'Reminder Time',
-              hintText: 'HH:MM',
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-              floatingLabelStyle: const TextStyle(color: Color(0xFF20E19F)),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: const BorderSide(color: Color(0xFF20E19F), width: 2),
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-
-          // Weekly Only Checkbox
-          _buildCheckboxTile('Weekly Only', _weeklyOnlyEnabled, (value) {
-            setState(() => _weeklyOnlyEnabled = value ?? false);
-          }),
-          const SizedBox(height: 16),
-
-          // Days Selection
-          const Text('Select days:', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: _selectedDays.keys.map((day) {
-              return FilterChip(
-                label: Text(day),
-                selected: _selectedDays[day] ?? false,
-                onSelected: (selected) {
-                  setState(() => _selectedDays[day] = selected);
-                },
-                selectedColor: const Color(0xFF20E19F),
-                labelStyle: TextStyle(
-                  color: _selectedDays[day] ?? false ? Colors.white : Colors.grey.shade700,
-                  fontWeight: FontWeight.w600,
-                ),
-                backgroundColor: Colors.grey.shade100,
-              );
-            }).toList(),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildNotificationChannelsTable() {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10, offset: const Offset(0, 4))],
-        ),
-        child: Column(
-        children: [
-          // Header
-          Container(
-            color: const Color(0xFF20E19F),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            child: Row(
-              children: [
-                Expanded(flex: 2, child: Text('Type', style: _tableHeaderStyle())),
-                Expanded(child: Text('Admin', style: _tableHeaderStyle())),
-                Expanded(child: Text('Manager', style: _tableHeaderStyle())),
-                Expanded(child: Text('Member', style: _tableHeaderStyle())),
-              ],
-            ),
-          ),
-          // Rows
-          ..._notificationTypes.asMap().entries.map((entry) {
-            int index = entry.key;
-            String type = entry.value;
-            bool isLast = index == _notificationTypes.length - 1;
-            return Container(
-              decoration: BoxDecoration(
-                border: isLast ? null : Border(bottom: BorderSide(color: Colors.grey.withOpacity(0.1))),
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              child: Row(
-                children: [
-                  Expanded(flex: 2, child: Text(type, style: _tableRowStyle())),
-                  Expanded(child: _buildTableCheckbox(_notificationChannels[type]?['Admin'] ?? false, (value) {
-                    setState(() => _notificationChannels[type]!['Admin'] = value ?? false);
-                  })),
-                  Expanded(child: _buildTableCheckbox(_notificationChannels[type]?['Manager'] ?? false, (value) {
-                    setState(() => _notificationChannels[type]!['Manager'] = value ?? false);
-                  })),
-                  Expanded(child: _buildTableCheckbox(_notificationChannels[type]?['Member'] ?? false, (value) {
-                    setState(() => _notificationChannels[type]!['Member'] = value ?? false);
-                  })),
-                ],
-              ),
-            );
-          }).toList(),
-        ],
-      ),
-      ),
-    );
-  }
-
-  Widget _buildNotificationFrequencyTable() {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10, offset: const Offset(0, 4))],
-        ),
-        child: Column(
-        children: [
-          // Header
-          Container(
-            color: const Color(0xFF20E19F),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            child: Row(
-              children: [
-                Expanded(flex: 2, child: Text('Type', style: _tableHeaderStyle())),
-                Expanded(child: Text('Admin', style: _tableHeaderStyle())),
-                Expanded(child: Text('Manager', style: _tableHeaderStyle())),
-                Expanded(child: Text('Member', style: _tableHeaderStyle())),
-              ],
-            ),
-          ),
-          // Rows
-          ..._notificationTypes.asMap().entries.map((entry) {
-            int index = entry.key;
-            String type = entry.value;
-            bool isLast = index == _notificationTypes.length - 1;
-            return Container(
-              decoration: BoxDecoration(
-                border: isLast ? null : Border(bottom: BorderSide(color: Colors.grey.withOpacity(0.1))),
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              child: Row(
-                children: [
-                  Expanded(flex: 2, child: Text(type, style: _tableRowStyle())),
-                  Expanded(child: _buildFrequencyDropdown(_notificationFrequency[type]?['Admin'] ?? 'Daily', (value) {
-                    setState(() => _notificationFrequency[type]!['Admin'] = value ?? 'Daily');
-                  })),
-                  Expanded(child: _buildFrequencyDropdown(_notificationFrequency[type]?['Manager'] ?? 'Daily', (value) {
-                    setState(() => _notificationFrequency[type]!['Manager'] = value ?? 'Daily');
-                  })),
-                  Expanded(child: _buildFrequencyDropdown(_notificationFrequency[type]?['Member'] ?? 'Daily', (value) {
-                    setState(() => _notificationFrequency[type]!['Member'] = value ?? 'Daily');
-                  })),
-                ],
-              ),
-            );
-          }).toList(),
-        ],
-      ),
-      ),
-    );
-  }
-
-  Widget _buildToggleTile(String label, bool value, Function(bool) onChanged) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFF334155))),
-        Switch(value: value, onChanged: onChanged, activeColor: const Color(0xFF20E19F)),
-      ],
-    );
-  }
-
-  Widget _buildToggleTileWithTabs(String label, bool value, Function(bool) onChanged, List<String> tabs) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFF334155))),
-            Switch(value: value, onChanged: onChanged, activeColor: const Color(0xFF20E19F)),
+        bottom: TabBar(
+          controller: _mainTabController,
+          indicatorColor: Colors.white,
+          indicatorWeight: 3,
+          tabs: const [
+            Tab(text: "PREFERENCES"),
+            Tab(text: "TEMPLATES"),
           ],
         ),
-        const SizedBox(height: 12),
-        Row(
-          children: tabs.asMap().entries.map((entry) {
-            int index = entry.key;
-            String tab = entry.value;
-            return Expanded(
-              child: Padding(
-                padding: EdgeInsets.only(right: index == tabs.length - 1 ? 0 : 8),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade100,
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: Colors.grey.shade300),
-                  ),
-                  child: Text(tab, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500), textAlign: TextAlign.center),
-                ),
-              ),
-            );
-          }).toList(),
-        ),
-      ],
+      ),
+      body: Consumer<NotificationProvider>(
+        builder: (context, provider, _) {
+          if (provider.isLoading) return const Center(child: CircularProgressIndicator());
+          
+          return TabBarView(
+            controller: _mainTabController,
+            children: [
+              _buildPreferencesTab(provider),
+              const Center(child: Text("Notification Templates Coming Soon", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey))),
+            ],
+          );
+        },
+      ),
+      bottomNavigationBar: _buildBottomSaveBar(),
     );
   }
 
-  Widget _buildCheckboxTile(String label, bool value, Function(bool?) onChanged) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFF334155))),
-        Checkbox(
-          value: value,
-          onChanged: onChanged,
-          activeColor: const Color(0xFF20E19F),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildTableCheckbox(bool value, Function(bool?) onChanged) {
-    return Checkbox(
-      value: value,
-      onChanged: onChanged,
-      activeColor: const Color(0xFF20E19F),
-    );
-  }
-
-  Widget _buildFrequencyDropdown(String value, Function(String?) onChanged) {
-    final frequencies = ['Real-time', 'Hourly', 'Daily', 'Weekly'];
-    return DropdownButton<String>(
-      value: value,
-      items: frequencies.map((freq) {
-        return DropdownMenuItem(value: freq, child: Text(freq, style: const TextStyle(fontSize: 12)));
-      }).toList(),
-      onChanged: onChanged,
-      underline: const SizedBox(),
-      isDense: true,
-    );
-  }
-
-  TextStyle _tableHeaderStyle() {
-    return const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12);
-  }
-
-  TextStyle _tableRowStyle() {
-    return const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF334155));
-  }
-
-  @override
-  void dispose() {
-    _reminderTimeController.dispose();
-    _tabController.dispose();
-    super.dispose();
-  }
-}
-
-class _SectionHeader extends StatelessWidget {
-  final String title;
-  final String subtitle;
-
-  const _SectionHeader({required this.title, required this.subtitle});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(left: 8.0, bottom: 12.0),
+  Widget _buildPreferencesTab(NotificationProvider provider) {
+    return SingleChildScrollView(
+      physics: const BouncingScrollPhysics(),
+      padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            title,
-            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, letterSpacing: 1.0, color: Color(0xFF334155)),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            subtitle,
-            style: const TextStyle(fontSize: 12, color: Color(0xFF8B95A5), fontWeight: FontWeight.w400),
-          ),
+          _buildSectionHeader("GLOBAL CHANNELS"),
+          _buildGlobalToggles(provider),
+          const SizedBox(height: 30),
+          
+          _buildSectionHeader("REMINDER SCHEDULE"),
+          _buildReminderSettings(provider),
+          const SizedBox(height: 30),
+
+          _buildSectionHeader("WEEKLY OFFS"),
+          _buildWeeklyOffs(provider),
+          const SizedBox(height: 30),
+
+          _buildSectionHeader("NOTIFICATION CHANNELS"),
+          _buildChannelsMatrix(provider),
+          const SizedBox(height: 30),
+
+          _buildSectionHeader("NOTIFICATION FREQUENCY"),
+          _buildFrequencyMatrix(provider),
+          const SizedBox(height: 40),
         ],
+      ),
+    );
+  }
+
+  Widget _buildSectionHeader(String title) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 4, bottom: 12),
+      child: Text(title, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Color(0xFF94A3B8), letterSpacing: 1.2)),
+    );
+  }
+
+  Widget _buildGlobalToggles(NotificationProvider provider) {
+    return Row(
+      children: [
+        // ✅ Fixed emerald color error
+        Expanded(child: _toggleCard("WhatsApp", Icons.chat_bubble_outline, provider.whatsappNotifications, (v) => provider.updateGlobal('whatsappNotifications', v), Colors.green)),
+        const SizedBox(width: 12),
+        Expanded(child: _toggleCard("Email", Icons.mail_outline, provider.emailNotifications, (v) => provider.updateGlobal('emailNotifications', v), Colors.redAccent)),
+      ],
+    );
+  }
+
+  Widget _toggleCard(String title, IconData icon, bool value, Function(bool) onChanged, Color color) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), border: Border.all(color: const Color(0xFFE2E8F0))),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: color, size: 24),
+          const SizedBox(height: 12),
+          Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+          const SizedBox(height: 8),
+          Switch.adaptive(value: value, activeColor: const Color(0xFF10B981), onChanged: onChanged),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildReminderSettings(NotificationProvider provider) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), border: Border.all(color: const Color(0xFFE2E8F0))),
+      child: Row(
+        children: [
+          Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: const Color(0xFF10B981).withOpacity(0.1), borderRadius: BorderRadius.circular(12)), child: const Icon(Icons.access_time_filled, color: Color(0xFF10B981))),
+          const SizedBox(width: 15),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text("Daily Reminder Time", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey)),
+                Text(provider.dailyReminderTime, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
+              ],
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final time = await showTimePicker(context: context, initialTime: TimeOfDay.now());
+              if (time != null) provider.updateReminderTime("${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}");
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFF1F5F9), elevation: 0, foregroundColor: Colors.black, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+            child: const Text("Edit"),
+          )
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWeeklyOffs(NotificationProvider provider) {
+    final days = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+    final fullDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), border: Border.all(color: const Color(0xFFE2E8F0))),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: List.generate(7, (index) {
+          bool isOff = provider.weeklyOffs.contains(fullDays[index]);
+          return GestureDetector(
+            onTap: () => provider.toggleWeeklyOff(fullDays[index]),
+            child: Column(
+              children: [
+                Container(
+                  width: 36, height: 36,
+                  decoration: BoxDecoration(
+                    color: isOff ? const Color(0xFF10B981) : Colors.transparent,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: isOff ? const Color(0xFF10B981) : Colors.grey.shade300),
+                  ),
+                  child: Center(child: Icon(Icons.check, size: 16, color: isOff ? Colors.white : Colors.transparent)),
+                ),
+                const SizedBox(height: 8),
+                Text(days[index], style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: isOff ? const Color(0xFF10B981) : Colors.grey)),
+              ],
+            ),
+          );
+        }),
+      ),
+    );
+  }
+
+  Widget _buildChannelsMatrix(NotificationProvider provider) {
+    return Container(
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), border: Border.all(color: const Color(0xFFE2E8F0))),
+      clipBehavior: Clip.antiAlias,
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: DataTable(
+          headingRowColor: MaterialStateProperty.all(const Color(0xFFF8F9FD)),
+          columns: const [
+            DataColumn(label: Text("Events", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
+            DataColumn(label: Text("Admin", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
+            DataColumn(label: Text("Manager", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
+            DataColumn(label: Text("Member", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
+          ],
+          rows: _eventLabels.entries.map((entry) {
+            return DataRow(cells: [
+              DataCell(Text(entry.value, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600))),
+              DataCell(_buildMatrixCheck(provider, entry.key, 'admin')),
+              DataCell(_buildMatrixCheck(provider, entry.key, 'manager')),
+              DataCell(_buildMatrixCheck(provider, entry.key, 'member')),
+            ]);
+          }).toList(),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFrequencyMatrix(NotificationProvider provider) {
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(4),
+          decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(12)),
+          child: Row(
+            children: List.generate(3, (index) => Expanded(
+              child: GestureDetector(
+                onTap: () => setState(() => _activeRoleTab = index),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  decoration: BoxDecoration(
+                    color: _activeRoleTab == index ? Colors.white : Colors.transparent,
+                    borderRadius: BorderRadius.circular(10),
+                    boxShadow: _activeRoleTab == index ? [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 4)] : [],
+                  ),
+                  child: Center(child: Text(_roles[index], style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: _activeRoleTab == index ? const Color(0xFF10B981) : Colors.grey))),
+                ),
+              ),
+            )),
+          ),
+        ),
+        const SizedBox(height: 15),
+        Container(
+          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), border: Border.all(color: const Color(0xFFE2E8F0))),
+          clipBehavior: Clip.antiAlias,
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: DataTable(
+              headingRowColor: MaterialStateProperty.all(const Color(0xFF10B981)),
+              columns: const [
+                DataColumn(label: Text("Events", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 11))),
+                DataColumn(label: Text("Once", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 11))),
+                DataColumn(label: Text("Daily", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 11))),
+                DataColumn(label: Text("Weekly", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 11))),
+                DataColumn(label: Text("Monthly", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 11))),
+              ],
+              rows: _eventLabels.entries.map((entry) {
+                return DataRow(cells: [
+                  DataCell(Text(entry.value, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold))),
+                  DataCell(_buildFreqCheck(provider, entry.key, 'once')),
+                  DataCell(_buildFreqCheck(provider, entry.key, 'daily')),
+                  DataCell(_buildFreqCheck(provider, entry.key, 'weekly')),
+                  DataCell(_buildFreqCheck(provider, entry.key, 'monthly')),
+                ]);
+              }).toList(),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMatrixCheck(NotificationProvider provider, String event, String role) {
+    bool isChecked = provider.notificationChannels[event]?[role] ?? false;
+    return Center(
+      child: GestureDetector(
+        onTap: () => provider.toggleChannel(event, role),
+        child: Container(
+          width: 22, height: 22,
+          decoration: BoxDecoration(color: isChecked ? const Color(0xFF10B981) : Colors.transparent, borderRadius: BorderRadius.circular(6), border: Border.all(color: isChecked ? const Color(0xFF10B981) : Colors.grey.shade300)),
+          child: isChecked ? const Icon(Icons.check, size: 14, color: Colors.white) : null,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFreqCheck(NotificationProvider provider, String event, String freq) {
+    String role = _roles[_activeRoleTab].toLowerCase();
+    bool isChecked = provider.notificationFrequency[role]?[event]?[freq] ?? false;
+    return Center(
+      child: GestureDetector(
+        onTap: () => provider.toggleFrequency(event, freq, role),
+        child: Container(
+          width: 22, height: 22,
+          decoration: BoxDecoration(color: isChecked ? const Color(0xFF10B981) : Colors.transparent, borderRadius: BorderRadius.circular(6), border: Border.all(color: isChecked ? const Color(0xFF10B981) : Colors.grey.shade300)),
+          child: isChecked ? const Icon(Icons.check, size: 14, color: Colors.white) : null,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBottomSaveBar() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(color: Colors.white, boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, -5))]),
+      child: ElevatedButton.icon(
+        onPressed: () => context.read<NotificationProvider>().saveSettings(),
+        icon: const Icon(Icons.save, color: Colors.white),
+        label: const Text("Save Changes", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF10B981), padding: const EdgeInsets.symmetric(vertical: 15), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
       ),
     );
   }
