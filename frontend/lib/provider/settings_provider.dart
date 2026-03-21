@@ -3,7 +3,7 @@ import '../services/settings_service.dart';
 import '../services/dio_client.dart';
 
 class SettingsProvider extends ChangeNotifier {
-  final SettingsService _service = SettingsService();
+  final SettingsService _service = SettingsService(DioClient().dio);
 
   // General Settings
   Map<String, dynamic> _generalSettings = {

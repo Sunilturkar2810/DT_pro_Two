@@ -25,7 +25,6 @@ class DashboardProvider extends ChangeNotifier {
   };
   List<dynamic> _categoryStats = [];
   List<dynamic> _overdueTasks = [];
-  List<String> _categories = [];
   Map<String, dynamic> _charts = {};
 
   String get selectedFilter => _selectedFilter;
@@ -46,7 +45,6 @@ class DashboardProvider extends ChangeNotifier {
   Map<String, dynamic> get taskStats => _taskStats;
   List<dynamic> get categoryStats => _categoryStats;
   List<dynamic> get overdueTasks => _overdueTasks;
-  List<String> get categories => _categories;
   Map<String, dynamic> get charts => _charts;
 
   void setFilter(String filter, {DateTime? startDate, DateTime? endDate}) {
@@ -154,10 +152,6 @@ class DashboardProvider extends ChangeNotifier {
         _categoryStats = List<dynamic>.from(data['tableData'] ?? []);
         _overdueTasks = List<dynamic>.from(data['overdueTasks'] ?? []);
         _charts = data['charts'] ?? {};
-        
-        if (_selectedCategory == "Category" || _selectedCategory == "All") {
-          _categories = _categoryStats.map((e) => e['name']?.toString() ?? "General").toSet().toList().cast<String>();
-        }
       }
     } catch (e) {
       _errorMessage = e.toString();

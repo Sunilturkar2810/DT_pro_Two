@@ -17,6 +17,7 @@ import 'package:d_table_delegate_system/widget/custom_drawer.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:fl_chart/fl_chart.dart';
+import '../../widget/custom_date_range_picker.dart';
 
 class DynamicDashboard extends StatefulWidget {
   const DynamicDashboard({super.key});
@@ -188,13 +189,7 @@ class _DynamicDashboardState extends State<DynamicDashboard> {
           return GestureDetector(
             onTap: () async {
               if (f == 'Custom') {
-                final picked = await showDateRangePicker(
-                  context: context, firstDate: DateTime(2000), lastDate: DateTime(2100),
-                  builder: (context, child) => Theme(
-                    data: Theme.of(context).copyWith(colorScheme: ColorScheme.light(primary: primaryColor, onPrimary: Colors.white, onSurface: Colors.black)),
-                    child: child!,
-                  ),
-                );
+                final picked = await showStylishDateRangePicker(context, primaryColor, isDark: Theme.of(context).brightness == Brightness.dark);
                 if (picked != null) provider.setFilter(f, startDate: picked.start, endDate: picked.end);
               } else {
                 provider.setFilter(f);
@@ -319,11 +314,16 @@ class _DynamicDashboardState extends State<DynamicDashboard> {
               },
             ),
             const SizedBox(width: 12),
-            CustomCategoryDropdown(
-              items: ["All", ...dashPro.categories],
-              value: dashPro.selectedCategory.isEmpty ? "All" : dashPro.selectedCategory,
-              onChanged: (val) {
-                dashPro.setCategory(val);
+            Consumer<CategoryProvider>(
+              builder: (context, catProv, _) {
+                final catNames = ["All", ...catProv.categoryModels.map((c) => c.name)];
+                return CustomCategoryDropdown(
+                  items: catNames,
+                  value: dashPro.selectedCategory.isEmpty ? "All" : dashPro.selectedCategory,
+                  onChanged: (val) {
+                    dashPro.setCategory(val);
+                  },
+                );
               },
             ),
             const SizedBox(width: 12),

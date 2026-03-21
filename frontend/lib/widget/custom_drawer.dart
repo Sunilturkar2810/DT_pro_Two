@@ -52,6 +52,10 @@ class MyCustomDrawer extends StatelessWidget {
                   Navigator.pop(context);
                   Navigator.push(context, MaterialPageRoute(builder: (context) => const AllTasksScreen(title: 'All Tasks')));
                 }),
+                _drawerTile(context, Icons.outbox_rounded, "Delegated Tasks", false, () {
+                  Navigator.pop(context);
+                  Navigator.push(context, MaterialPageRoute(builder: (context) => const DelegateTasksScreen()));
+                }),
                 _drawerTile(context, Icons.loop_rounded, "In-Loop Tasks", false, () {
                   Navigator.pop(context);
                   Navigator.push(context, MaterialPageRoute(builder: (context) => const InLoopTasksScreen()));

@@ -1,21 +1,16 @@
 import 'package:dio/dio.dart';
 import '../config/api_constants.dart';
-import 'dio_client.dart';
 
 class RolesService {
-  late final Dio _dio;
+  final Dio _dio;
 
-  RolesService({Dio? dio}) {
-    _dio = dio ?? DioClient().dio;
-  }
+  RolesService(this._dio);
 
   // Get all roles with permissions
   Future<List<dynamic>> getAllRoles() async {
     try {
       final response = await _dio.get('/roles');
-      if (response.data is List) return response.data;
-      if (response.data is Map && response.data['data'] is List) return response.data['data'];
-      return [];
+      return response.data;
     } catch (e) {
       rethrow;
     }

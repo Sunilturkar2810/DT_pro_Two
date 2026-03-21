@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import '../services/roles_service.dart';
+import '../services/dio_client.dart';
 
 class RolesProvider extends ChangeNotifier {
-  final RolesService _service = RolesService();
+  final RolesService _service = RolesService(DioClient().dio);
 
   List<Map<String, dynamic>> _roles = [];
   Map<String, dynamic>? _selectedRole;

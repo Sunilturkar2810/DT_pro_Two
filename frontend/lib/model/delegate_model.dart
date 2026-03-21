@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:d_table_delegate_system/model/user_model.dart';
 
 class RemarkModel {
@@ -98,8 +99,20 @@ class DelegationModel {
     List<RemarkModel> remarksList =
         list.map((i) => RemarkModel.fromJson(i as Map<String, dynamic>)).toList();
 
-    var inLoop = json['inLoopIds'] ?? json['in_loop_ids'] as List? ?? [];
-    List<String> inLoopList = (inLoop is List) ? inLoop.map((i) => i.toString()).toList() : [];
+    var inLoop = json['inLoopIds'] ?? json['in_loop_ids'] ?? [];
+    List<String> inLoopList = [];
+    if (inLoop is List) {
+      inLoopList = inLoop.map((i) => i.toString()).toList();
+    } else if (inLoop is String && inLoop.isNotEmpty) {
+      if (inLoop.startsWith('[')) {
+        try {
+          final List decoded = jsonDecode(inLoop);
+          inLoopList = decoded.map((i) => i.toString()).toList();
+        } catch (_) {}
+      } else {
+        inLoopList = inLoop.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
+      }
+    }
 
     var checklist = json['checklistItems'] ?? json['checklist_items'] as List? ?? [];
     List<Map<String, dynamic>> checklistItemsList =
