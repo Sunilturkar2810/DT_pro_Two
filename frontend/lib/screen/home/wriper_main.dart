@@ -1,4 +1,5 @@
 import 'package:d_table_delegate_system/provider/auth_provider.dart';
+import 'package:d_table_delegate_system/provider/group_provider.dart';
 import 'package:d_table_delegate_system/provider/theme_provider.dart';
 import 'package:d_table_delegate_system/screen/home/delegate_task_screen.dart';
 import 'package:d_table_delegate_system/screen/home/home_screen.dart';
@@ -16,6 +17,15 @@ class MainWrapper extends StatefulWidget {
 
 class _MainWrapperState extends State<MainWrapper> {
   int _currentIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    // Proactively fetch groups for the drawer (like web sidebar)
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<GroupProvider>().fetchMyGroups();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {

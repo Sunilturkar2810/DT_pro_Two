@@ -63,10 +63,23 @@ class GroupService {
     }
   }
 
-  /// POST /groups/:id/tasks (Assuming endpoint based on name)
-  Future<Map<String, dynamic>> assignTaskToGroup(String id, Map<String, dynamic> data) async {
+  /// GET /delegations?groupId=:id — group tasks
+  Future<List<dynamic>> getGroupTasks(String id) async {
     try {
-      final response = await _dio.post('/groups/$id/tasks', data: data);
+      final response = await _dio.get(ApiConstants.delegations, queryParameters: {'groupId': id});
+      final data = response.data;
+      if (data is Map) return data['data'] ?? [];
+      if (data is List) return data;
+      return [];
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  /// POST /delegations — creating a group task
+  Future<Map<String, dynamic>> createGroupTask(Map<String, dynamic> data) async {
+    try {
+      final response = await _dio.post(ApiConstants.delegations, data: data);
       return response.data;
     } catch (e) {
       rethrow;

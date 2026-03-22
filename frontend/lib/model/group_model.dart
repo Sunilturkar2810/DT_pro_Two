@@ -17,7 +17,7 @@ class GroupModel {
 
   factory GroupModel.fromJson(Map<String, dynamic> json) {
     return GroupModel(
-      id: json['id'] ?? '',
+      id: json['id']?.toString() ?? json['groupId']?.toString() ?? '',
       name: json['name'] ?? '',
       description: json['description'],
       createdBy: json['createdBy'] ?? '',

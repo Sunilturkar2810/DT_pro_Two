@@ -1025,7 +1025,7 @@ class _AssignTaskSheetState extends State<AssignTaskSheet>
     return FadeTransition(
       opacity: _fadeAnimation,
       child: Container(
-        constraints: BoxConstraints(maxHeight: size.height * 0.95),
+        constraints: BoxConstraints(maxHeight: size.height * 0.80),
         decoration: const BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
@@ -1873,37 +1873,37 @@ class _AssignTaskSheetState extends State<AssignTaskSheet>
             },
           ),
           const Spacer(),
-          ElevatedButton.icon(
-            onPressed: _isSubmitting ? null : _handleAssign,
-            icon: _isSubmitting
-                ? const SizedBox(
-                    width: 14,
-                    height: 14,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: Colors.white,
+          Flexible(
+            child: ElevatedButton(
+              onPressed: _isSubmitting ? null : _handleAssign,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF10B981),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                minimumSize: const Size(double.infinity, 44),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                elevation: 0,
+              ),
+              child: _isSubmitting
+                  ? const SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Text(
+                      "ASSIGN TASK",
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                        letterSpacing: 0.5,
+                        color: Colors.white,
+                      ),
                     ),
-                  )
-                : const Icon(
-                    Icons.upload_rounded,
-                    size: 18,
-                    color: Colors.white,
-                  ),
-            label: Text(
-              _isSubmitting ? "ASSIGNING..." : "ASSIGN TASK",
-              style: const TextStyle(
-                fontWeight: FontWeight.bold,
-                letterSpacing: 0.5,
-                color: Colors.white,
-              ),
-            ),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF10B981),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              elevation: 0,
             ),
           ),
         ],

@@ -8,6 +8,7 @@ import '../../provider/tag_provider.dart';
 import '../../widget/app_dropdown.dart';
 import '../../widget/custom_date_range_picker.dart';
 import 'package:intl/intl.dart';
+import 'package:d_table_delegate_system/provider/theme_provider.dart';
 
 class DeletedTasksScreen extends StatefulWidget {
   const DeletedTasksScreen({Key? key}) : super(key: key);
@@ -120,10 +121,9 @@ class _DeletedTasksScreenState extends State<DeletedTasksScreen> {
     }
 
     return Scaffold(
-      backgroundColor: const Color(0xFFFAFAFA),
-      body: SafeArea(
-        child: Consumer<DelegationProvider>(
-          builder: (context, provider, child) {
+      backgroundColor: const Color(0xFFE6F9F1),
+      body: Consumer<DelegationProvider>(
+        builder: (context, provider, child) {
             final allTasks = provider.deletedDelegations;
             int countOverdue = allTasks.where((t) => t.status == 'Overdue').length;
             int countPending = allTasks.where((t) => t.status == 'Pending').length;
@@ -222,64 +222,34 @@ class _DeletedTasksScreenState extends State<DeletedTasksScreen> {
               }
             });
 
-            return Column(
-              children: [
-                // 1. TOP HEADER
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFFF3B30),
-                          borderRadius: BorderRadius.circular(12),
-                          boxShadow: [
-                            BoxShadow(
-                              color: const Color(0xFFFF3B30).withOpacity(0.3),
-                              blurRadius: 10,
-                              offset: const Offset(0, 4),
-                            ),
-                          ],
-                        ),
-                        child: const Icon(Icons.delete_outline, color: Colors.white, size: 24),
-                      ),
-                      const SizedBox(width: 12),
-                      Flexible(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text('Deleted Tasks',
-                                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: Color(0xFF1E293B), letterSpacing: -0.5),
-                                overflow: TextOverflow.ellipsis),
-                            Text('ADMIN View — Trash Bin',
-                                style: TextStyle(fontSize: 11, color: Colors.grey, fontWeight: FontWeight.bold),
-                                overflow: TextOverflow.ellipsis),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      SizedBox(
-                        width: 40,
-                        height: 40,
-                        child: ElevatedButton(
-                          onPressed: () => context.read<DelegationProvider>().fetchDeleted(),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFFFF3B30),
-                            foregroundColor: Colors.white,
-                            elevation: 0,
-                            padding: EdgeInsets.zero,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                          ),
-                          child: const Icon(Icons.refresh_rounded, size: 20),
-                        ),
-                      ),
-                    ],
+            return NestedScrollView(
+              headerSliverBuilder: (context, innerBoxIsScrolled) => [
+                SliverAppBar(
+                  backgroundColor: ThemeProvider.primaryGreen,
+                  expandedHeight: 120,
+                  pinned: true,
+                  elevation: 0,
+                  leading: IconButton(
+                    icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.black, size: 20),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                  flexibleSpace: FlexibleSpaceBar(
+                    centerTitle: true,
+                    title: const Text("DELETED TASKS", 
+                      style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 16, letterSpacing: 1.2)
+                    ),
+                    background: Container(color: ThemeProvider.primaryGreen),
                   ),
                 ),
-
-                // 2. FILTERS ROW
+              ],
+              body: RefreshIndicator(
+                color: ThemeProvider.primaryGreen,
+                onRefresh: () async => await context.read<DelegationProvider>().fetchDeleted(),
+                child: ListView(
+                  padding: const EdgeInsets.only(top: 0),
+                  children: [
+                    _buildHeader(ThemeProvider.primaryGreen, context),
+                    // 2. FILTERS ROW
                 SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
                   padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
@@ -460,15 +430,16 @@ class _DeletedTasksScreenState extends State<DeletedTasksScreen> {
                 const Divider(height: 1, color: Color(0xFFF1F5F9)),
                 
                 // 4. MAIN CONTENT
-                Expanded(
-                  child: provider.isLoading && allTasks.isEmpty
-                    ? const Center(child: CircularProgressIndicator())
-                    : displayList.isEmpty
-                      ? _buildEmptyState()
-                      : ListView.builder(
-                          padding: const EdgeInsets.all(24),
-                          itemCount: displayList.length,
-                          itemBuilder: (context, index) {
+                provider.isLoading && allTasks.isEmpty
+                  ? const Center(child: Padding(padding: EdgeInsets.all(32.0), child: CircularProgressIndicator()))
+                  : displayList.isEmpty
+                    ? _buildEmptyState()
+                    : ListView.builder(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        padding: const EdgeInsets.only(left: 24, right: 24, top: 16, bottom: 80),
+                        itemCount: displayList.length,
+                        itemBuilder: (context, index) {
                             final task = displayList[index];
                             final uInitials = task.delegatorName.isNotEmpty ? task.delegatorName.substring(0, 2).toUpperCase() : 'U';
 
@@ -563,11 +534,80 @@ class _DeletedTasksScreenState extends State<DeletedTasksScreen> {
                             );
                           },
                         ),
-                )
-              ],
+                  ],
+                ),
+              ),
             );
           },
         ),
+    );
+  }
+
+  Widget _buildHeader(Color primary, BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFF3B30), // Warning color for deleted items
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFFFF3B30).withOpacity(0.3),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                )
+              ],
+            ),
+            child: const Icon(Icons.delete_outline, color: Colors.white, size: 24),
+          ),
+          const SizedBox(width: 12),
+          Flexible(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: const [
+                Text(
+                  "Deleted Tasks",
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w900,
+                    color: Color(0xFF1E293B),
+                    letterSpacing: -0.5,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+                Text(
+                  "ADMIN View — Trash Bin",
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          SizedBox(
+            width: 40,
+            height: 40,
+            child: ElevatedButton(
+              onPressed: () => context.read<DelegationProvider>().fetchDeleted(),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFFF3B30),
+                foregroundColor: Colors.white,
+                elevation: 0,
+                padding: EdgeInsets.zero,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+              child: const Icon(Icons.refresh_rounded, size: 20),
+            ),
+          ),
+        ],
       ),
     );
   }

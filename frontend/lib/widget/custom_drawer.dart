@@ -7,14 +7,15 @@ import 'package:d_table_delegate_system/screen/home/all_tasks_screen.dart';
 import 'package:d_table_delegate_system/screen/home/my_task.dart';
 import 'package:d_table_delegate_system/screen/home/my_team.dart';
 import 'package:d_table_delegate_system/screen/groups/my_groups.dart';
+import 'package:d_table_delegate_system/screen/groups/group_detail.dart';
 import 'package:d_table_delegate_system/screen/support/support_screen.dart';
 import 'package:d_table_delegate_system/screen/settings/settings_screen.dart';
 import 'package:d_table_delegate_system/screen/settings/holidays_screen.dart';
-import 'package:d_table_delegate_system/screen/settings/add_user_screen.dart';
 import 'package:d_table_delegate_system/screen/activities/activities_screen.dart';
 import 'package:d_table_delegate_system/screen/tasks/task_templates_screen.dart';
 import 'package:d_table_delegate_system/screen/tasks/in_loop_tasks_screen.dart';
 import 'package:d_table_delegate_system/screen/tasks/deleted_tasks_screen.dart';
+import 'package:d_table_delegate_system/provider/group_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -75,6 +76,7 @@ class MyCustomDrawer extends StatelessWidget {
                   Navigator.pop(context);
                   Navigator.push(context, MaterialPageRoute(builder: (context) => MyTeamScreen()));
                 }),
+                
                 _drawerTile(context, Icons.category_outlined, "Groups", false, () {
                   Navigator.pop(context);
                   Navigator.push(context, MaterialPageRoute(builder: (context) => const MyGroupsScreen()));
@@ -97,11 +99,6 @@ class MyCustomDrawer extends StatelessWidget {
 
                 const SizedBox(height: 20),
                 _buildSectionHeader("ADMINISTRATION"),
-                if (auth.isAdmin)
-                  _drawerTile(context, Icons.person_add_alt_1_rounded, "User Management", false, () {
-                    Navigator.pop(context);
-                    Navigator.push(context, MaterialPageRoute(builder: (context) => const AddUserScreen()));
-                  }),
                 _drawerTile(context, Icons.settings_rounded, "Settings", false, () {
                   Navigator.pop(context);
                   Navigator.push(context, MaterialPageRoute(builder: (context) => const SettingsScreen()));

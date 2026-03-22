@@ -326,86 +326,65 @@ class _MyTaskScreenState extends State<MyTaskScreen>
   // QUICK STATS — Dashboard Cards
   // ─────────────────────────────────────────────────────────────────
   Widget _buildQuickStats(Map<String, int> counts) {
-    final cards = [
-      {'label': 'Total', 'value': counts['All'], 'color': const Color(0xFF6366F1), 'icon': Icons.grid_view_rounded},
-      {'label': 'Overdue', 'value': counts['OverDue'], 'color': const Color(0xFFEF4444), 'icon': Icons.warning_amber_rounded},
-      {'label': 'Pending', 'value': counts['Pending'], 'color': const Color(0xFF64748B), 'icon': Icons.hourglass_top_rounded},
-      {'label': 'In Progress', 'value': counts['In Progress'], 'color': const Color(0xFFF59E0B), 'icon': Icons.rotate_right_rounded},
-      {'label': 'Done', 'value': counts['Completed'], 'color': const Color(0xFF10B981), 'icon': Icons.check_circle_rounded},
-    ];
-    return SizedBox(
-      height: 120,
-      child: ListView.builder(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        itemCount: cards.length,
-        itemBuilder: (_, i) {
-          final c = cards[i];
-          final color = c['color'] as Color;
-          final icon = c['icon'] as IconData;
-          return Container(
-            width: 112,
-            margin: const EdgeInsets.only(right: 10),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [color, color.withOpacity(0.72)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
+    // Mimic the exact 6 cards from the Dashboard web screenshot
+    int inTime = 0; // Optional/Placeholder if not in API
+    int delayed = 0; // Optional/Placeholder if not in API
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Row(
+        children: [
+          _buildStatCard("OVERDUE", counts['OverDue'] ?? 0, Colors.red),
+          const SizedBox(width: 12),
+          _buildStatCard("PENDING", counts['Pending'] ?? 0, Colors.orange),
+          const SizedBox(width: 12),
+          _buildStatCard("IN PROGRESS", counts['In Progress'] ?? 0, Colors.blue),
+          const SizedBox(width: 12),
+          _buildStatCard("COMPLETED", counts['Completed'] ?? 0, Colors.green),
+          const SizedBox(width: 12),
+          _buildStatCard("IN TIME", inTime, Colors.teal),
+          const SizedBox(width: 12),
+          _buildStatCard("DELAYED", delayed, Colors.redAccent),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatCard(String label, int value, Color color) {
+    return Container(
+      width: 140, // Fixed width for horizontal scrolling
+      padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          )
+        ],
+        border: Border(bottom: BorderSide(color: color, width: 4)),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(color: color, shape: BoxShape.circle),
               ),
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: color.withOpacity(0.32),
-                  blurRadius: 10,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            padding: const EdgeInsets.fromLTRB(12, 12, 12, 10),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Icon(icon, color: Colors.white.withOpacity(0.9), size: 20),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.18),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text(
-                        '${c['value']}',
-                        style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: Colors.white),
-                      ),
-                    ),
-                  ],
-                ),
-                const Spacer(),
-                Text(
-                  '${c['value']}',
-                  style: const TextStyle(
-                    fontSize: 26,
-                    fontWeight: FontWeight.w900,
-                    color: Colors.white,
-                    height: 1,
-                  ),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  c['label'] as String,
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.white.withOpacity(0.82),
-                    letterSpacing: 0.3,
-                  ),
-                ),
-              ],
-            ),
-          );
-        },
+              const SizedBox(width: 6),
+              Text(label, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.grey, letterSpacing: 0.5)),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(value.toString(), style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w900, color: Color(0xFF1E1E1E))),
+        ],
       ),
     );
   }

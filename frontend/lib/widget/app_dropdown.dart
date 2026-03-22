@@ -88,6 +88,16 @@ class _AppDropdownState<T> extends State<AppDropdown<T>>
     final size = renderBox.size;
     final accent = widget.accentColor ?? const Color(0xFF20E19F);
 
+    // Position check: open upward if not enough space below
+    final position = renderBox.localToGlobal(Offset.zero);
+    final screenHeight = MediaQuery.of(context).size.height;
+    const dropdownMaxH = 260.0;
+    final spaceBelow = screenHeight - position.dy - size.height;
+    final openUpward = spaceBelow < dropdownMaxH;
+    final dropdownOffset = openUpward
+        ? Offset(0, -(dropdownMaxH + 6))
+        : Offset(0, size.height + 6);
+
     return OverlayEntry(
       builder: (ctx) => GestureDetector(
         behavior: HitTestBehavior.translucent,
@@ -98,7 +108,7 @@ class _AppDropdownState<T> extends State<AppDropdown<T>>
               CompositedTransformFollower(
                 link: _layerLink,
                 showWhenUnlinked: false,
-                offset: Offset(0, size.height + 6),
+                offset: dropdownOffset,
                 child: Material(
                   color: Colors.transparent,
                   child: FadeTransition(

@@ -115,7 +115,6 @@ class AuthService {
     }
   }
 
-  /// Get all available roles — GET /auth/roles
   Future<List<dynamic>> getRoles() async {
     try {
       final response = await _dio.get(ApiConstants.getRoles);
@@ -125,6 +124,15 @@ class AuthService {
       return [];
     } on DioException catch (e) {
       throw e.response?.data['message'] ?? 'Failed to load roles';
+    }
+  }
+
+  Future<Map<String, dynamic>> createRole(Map<String, dynamic> data) async {
+    try {
+      final response = await _dio.post(ApiConstants.getRoles, data: data);
+      return response.data;
+    } on DioException catch (e) {
+      throw e.response?.data['message'] ?? 'Failed to create role';
     }
   }
 
