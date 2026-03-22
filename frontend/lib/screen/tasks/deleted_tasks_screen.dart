@@ -2,6 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../provider/delegation_provider.dart';
 import '../../provider/auth_provider.dart';
+import '../../provider/user_provider.dart';
+import '../../provider/category_provider.dart';
+import '../../provider/tag_provider.dart';
+import '../../widget/app_dropdown.dart';
+import '../../widget/custom_date_range_picker.dart';
 import 'package:intl/intl.dart';
 
 class DeletedTasksScreen extends StatefulWidget {
@@ -14,15 +19,28 @@ class DeletedTasksScreen extends StatefulWidget {
 class _DeletedTasksScreenState extends State<DeletedTasksScreen> {
   String _statusFilter = 'All';
   String _searchQuery = '';
+  String _dateRange = 'All Time';
+  String _sortBy = 'Deleted At';
+  bool _sortAscending = false;
+
+  // Added Filters
+  DateTime? _customStartDate;
+  DateTime? _customEndDate;
+  String _assignedByFilter = "Anyone";
+  String _priorityFilter = "All Priority";
+  String _categoryFilter = "All Categories";
+  String _tagFilter = "All Tags";
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final isAdmin = context.read<AuthProvider>().isAdmin;
-      // Only ADMIN can fetch
       if (isAdmin) {
         context.read<DelegationProvider>().fetchDeleted();
+        context.read<UserProvider>().fetchUsers();
+        context.read<CategoryProvider>().fetchCategories();
+        context.read<TagProvider>().fetchTags();
       }
     });
   }
@@ -75,7 +93,7 @@ class _DeletedTasksScreenState extends State<DeletedTasksScreen> {
 
     if (!isAdmin) {
       return Scaffold(
-        backgroundColor: const Color(0xFFF8FAFC),
+        backgroundColor: const Color(0xFFFAFAFA),
         appBar: AppBar(title: const Text('DELETED TASKS'), backgroundColor: Colors.redAccent, elevation: 0),
         body: Center(
           child: Container(
@@ -102,238 +120,655 @@ class _DeletedTasksScreenState extends State<DeletedTasksScreen> {
     }
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
-      appBar: AppBar(
-        title: const Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('DELETED TASKS', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-            Text('ADMIN View - Trash Bin', style: TextStyle(fontSize: 10, color: Colors.white70)),
-          ],
-        ),
-        backgroundColor: Colors.redAccent,
-        elevation: 0,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: () => context.read<DelegationProvider>().fetchDeleted(),
-          )
-        ],
-      ),
-      body: Consumer<DelegationProvider>(
-        builder: (context, provider, child) {
-          if (provider.isLoading && provider.deletedDelegations.isEmpty) {
-            return const Center(child: CircularProgressIndicator());
-          }
+      backgroundColor: const Color(0xFFFAFAFA),
+      body: SafeArea(
+        child: Consumer<DelegationProvider>(
+          builder: (context, provider, child) {
+            final allTasks = provider.deletedDelegations;
+            int countOverdue = allTasks.where((t) => t.status == 'Overdue').length;
+            int countPending = allTasks.where((t) => t.status == 'Pending').length;
+            int countInProgress = allTasks.where((t) => t.status == 'In Progress').length;
+            int countCompleted = allTasks.where((t) => t.status == 'Completed').length;
 
-          final displayList = provider.deletedDelegations.where((task) {
-            final q = _searchQuery.toLowerCase();
-            final matchesSearch = task.delegationName.toLowerCase().contains(q) || 
-                                  task.description.toLowerCase().contains(q);
-            final matchesStatus = _statusFilter == 'All' || task.status == _statusFilter;
-            return matchesSearch && matchesStatus;
-          }).toList();
+            final displayList = allTasks.where((task) {
+              final q = _searchQuery.toLowerCase();
+              final matchesSearch = task.delegationName.toLowerCase().contains(q) || 
+                                    task.description.toLowerCase().contains(q);
+              final matchesStatus = _statusFilter == 'All' || task.status == _statusFilter;
+              
+              // Assigned By
+              bool matchesAssignedBy = true;
+              if (_assignedByFilter != "Anyone") {
+                final users = Provider.of<UserProvider>(context, listen: false).users;
+                final delegator = task.getAssignedByName(users);
+                matchesAssignedBy = delegator == _assignedByFilter;
+              }
+              // Priority
+              bool matchesPriority = true;
+              if (_priorityFilter != "All Priority") {
+                matchesPriority = task.priority == _priorityFilter;
+              }
+              // Category
+              bool matchesCategory = true;
+              if (_categoryFilter != "All Categories") {
+                matchesCategory = task.category == _categoryFilter;
+              }
+              // Tags
+              bool matchesTags = true;
+              if (_tagFilter != "All Tags") {
+                matchesTags = task.tagsList.contains(_tagFilter);
+              }
 
-          int countOverdue = provider.deletedDelegations.where((t) => t.status == 'Overdue').length;
-          int countPending = provider.deletedDelegations.where((t) => t.status == 'Pending').length;
-          int countInProgress = provider.deletedDelegations.where((t) => t.status == 'In Progress').length;
-          int countCompleted = provider.deletedDelegations.where((t) => t.status == 'Completed').length;
+              // Date logic
+              bool matchesDate = true;
+              final now = DateTime.now();
+              try {
+                final due = DateTime.parse(task.dueDate.split('T')[0]);
+                final today = DateTime(now.year, now.month, now.day);
+                final taskDate = DateTime(due.year, due.month, due.day);
+                
+                if (_dateRange == "Today") {
+                  matchesDate = taskDate.isAtSameMomentAs(today);
+                } else if (_dateRange == "Yesterday") {
+                  final yesterday = today.subtract(const Duration(days: 1));
+                  matchesDate = taskDate.isAtSameMomentAs(yesterday);
+                } else if (_dateRange == "This Week") {
+                  final weekStart = today.subtract(Duration(days: today.weekday - 1));
+                  final weekEnd = weekStart.add(const Duration(days: 6));
+                  matchesDate = taskDate.isAfter(weekStart.subtract(const Duration(days: 1))) &&
+                                taskDate.isBefore(weekEnd.add(const Duration(days: 1)));
+                } else if (_dateRange == "Last Week") {
+                  final lastWeekStart = today.subtract(Duration(days: today.weekday - 1 + 7));
+                  final lastWeekEnd = lastWeekStart.add(const Duration(days: 6));
+                  matchesDate = taskDate.isAfter(lastWeekStart.subtract(const Duration(days: 1))) &&
+                                taskDate.isBefore(lastWeekEnd.add(const Duration(days: 1)));
+                } else if (_dateRange == "This Month") {
+                  matchesDate = taskDate.year == today.year && taskDate.month == today.month;
+                } else if (_dateRange == "Last Month") {
+                  final lastMonth = today.month == 1 ? 12 : today.month - 1;
+                  final lastMonthYear = today.month == 1 ? today.year - 1 : today.year;
+                  matchesDate = taskDate.year == lastMonthYear && taskDate.month == lastMonth;
+                } else if (_dateRange == "This Year") {
+                  matchesDate = taskDate.year == today.year;
+                } else if (_dateRange == "Custom") {
+                  if (_customStartDate != null && _customEndDate != null) {
+                    final start = DateTime(_customStartDate!.year, _customStartDate!.month, _customStartDate!.day);
+                    final end = DateTime(_customEndDate!.year, _customEndDate!.month, _customEndDate!.day);
+                    matchesDate = (taskDate.isAtSameMomentAs(start) || taskDate.isAfter(start)) &&
+                                  (taskDate.isAtSameMomentAs(end) || taskDate.isBefore(end));
+                  }
+                }
+              } catch (_) {}
 
-          return Column(
-            children: [
-              // Search Toolbar
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        decoration: InputDecoration(
-                          hintText: 'Search deleted tasks...',
-                          hintStyle: const TextStyle(fontSize: 12),
-                          prefixIcon: const Icon(Icons.search, size: 16),
-                          filled: true,
-                          fillColor: Colors.white,
-                          contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 12),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: Colors.red.shade100)),
-                        ),
-                        onChanged: (val) {
-                          setState(() {
-                            _searchQuery = val;
-                          });
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+              return matchesSearch && matchesStatus && matchesDate && matchesAssignedBy && matchesPriority && matchesCategory && matchesTags;
+            }).toList();
 
-              // Status Tabs
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                child: Row(
-                  children: [
-                    _buildStatusTab('All', provider.deletedDelegations.length, Colors.grey),
-                    _buildStatusTab('Overdue', countOverdue, Colors.red),
-                    _buildStatusTab('Pending', countPending, Colors.grey),
-                    _buildStatusTab('In Progress', countInProgress, Colors.orange),
-                    _buildStatusTab('Completed', countCompleted, Colors.green),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 8),
+            displayList.sort((a, b) {
+              if (_sortBy == 'Title') {
+                return _sortAscending 
+                    ? a.delegationName.compareTo(b.delegationName)
+                    : b.delegationName.compareTo(a.delegationName);
+              } else if (_sortBy == 'Due Date') {
+                return _sortAscending 
+                    ? a.dueDate.compareTo(b.dueDate)
+                    : b.dueDate.compareTo(a.dueDate);
+              } else {
+                // For 'Deleted At' and 'Created At', we use createdAt as reference
+                final dateA = a.createdAt;
+                final dateB = b.createdAt;
+                return _sortAscending
+                    ? dateA.compareTo(dateB)
+                    : dateB.compareTo(dateA);
+              }
+            });
 
-              // List of Tasks
-              Expanded(
-                child: displayList.isEmpty
-                  ? Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
+            return Column(
+              children: [
+                // 1. TOP HEADER
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
                         children: [
-                          Icon(Icons.delete_outline, size: 64, color: Colors.grey.shade300),
-                          const SizedBox(height: 16),
-                          const Text("Trash Is Empty", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.black87)),
-                          const Text("No deleted tasks found", style: TextStyle(color: Colors.grey)),
-                        ],
-                      ),
-                    )
-                  : ListView.builder(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                      itemCount: displayList.length,
-                      itemBuilder: (context, index) {
-                        final task = displayList[index];
-                        final uInitials = task.delegatorName.isNotEmpty ? task.delegatorName.substring(0, 2).toUpperCase() : 'U';
-
-                        return Container(
-                          margin: const EdgeInsets.only(bottom: 12),
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: Colors.grey.shade100),
-                            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 4, offset: const Offset(0, 2))],
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFF3B30),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: const Icon(Icons.delete_outline, color: Colors.white, size: 24),
                           ),
-                          child: Column(
+                          const SizedBox(width: 16),
+                          Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Row(
+                              const Text('Deleted Tasks', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF1E293B))),
+                              const SizedBox(height: 2),
+                              Text('ADMIN View \u2014 Trash Bin', style: TextStyle(fontSize: 12, color: Colors.grey, fontWeight: FontWeight.bold)),
+                            ],
+                          ),
+                        ],
+                      ),
+                      ElevatedButton.icon(
+                        onPressed: () => context.read<DelegationProvider>().fetchDeleted(),
+                        icon: const Icon(Icons.refresh, size: 16),
+                        label: const Text('Refresh', style: TextStyle(fontWeight: FontWeight.bold)),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFFF3B30),
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                // 2. FILTERS ROW
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      // Date Range Using AppDropdown
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('DATE RANGE', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.grey.shade500)),
+                          const SizedBox(height: 6),
+                          SizedBox(
+                            height: 40,
+                            child: AppDropdown<String>(
+                              isCompact: true,
+                              value: _dateRange,
+                              items: const [
+                                "All Time",
+                                "Today",
+                                "Yesterday",
+                                "This Week",
+                                "Last Week",
+                                "This Month",
+                                "Last Month",
+                                "This Year",
+                                "Custom"
+                              ],
+                              labelBuilder: (v) => v,
+                              accentColor: const Color(0xFFFF3B30),
+                              onChanged: (val) async {
+                                if (val == "Custom") {
+                                  final picked = await showStylishDateRangePicker(context, const Color(0xFFFF3B30));
+                                  if (picked != null) {
+                                    setState(() {
+                                      _customStartDate = picked.start;
+                                      _customEndDate = picked.end;
+                                      _dateRange = "Custom";
+                                    });
+                                  }
+                                } else {
+                                  setState(() {
+                                    _dateRange = val!;
+                                    _customStartDate = null;
+                                    _customEndDate = null;
+                                  });
+                                }
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(width: 12),
+                      
+                      // Filter Button
+                      Container(
+                        height: 40,
+                        margin: const EdgeInsets.only(bottom: 0),
+                        child: ElevatedButton.icon(
+                          onPressed: () => _showFilterDialog(const Color(0xFFFF3B30)),
+                          icon: const Icon(Icons.filter_alt_outlined, size: 18),
+                          label: const Text('Filter', style: TextStyle(fontWeight: FontWeight.bold)),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFFFF3B30),
+                            foregroundColor: Colors.white,
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      
+                      // Search
+                      Container(
+                        height: 40,
+                        width: 250,
+                        margin: const EdgeInsets.only(bottom: 0),
+                        child: TextField(
+                          decoration: InputDecoration(
+                            hintText: 'Search deleted tasks...',
+                            hintStyle: TextStyle(fontSize: 13, color: Colors.grey.shade400, fontWeight: FontWeight.w500),
+                            prefixIcon: Icon(Icons.search, size: 18, color: Colors.grey.shade400),
+                            filled: true,
+                            fillColor: Colors.white,
+                            contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 12),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: Colors.grey.shade200)),
+                            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: Colors.grey.shade200)),
+                            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: Colors.red.shade200)),
+                          ),
+                          onChanged: (val) {
+                            setState(() { _searchQuery = val; });
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+
+                      // Reset Button
+                      Container(
+                        height: 40,
+                        width: 40,
+                        decoration: BoxDecoration(color: const Color(0xFFFF3B30), borderRadius: BorderRadius.circular(8)),
+                        child: IconButton(
+                          icon: const Icon(Icons.settings_backup_restore, color: Colors.white, size: 20),
+                          onPressed: () { 
+                            setState(() {
+                              _searchQuery = ''; 
+                              _dateRange = 'All Time'; 
+                              _statusFilter = 'All'; 
+                              _customStartDate = null;
+                              _customEndDate = null;
+                              _assignedByFilter = "Anyone";
+                              _priorityFilter = "All Priority";
+                              _categoryFilter = "All Categories";
+                              _tagFilter = "All Tags";
+                            }); 
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+
+                      // Sort By Using AppDropdown
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('SORT BY', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.grey.shade500)),
+                          const SizedBox(height: 6),
+                          SizedBox(
+                            height: 40,
+                            child: AppDropdown<String>(
+                              isCompact: true,
+                              value: _sortBy,
+                              items: const ['Deleted At', 'Due Date', 'Created At', 'Title'],
+                              labelBuilder: (v) => v,
+                              accentColor: const Color(0xFFFF3B30),
+                              onChanged: (val) {
+                                setState(() { _sortBy = val!; });
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(width: 12),
+
+                      // Sort Order Button
+                      Container(
+                        height: 40,
+                        width: 40,
+                        decoration: BoxDecoration(
+                          border: Border.all(color: Colors.grey.shade300),
+                          borderRadius: BorderRadius.circular(8),
+                          color: Colors.white,
+                        ),
+                        child: IconButton(
+                          icon: Icon(_sortAscending ? Icons.arrow_upward : Icons.swap_vert, size: 20, color: Colors.grey.shade600),
+                          onPressed: () { setState(() { _sortAscending = !_sortAscending; }); },
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                // 3. TABS
+                const SizedBox(height: 16),
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Row(
+                    children: [
+                      _buildStatusTab('All', allTasks.length, Colors.grey.shade500),
+                      _buildStatusTab('Overdue', countOverdue, const Color(0xFFFF3B30)),
+                      _buildStatusTab('Pending', countPending, Colors.grey.shade300),
+                      _buildStatusTab('In Progress', countInProgress, Colors.orange),
+                      _buildStatusTab('Completed', countCompleted, Colors.green),
+                    ],
+                  ),
+                ),
+                const Divider(height: 1, color: Color(0xFFF1F5F9)),
+                
+                // 4. MAIN CONTENT
+                Expanded(
+                  child: provider.isLoading && allTasks.isEmpty
+                    ? const Center(child: CircularProgressIndicator())
+                    : displayList.isEmpty
+                      ? _buildEmptyState()
+                      : ListView.builder(
+                          padding: const EdgeInsets.all(24),
+                          itemCount: displayList.length,
+                          itemBuilder: (context, index) {
+                            final task = displayList[index];
+                            final uInitials = task.delegatorName.isNotEmpty ? task.delegatorName.substring(0, 2).toUpperCase() : 'U';
+
+                            return Container(
+                              margin: const EdgeInsets.only(bottom: 12),
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(color: Colors.grey.shade100),
+                                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10, offset: const Offset(0, 4))],
+                              ),
+                              child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  CircleAvatar(
-                                    radius: 18,
-                                    backgroundColor: Colors.red.shade100,
-                                    child: Text(uInitials, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.red.shade600)),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text('From: ${task.delegatorName}', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.grey)),
-                                        Text(task.delegationName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.black87)),
-                                      ],
-                                    ),
-                                  ),
-                                  // Restore Button
-                                  GestureDetector(
-                                    onTap: () => _handleRestore(task.id!),
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                                      decoration: BoxDecoration(
-                                        color: Colors.white,
-                                        borderRadius: BorderRadius.circular(8),
-                                        border: Border.all(color: Colors.green.shade200),
-                                      ),
-                                      child: Row(
-                                        children: [
-                                          Icon(Icons.restore, size: 14, color: Colors.green.shade600),
-                                          const SizedBox(width: 4),
-                                          Text('Restore', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.green.shade700)),
-                                        ],
-                                      ),
-                                    ),
-                                  )
-                                ],
-                              ),
-                              const SizedBox(height: 12),
-                              if (task.description.isNotEmpty)
-                                Text(
-                                  task.description,
-                                  style: const TextStyle(fontSize: 12, color: Colors.grey, fontWeight: FontWeight.w500),
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              const SizedBox(height: 12),
-                              const Divider(height: 1, color: Color(0xFFF3F4F6)),
-                              const SizedBox(height: 12),
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
                                   Row(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      Icon(Icons.flag, size: 14, color: task.priority == 'Urgent' ? Colors.red : Colors.grey),
-                                      const SizedBox(width: 4),
-                                      Text(task.priority, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey)),
+                                      CircleAvatar(
+                                        radius: 18,
+                                        backgroundColor: Colors.red.shade50,
+                                        child: Text(uInitials, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.red.shade600)),
+                                      ),
                                       const SizedBox(width: 12),
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                        decoration: BoxDecoration(color: _getStatusColor(task.status).withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
-                                        child: Text(task.status, style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: _getStatusColor(task.status))),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text('From: ${task.delegatorName}', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey)),
+                                            Text(task.delegationName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: const Color(0xFF1E293B))),
+                                          ],
+                                        ),
+                                      ),
+                                      GestureDetector(
+                                        onTap: () => _handleRestore(task.id!),
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                          decoration: BoxDecoration(
+                                            color: Colors.white,
+                                            borderRadius: BorderRadius.circular(8),
+                                            border: Border.all(color: Colors.green.shade200),
+                                          ),
+                                          child: Row(
+                                            children: [
+                                              Icon(Icons.restore, size: 14, color: Colors.green.shade600),
+                                              const SizedBox(width: 4),
+                                              Text('Restore', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.green.shade700)),
+                                            ],
+                                          ),
+                                        ),
                                       )
                                     ],
                                   ),
+                                  const SizedBox(height: 12),
+                                  if (task.description.isNotEmpty)
+                                    Text(
+                                      task.description,
+                                      style: TextStyle(fontSize: 13, color: Colors.grey.shade600, fontWeight: FontWeight.w500),
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  const SizedBox(height: 12),
+                                  const Divider(height: 1, color: Color(0xFFF1F5F9)),
+                                  const SizedBox(height: 12),
                                   Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                     children: [
-                                      const Icon(Icons.access_time, size: 14, color: Colors.orange),
-                                      const SizedBox(width: 4),
-                                      Text('Due: ${_formatDate(task.dueDate)}', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.orange)),
+                                      Row(
+                                        children: [
+                                          Icon(Icons.flag, size: 14, color: task.priority == 'Urgent' ? Colors.red : Colors.grey),
+                                          const SizedBox(width: 4),
+                                          Text(task.priority, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey)),
+                                          const SizedBox(width: 12),
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                            decoration: BoxDecoration(color: _getStatusColor(task.status).withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
+                                            child: Text(task.status.toUpperCase(), style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: _getStatusColor(task.status))),
+                                          )
+                                        ],
+                                      ),
+                                      Row(
+                                        children: [
+                                          const Icon(Icons.access_time, size: 14, color: Colors.orange),
+                                          const SizedBox(width: 4),
+                                          Text('Due: ${_formatDate(task.dueDate)}', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.orange)),
+                                        ],
+                                      )
                                     ],
                                   )
                                 ],
-                              )
-                            ],
-                          ),
-                        );
-                      },
-                    ),
-              )
-            ],
-          );
-        },
+                              ),
+                            );
+                          },
+                        ),
+                )
+              ],
+            );
+          },
+        ),
       ),
     );
   }
 
-  Widget _buildStatusTab(String title, int count, Color stripColor) {
+  Widget _buildStatusTab(String title, int count, Color bulletColor) {
     bool isSelected = _statusFilter == title;
     return GestureDetector(
       onTap: () {
-        setState(() {
-          _statusFilter = title;
-        });
+        setState(() { _statusFilter = title; });
       },
       child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 6),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        margin: const EdgeInsets.only(right: 8),
         decoration: BoxDecoration(
-          color: isSelected ? Colors.white : Colors.transparent,
-          borderRadius: BorderRadius.circular(20),
-          border: isSelected ? Border.all(color: Colors.red.shade200) : null,
+          border: Border(
+            bottom: BorderSide(
+              color: isSelected ? const Color(0xFFFF3B30) : Colors.transparent,
+              width: 3,
+            ),
+          ),
         ),
         child: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Container(width: 8, height: 8, decoration: BoxDecoration(color: stripColor, shape: BoxShape.circle)),
-            const SizedBox(width: 6),
+            Container(width: 8, height: 8, decoration: BoxDecoration(color: bulletColor, shape: BoxShape.circle)),
+            const SizedBox(width: 8),
             Text(
-              '${title.toUpperCase()} - $count',
+              '${title.toUpperCase()} — $count',
               style: TextStyle(
-                fontSize: 11,
+                fontSize: 12,
                 fontWeight: FontWeight.bold,
-                color: isSelected ? Colors.black87 : Colors.grey.shade600,
+                color: isSelected ? const Color(0xFF1E293B) : Colors.grey.shade500,
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Container(
+      margin: const EdgeInsets.all(24),
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 80),
+      decoration: BoxDecoration(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: Colors.grey.shade300, width: 1.5, style: BorderStyle.solid),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: const BoxDecoration(color: Color(0xFFF8FAFC), shape: BoxShape.circle),
+            child: Icon(Icons.delete_outline, size: 48, color: Colors.grey.shade400),
+          ),
+          const SizedBox(height: 20),
+          const Text('Trash Is Empty', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF1E293B))),
+          const SizedBox(height: 8),
+          Text('No deleted tasks found', style: TextStyle(fontSize: 15, color: Colors.grey.shade500)),
+        ],
+      ),
+    );
+  }
+
+  void _showFilterDialog(Color primary) {
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return Dialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              backgroundColor: Colors.white,
+              insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+              child: Container(
+                width: 320,
+                padding: const EdgeInsets.all(24),
+                child: Consumer3<UserProvider, CategoryProvider, TagProvider>(
+                  builder: (ctx, userProv, catProv, tagProv, _) {
+                    final usersList = ["Anyone", ...userProv.users.map((e) => e.fullName)];
+                    final priorities = ["All Priority", "High", "Medium", "Low"];
+                    final categories = ["All Categories", ...catProv.categoryModels.map((e) => e.name)];
+                    final tags = ["All Tags", ...tagProv.tags.map((e) => e.name)];
+
+                    return Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text("FILTERS",
+                                style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFF1E293B),
+                                    letterSpacing: 1.2)),
+                            GestureDetector(
+                              onTap: () {
+                                setDialogState(() {
+                                  _assignedByFilter = "Anyone";
+                                  _priorityFilter = "All Priority";
+                                  _categoryFilter = "All Categories";
+                                  _tagFilter = "All Tags";
+                                });
+                                setState(() {
+                                  _assignedByFilter = "Anyone";
+                                  _priorityFilter = "All Priority";
+                                  _categoryFilter = "All Categories";
+                                  _tagFilter = "All Tags";
+                                });
+                              },
+                              child: Text("Clear All",
+                                  style: TextStyle(
+                                      color: primary,
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.bold)),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 24),
+                        _buildFilterDropdownLabel("ASSIGNED BY"),
+                        _buildFilterDropdown(
+                          value: _assignedByFilter,
+                          items: usersList,
+                          onChanged: (val) {
+                            setDialogState(() => _assignedByFilter = val!);
+                            setState(() => _assignedByFilter = val!);
+                          },
+                        ),
+                        const SizedBox(height: 16),
+                        _buildFilterDropdownLabel("PRIORITY"),
+                        _buildFilterDropdown(
+                          value: _priorityFilter,
+                          items: priorities,
+                          onChanged: (val) {
+                            setDialogState(() => _priorityFilter = val!);
+                            setState(() => _priorityFilter = val!);
+                          },
+                        ),
+                        const SizedBox(height: 16),
+                        _buildFilterDropdownLabel("CATEGORY"),
+                        _buildFilterDropdown(
+                          value: _categoryFilter,
+                          items: categories,
+                          onChanged: (val) {
+                            setDialogState(() => _categoryFilter = val!);
+                            setState(() => _categoryFilter = val!);
+                          },
+                        ),
+                        const SizedBox(height: 16),
+                        _buildFilterDropdownLabel("TAG"),
+                        _buildFilterDropdown(
+                          value: _tagFilter,
+                          items: tags,
+                          onChanged: (val) {
+                            setDialogState(() => _tagFilter = val!);
+                            setState(() => _tagFilter = val!);
+                          },
+                        ),
+                        const SizedBox(height: 8),
+                      ],
+                    );
+                  },
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildFilterDropdownLabel(String label) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Text(label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Colors.grey.shade500, letterSpacing: 0.5)),
+    );
+  }
+
+  Widget _buildFilterDropdown({
+    required String value,
+    required List<String> items,
+    required ValueChanged<String?> onChanged,
+  }) {
+    final currentValue = items.contains(value) ? value : items.first;
+    
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.grey.shade300),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: currentValue,
+          isExpanded: true,
+          icon: const Icon(Icons.keyboard_arrow_down_rounded, size: 20),
+          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF1E293B)),
+          dropdownColor: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          items: items.map((item) {
+            return DropdownMenuItem(
+              value: item,
+              child: Text(item, overflow: TextOverflow.ellipsis),
+            );
+          }).toList(),
+          onChanged: onChanged,
         ),
       ),
     );
