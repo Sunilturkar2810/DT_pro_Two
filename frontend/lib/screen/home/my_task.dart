@@ -650,40 +650,45 @@ class _MyTaskScreenState extends State<MyTaskScreen>
           ),
         ],
       ),
+      clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: () => Navigator.push(
             context,
             MaterialPageRoute(
                 builder: (_) => TaskDetailScreen(task: task, allowEdit: true))),
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // ── Top row: Checkbox + Avatar + Title/From ──
-              Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // ── Top row: Checkbox + Avatar + Title/From ──
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                color: const Color(0xFF00D094).withValues(alpha: 0.25),
+                border: Border(bottom: BorderSide(color: Colors.grey.shade300)),
+              ),
+              child: Row(
                 children: [
                   SizedBox(
-                    width: 24,
-                    height: 24,
+                    width: 22,
+                    height: 22,
                     child: Checkbox(
                       value: false,
                       onChanged: (v) {},
                       shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(4)),
+                      side: const BorderSide(color: Colors.black54, width: 1.5),
                     ),
                   ),
                   const SizedBox(width: 10),
                   CircleAvatar(
-                    radius: 16,
-                    backgroundColor: primary.withOpacity(0.1),
+                    radius: 14,
+                    backgroundColor: Colors.white,
                     child: Text(
                       initial,
-                      style: TextStyle(
-                        color: primary,
+                      style: const TextStyle(
+                        color: Colors.black87,
                         fontWeight: FontWeight.bold,
-                        fontSize: 13,
+                        fontSize: 11,
                       ),
                     ),
                   ),
@@ -696,19 +701,19 @@ class _MyTaskScreenState extends State<MyTaskScreen>
                           task.delegationName,
                           style: const TextStyle(
                             fontSize: 14,
-                            fontWeight: FontWeight.w800,
-                            color: Color(0xFF1E293B),
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black,
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
-                        const SizedBox(height: 2),
+                        const SizedBox(height: 1),
                         Text(
                           "From: $delegatorName",
                           style: const TextStyle(
-                            fontSize: 11,
+                            fontSize: 10,
                             fontWeight: FontWeight.bold,
-                            color: Colors.grey,
+                            color: Colors.black87,
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -716,12 +721,14 @@ class _MyTaskScreenState extends State<MyTaskScreen>
                       ],
                     ),
                   ),
-                  const Icon(Icons.more_vert_rounded, size: 18, color: Colors.grey),
+                  const Icon(Icons.more_vert_rounded, size: 18, color: Colors.black54),
                 ],
               ),
-              const SizedBox(height: 10),
-              // ── Bottom row: Status + Date + Priority + Time ──
-              Wrap(
+            ),
+            // ── Bottom row: Status + Date + Priority + Time ──
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+              child: Wrap(
                 crossAxisAlignment: WrapCrossAlignment.center,
                 spacing: 8,
                 runSpacing: 4,
@@ -740,8 +747,8 @@ class _MyTaskScreenState extends State<MyTaskScreen>
                     ),
                 ],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

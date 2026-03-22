@@ -445,7 +445,7 @@ class _DeletedTasksScreenState extends State<DeletedTasksScreen> {
 
                             return Container(
                               margin: const EdgeInsets.only(bottom: 12),
-                              padding: const EdgeInsets.all(16),
+                              clipBehavior: Clip.antiAlias,
                               decoration: BoxDecoration(
                                 color: Colors.white,
                                 borderRadius: BorderRadius.circular(16),
@@ -455,79 +455,94 @@ class _DeletedTasksScreenState extends State<DeletedTasksScreen> {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Row(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      CircleAvatar(
-                                        radius: 18,
-                                        backgroundColor: Colors.red.shade50,
-                                        child: Text(uInitials, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.red.shade600)),
-                                      ),
-                                      const SizedBox(width: 12),
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          children: [
-                                            Text('From: ${task.delegatorName}', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey)),
-                                            Text(task.delegationName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: const Color(0xFF1E293B))),
-                                          ],
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF00D094).withValues(alpha: 0.25),
+                                      border: Border(bottom: BorderSide(color: Colors.grey.shade300)),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        CircleAvatar(
+                                          radius: 14,
+                                          backgroundColor: Colors.white,
+                                          child: Text(uInitials, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: Colors.black87)),
                                         ),
-                                      ),
-                                      GestureDetector(
-                                        onTap: () => _handleRestore(task.id!),
-                                        child: Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                                          decoration: BoxDecoration(
-                                            color: Colors.white,
-                                            borderRadius: BorderRadius.circular(8),
-                                            border: Border.all(color: Colors.green.shade200),
-                                          ),
-                                          child: Row(
+                                        const SizedBox(width: 12),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
                                             children: [
-                                              Icon(Icons.restore, size: 14, color: Colors.green.shade600),
-                                              const SizedBox(width: 4),
-                                              Text('Restore', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.green.shade700)),
+                                              Text(task.delegationName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.black), maxLines: 1, overflow: TextOverflow.ellipsis),
+                                              const SizedBox(height: 1),
+                                              Text('From: ${task.delegatorName}', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.black87), maxLines: 1, overflow: TextOverflow.ellipsis),
                                             ],
                                           ),
                                         ),
-                                      )
-                                    ],
-                                  ),
-                                  const SizedBox(height: 12),
-                                  if (task.description.isNotEmpty)
-                                    Text(
-                                      task.description,
-                                      style: TextStyle(fontSize: 13, color: Colors.grey.shade600, fontWeight: FontWeight.w500),
-                                      maxLines: 2,
-                                      overflow: TextOverflow.ellipsis,
+                                        GestureDetector(
+                                          onTap: () => _handleRestore(task.id!),
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                            decoration: BoxDecoration(
+                                              color: Colors.white,
+                                              borderRadius: BorderRadius.circular(8),
+                                              border: Border.all(color: Colors.green.shade400),
+                                            ),
+                                            child: Row(
+                                              children: [
+                                                Icon(Icons.restore, size: 14, color: Colors.green.shade700),
+                                                const SizedBox(width: 4),
+                                                Text('Restore', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.green.shade800)),
+                                              ],
+                                            ),
+                                          ),
+                                        )
+                                      ],
                                     ),
-                                  const SizedBox(height: 12),
-                                  const Divider(height: 1, color: Color(0xFFF1F5F9)),
-                                  const SizedBox(height: 12),
-                                  Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      Row(
-                                        children: [
-                                          Icon(Icons.flag, size: 14, color: task.priority == 'Urgent' ? Colors.red : Colors.grey),
-                                          const SizedBox(width: 4),
-                                          Text(task.priority, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey)),
-                                          const SizedBox(width: 12),
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                            decoration: BoxDecoration(color: _getStatusColor(task.status).withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
-                                            child: Text(task.status.toUpperCase(), style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: _getStatusColor(task.status))),
-                                          )
+                                  ),
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        if (task.description.isNotEmpty) ...[
+                                          Text(
+                                            task.description,
+                                            style: TextStyle(fontSize: 13, color: Colors.grey.shade600, fontWeight: FontWeight.w500),
+                                            maxLines: 2,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                          const SizedBox(height: 12),
+                                          const Divider(height: 1, color: Color(0xFFF1F5F9)),
+                                          const SizedBox(height: 12),
                                         ],
-                                      ),
-                                      Row(
-                                        children: [
-                                          const Icon(Icons.access_time, size: 14, color: Colors.orange),
-                                          const SizedBox(width: 4),
-                                          Text('Due: ${_formatDate(task.dueDate)}', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.orange)),
-                                        ],
-                                      )
-                                    ],
+                                        Row(
+                                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                          children: [
+                                            Row(
+                                              children: [
+                                                Icon(Icons.flag, size: 14, color: task.priority == 'Urgent' ? Colors.red : Colors.grey),
+                                                const SizedBox(width: 4),
+                                                Text(task.priority, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey)),
+                                                const SizedBox(width: 12),
+                                                Container(
+                                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                                  decoration: BoxDecoration(color: _getStatusColor(task.status).withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
+                                                  child: Text(task.status.toUpperCase(), style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: _getStatusColor(task.status))),
+                                                )
+                                              ],
+                                            ),
+                                            Row(
+                                              children: [
+                                                const Icon(Icons.access_time, size: 14, color: Colors.orange),
+                                                const SizedBox(width: 4),
+                                                Text('Due: ${_formatDate(task.dueDate)}', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.orange)),
+                                              ],
+                                            )
+                                          ],
+                                        )
+                                      ],
+                                    ),
                                   )
                                 ],
                               ),

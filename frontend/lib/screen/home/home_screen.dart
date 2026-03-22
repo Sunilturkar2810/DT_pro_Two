@@ -494,7 +494,7 @@ class _DynamicDashboardState extends State<DynamicDashboard> {
     return Consumer<DashboardProvider>(
       builder: (context, provider, _) {
         if (provider.isLoading) return Center(child: Padding(padding: const EdgeInsets.all(40), child: CircularProgressIndicator(color: primaryColor)));
-        final acTable = Theme.of(context).extension<AppColors>()!;
+        final appColors = Theme.of(context).extension<AppColors>()!;
         
         String firstColLabel = "Employee Name";
         if (provider.selectedTab == 'Groups') firstColLabel = "Group";
@@ -504,149 +504,196 @@ class _DynamicDashboardState extends State<DynamicDashboard> {
         else if (provider.selectedTab == 'Monthly') firstColLabel = "Month";
         else if (provider.selectedTab == 'Tags') firstColLabel = "Tag";
 
-        return Container(
-          decoration: BoxDecoration(color: acTable.cardBackground, borderRadius: BorderRadius.circular(16), boxShadow: [BoxShadow(color: acTable.shadowColor, blurRadius: 10)]),
-          clipBehavior: Clip.antiAlias,
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            physics: const BouncingScrollPhysics(),
-            child: Builder(builder: (context) {
-              double tableMinWidth = 864;
-              double screenAvailableWidth = MediaQuery.of(context).size.width - 32;
-              double finalWidth = screenAvailableWidth > tableMinWidth ? screenAvailableWidth : tableMinWidth;
-              
-              if (provider.selectedTab == 'Overdue') {
-                return SizedBox(
-                  width: finalWidth,
-                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Container(
-                      width: finalWidth,
-                      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
-                      color: const Color(0xFF1A1D1E),
-                      child: Row(children: [
-                        _cell(180, _th("Task"), isHeader: true),
-                        _cell(120, _th("Due Date", color: Colors.redAccent), isHeader: true),
-                        _cell(120, _th("Overdue Since", color: Colors.redAccent), isHeader: true),
-                        _cell(100, _th("Status"), isHeader: true),
-                      ]),
-                    ),
-                    if (provider.overdueTasks.isEmpty)
-                      const Padding(padding: EdgeInsets.all(60), child: Center(child: Text("No overdue tasks 🎉", style: TextStyle(color: Colors.grey))))
-                    else
-                      ListView.separated(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        itemCount: provider.overdueTasks.length,
-                        separatorBuilder: (context, index) => Divider(height: 1, color: acTable.divider),
-                        itemBuilder: (context, index) {
-                          final task = provider.overdueTasks[index];
-                          final dueDateStr = task['dueDate'];
-                          String dueFormat = "N/A";
-                          String overdueSince = "N/A";
-                          if (dueDateStr != null) {
-                            final d = DateTime.tryParse(dueDateStr);
-                            if (d != null) {
-                              dueFormat = "${d.day}/${d.month}/${d.year}";
-                              final diff = DateTime.now().difference(d);
-                              if (diff.inDays > 0) overdueSince = "${diff.inDays} days ago";
-                              else if (diff.inHours > 0) overdueSince = "${diff.inHours}h ago";
-                              else overdueSince = "${diff.inMinutes}m ago";
-                            }
-                          }
-                          return Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
-                            child: Row(children: [
-                              _cell(180, Text(task['taskTitle']?.toString() ?? "Untitled", style: TextStyle(fontWeight: FontWeight.bold, color: acTable.textPrimary))),
-                              _cell(120, Text(dueFormat, textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.red))),
-                              _cell(120, Text(overdueSince, textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.bold, color: acTable.textSecondary))),
-                              _cell(100, Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                decoration: BoxDecoration(color: Colors.red.withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
-                                child: Text(task['status']?.toString().toUpperCase() ?? "OVERDUE", textAlign: TextAlign.center, style: const TextStyle(color: Colors.red, fontSize: 10, fontWeight: FontWeight.bold)),
-                              )),
-                            ]),
-                          );
-                        },
-                      ),
-                  ]),
-                );
+        if (provider.selectedTab == 'Overdue') {
+          if (provider.overdueTasks.isEmpty) {
+            return const Padding(padding: EdgeInsets.all(60), child: Center(child: Text("No overdue tasks 🎉", style: TextStyle(color: Colors.grey))));
+          }
+          return ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: provider.overdueTasks.length,
+            separatorBuilder: (context, index) => const SizedBox(height: 12),
+            itemBuilder: (context, index) {
+              final task = provider.overdueTasks[index];
+              final dueDateStr = task['dueDate'];
+              String dueFormat = "N/A";
+              String overdueSince = "N/A";
+              if (dueDateStr != null) {
+                final d = DateTime.tryParse(dueDateStr);
+                if (d != null) {
+                  dueFormat = "${d.day}/${d.month}/${d.year}";
+                  final diff = DateTime.now().difference(d);
+                  if (diff.inDays > 0) overdueSince = "${diff.inDays} days ago";
+                  else if (diff.inHours > 0) overdueSince = "${diff.inHours}h ago";
+                  else overdueSince = "${diff.inMinutes}m ago";
+                }
               }
+              return _buildOverdueCard(task['taskTitle']?.toString() ?? "Untitled", dueFormat, overdueSince, task['status']?.toString() ?? "OVERDUE", appColors);
+            },
+          );
+        }
 
-              return SizedBox(
-                width: finalWidth,
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Container(
-                    width: finalWidth,
-                    padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
-                    color: const Color(0xFF1A1D1E),
-                    child: Row(children: [
-                      _cell(180, _th(firstColLabel), isHeader: true),
-                      _cell(80, _th("Total"), isHeader: true),
-                      _cell(80, _th("Score"), isHeader: true),
-                      _cell(100, _th("Overdue", color: Colors.redAccent), isHeader: true),
-                      _cell(100, _th("Pending", color: Colors.orangeAccent), isHeader: true),
-                      _cell(100, _th("In-Progress", color: Colors.blueAccent), isHeader: true),
-                      _cell(100, _th("In Time", color: Colors.teal), isHeader: true),
-                      _cell(100, _th("Delayed", color: Colors.deepOrangeAccent), isHeader: true),
-                    ]),
-                  ),
-                  if (provider.categoryStats.isEmpty)
-                    const Padding(padding: EdgeInsets.all(60), child: Center(child: Text("No records found", style: TextStyle(color: Colors.grey))))
-                  else
-                    ListView.separated(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      itemCount: provider.categoryStats.length,
-                      separatorBuilder: (context, index) => Divider(height: 1, color: acTable.divider),
-                      itemBuilder: (context, index) {
-                        final cat = provider.categoryStats[index];
-                        return _tdRow(cat['name'] ?? "Unknown", cat['total'].toString(), cat['score'].toString(), cat['overdue'].toString(), cat['pending'].toString(), cat['in_progress']?.toString() ?? "0", cat['in_time']?.toString() ?? "0", cat['delayed']?.toString() ?? "0");
-                      },
-                    ),
-                ]),
-              );
-            }),
-          ),
+        if (provider.categoryStats.isEmpty) {
+          return const Padding(padding: EdgeInsets.all(60), child: Center(child: Text("No records found", style: TextStyle(color: Colors.grey))));
+        }
+
+        return ListView.separated(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: provider.categoryStats.length,
+          separatorBuilder: (context, index) => const SizedBox(height: 12),
+          itemBuilder: (context, index) {
+            final cat = provider.categoryStats[index];
+            return _buildStatCardItem(
+              cat['name'] ?? "Unknown", 
+              firstColLabel,
+              cat['total'].toString(), 
+              cat['score'].toString(), 
+              cat['overdue'].toString(), 
+              cat['pending'].toString(), 
+              cat['in_progress']?.toString() ?? "0", 
+              cat['in_time']?.toString() ?? "0", 
+              cat['delayed']?.toString() ?? "0", 
+              appColors
+            );
+          },
         );
       },
     );
   }
 
-  Widget _th(String t, {Color color = Colors.white70}) => Text(t, textAlign: TextAlign.center, style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 11));
-
-  Widget _tdRow(String title, String total, String score, String overdue, String pending, String inProgress, String inTime, String delayed) {
-    final acTd = Theme.of(context).extension<AppColors>()!;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
-      child: Row(children: [
-        _cell(180, Row(children: [
-          _circularIndicator(score, score.contains("100") ? Colors.green : (score == "0%" ? Colors.red : Colors.orange)),
-          const SizedBox(width: 12),
-          Expanded(child: Text(title, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: acTd.textPrimary))),
-        ])),
-        _cell(80, Text(total, textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.bold, color: acTd.textPrimary))),
-        _cell(80, Text(score, textAlign: TextAlign.center, style: TextStyle(color: score.contains("100") ? Colors.green : Colors.red, fontWeight: FontWeight.bold, fontSize: 13))),
-        _cell(100, _statusValue(overdue, Colors.red, total)),
-        _cell(100, _statusValue(pending, Colors.orange, total)),
-        _cell(100, _statusValue(inProgress, Colors.blue, total)),
-        _cell(100, _statusValue(inTime, Colors.green, total)),
-        _cell(100, _statusValue(delayed, Colors.deepOrange, total)),
-      ]),
+  Widget _buildStatCardItem(String title, String typeLabel, String total, String score, String overdue, String pending, String inProgress, String inTime, String delayed, AppColors appColors) {
+    Color scoreColor = score.contains("100") ? Colors.green : (score == "0%" ? Colors.red : Colors.orange);
+    
+    return Container(
+      decoration: BoxDecoration(
+        color: appColors.cardBackground,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [BoxShadow(color: appColors.shadowColor, blurRadius: 10, offset: const Offset(0, 4))],
+        border: Border.all(color: appColors.cardBorder ?? Colors.transparent),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: const Color(0xFF0D1B2A).withValues(alpha: 0.82),
+            ),
+            child: Row(
+              children: [
+                _circularIndicator(score, scoreColor),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white)),
+                      Text(typeLabel, style: const TextStyle(fontSize: 10, color: Colors.white70)),
+                    ]
+                  )
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Text("Total: $total", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 11)),
+                )
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+            child: Column(
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    _statusValueCard("Overdue", overdue, Colors.red, total, appColors),
+                    _statusValueCard("Pending", pending, Colors.orange, total, appColors),
+                    _statusValueCard("In-Progress", inProgress, Colors.blue, total, appColors),
+                  ]
+                ),
+                const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              _statusValueCard("In Time", inTime, Colors.teal, total, appColors),
+              _statusValueCard("Delayed", delayed, Colors.deepOrange, total, appColors),
+            ]
+          )
+        ],
+      ),
+    )
+        ],
+      ),
     );
   }
 
-  Widget _cell(int flexValue, Widget child, {bool isHeader = false}) {
-    return Expanded(flex: flexValue, child: Padding(padding: const EdgeInsets.symmetric(horizontal: 4), child: child));
-  }
-
-  Widget _statusValue(String val, Color color, String total) {
+  Widget _statusValueCard(String label, String val, Color color, String total, AppColors appColors) {
     int v = int.tryParse(val) ?? 0;
     int t = int.tryParse(total) ?? 1;
     int perc = ((v / (t == 0 ? 1 : t)) * 100).toInt();
-    return Column(mainAxisSize: MainAxisSize.min, children: [
-      Text(val, textAlign: TextAlign.center, style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 13)),
-      Text("($perc%)", style: TextStyle(color: color.withValues(alpha: 0.6), fontSize: 9)),
-    ]);
+    
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(val, style: TextStyle(color: color, fontWeight: FontWeight.w900, fontSize: 16)),
+        Text(label, style: TextStyle(color: appColors.textMuted, fontSize: 10, fontWeight: FontWeight.bold)),
+        Text("($perc%)", style: TextStyle(color: color.withValues(alpha: 0.8), fontSize: 9, fontWeight: FontWeight.w600)),
+      ],
+    );
+  }
+
+  Widget _buildOverdueCard(String title, String due, String overdueSince, String status, AppColors appColors) {
+    return Container(
+      decoration: BoxDecoration(
+        color: appColors.cardBackground,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [BoxShadow(color: appColors.shadowColor, blurRadius: 10, offset: const Offset(0, 4))],
+        border: const Border(left: BorderSide(color: Colors.redAccent, width: 4)),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: const Color(0xFF0D1B2A).withValues(alpha: 0.82),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(child: Text(title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white))),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(12)),
+                  child: Text(status.toUpperCase(), style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+            child: Row(
+              children: [
+                const Icon(Icons.event, size: 14, color: Colors.grey),
+                const SizedBox(width: 4),
+                Text("Due: $due", style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                const SizedBox(width: 16),
+                const Icon(Icons.warning_amber_rounded, size: 14, color: Colors.redAccent),
+                const SizedBox(width: 4),
+                Text(overdueSince, style: const TextStyle(fontSize: 12, color: Colors.redAccent, fontWeight: FontWeight.bold)),
+              ]
+            ),
+          )
+        ],
+      )
+    );
   }
 
   Widget _circularIndicator(String label, Color color) {
@@ -654,9 +701,9 @@ class _DynamicDashboardState extends State<DynamicDashboard> {
       width: 34, height: 34,
       decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: color.withValues(alpha: 0.2), width: 2)),
       child: Center(child: Container(
-        width: 28, height: 28,
+        width: 26, height: 26,
         decoration: BoxDecoration(shape: BoxShape.circle, color: color.withValues(alpha: 0.05)),
-        child: Center(child: Text(label.replaceAll("%", ""), style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: color))),
+        child: Center(child: Text(label.replaceAll("%", ""), style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: color))),
       )),
     );
   }

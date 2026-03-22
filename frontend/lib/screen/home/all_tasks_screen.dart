@@ -726,6 +726,7 @@ class _AllTasksScreenState extends State<AllTasksScreen>
           ),
         ],
       ),
+      clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: () => Navigator.push(
           context,
@@ -733,14 +734,17 @@ class _AllTasksScreenState extends State<AllTasksScreen>
             builder: (_) => TaskDetailScreen(task: task, allowEdit: true),
           ),
         ),
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // ── Top row: Checkbox + Avatar + Title ──
-              Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // ── Top row: Checkbox + Avatar + Title ──
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                color: const Color(0xFF00D094).withValues(alpha: 0.25),
+                border: Border(bottom: BorderSide(color: Colors.grey.shade300)),
+              ),
+              child: Row(
                 children: [
                   // Checkbox mock
                   Container(
@@ -748,24 +752,24 @@ class _AllTasksScreenState extends State<AllTasksScreen>
                     height: 20,
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: Colors.grey.shade400, width: 2),
+                      border: Border.all(color: Colors.black54, width: 1.5),
                     ),
                   ),
                   const SizedBox(width: 12),
                   Container(
-                    width: 36,
-                    height: 36,
+                    width: 32,
+                    height: 32,
                     decoration: const BoxDecoration(
                       shape: BoxShape.circle,
-                      color: Color(0xFFE6F9F1),
+                      color: Colors.white,
                     ),
                     alignment: Alignment.center,
                     child: Text(
                       initials,
                       style: const TextStyle(
-                        color: Color(0xFF00D094),
+                        color: Colors.black87,
                         fontWeight: FontWeight.bold,
-                        fontSize: 13,
+                        fontSize: 12,
                       ),
                     ),
                   ),
@@ -778,19 +782,19 @@ class _AllTasksScreenState extends State<AllTasksScreen>
                           task.delegationName,
                           style: const TextStyle(
                             fontSize: 14,
-                            fontWeight: FontWeight.w800,
-                            color: Color(0xFF1E293B),
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black,
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
-                        const SizedBox(height: 2),
+                        const SizedBox(height: 1),
                         Text(
                           "By $byName — To $toName",
                           style: const TextStyle(
-                            fontSize: 11,
+                            fontSize: 10,
                             fontWeight: FontWeight.bold,
-                            color: Colors.grey,
+                            color: Colors.black87,
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -798,12 +802,14 @@ class _AllTasksScreenState extends State<AllTasksScreen>
                       ],
                     ),
                   ),
-                  const Icon(Icons.more_vert_rounded, size: 18, color: Colors.grey),
+                  const Icon(Icons.more_vert_rounded, size: 18, color: Colors.black54),
                 ],
               ),
-              const SizedBox(height: 10),
-              // ── Bottom row: Status + Date + Priority + Time ──
-              Wrap(
+            ),
+            // ── Bottom row: Status + Date + Priority + Time ──
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+              child: Wrap(
                 crossAxisAlignment: WrapCrossAlignment.center,
                 spacing: 8,
                 runSpacing: 4,
@@ -822,8 +828,8 @@ class _AllTasksScreenState extends State<AllTasksScreen>
                     ),
                 ],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
