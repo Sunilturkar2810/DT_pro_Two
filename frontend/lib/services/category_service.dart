@@ -8,7 +8,7 @@ class CategoryService {
   // Get all categories with task count
   Future<List<Map<String, dynamic>>> getAllCategories() async {
     try {
-      final response = await _dio.get(ApiConstants.categories);
+      final response = await _dio.get('${ApiConstants.categories}/list');
       final categories = List<Map<String, dynamic>>.from(response.data ?? []);
       return categories;
     } catch (e) {
@@ -115,7 +115,7 @@ class CategoryService {
   // Legacy method for backward compatibility
   Future<List<dynamic>> getCategories() async {
     try {
-      final response = await _dio.get(ApiConstants.categories);
+      final response = await _dio.get('${ApiConstants.categories}/list');
       return response.data;
     } catch (e) {
       rethrow;

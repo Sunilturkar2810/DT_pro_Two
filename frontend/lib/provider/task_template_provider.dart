@@ -124,6 +124,27 @@ class TaskTemplateProvider extends ChangeNotifier {
     }
   }
 
+  Future<bool> updateTemplate(String id, Map<String, dynamic> data) async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final updatedTemplate = await _service.updateTemplate(id, data);
+      final index = _templates.indexWhere((t) => t.id == id);
+      if (index != -1) {
+        _templates[index] = updatedTemplate;
+      }
+      return true;
+    } catch (e) {
+      _errorMessage = e.toString();
+      throw Exception(_errorMessage);
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
   List<TaskTemplateModel> get filteredTemplates {
     return _templates.where((t) {
       final q = _searchQuery.toLowerCase();

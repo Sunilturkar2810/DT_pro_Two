@@ -226,41 +226,53 @@ class _DeletedTasksScreenState extends State<DeletedTasksScreen> {
               children: [
                 // 1. TOP HEADER
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
                   child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(10),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFFF3B30),
-                              borderRadius: BorderRadius.circular(10),
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFF3B30),
+                          borderRadius: BorderRadius.circular(12),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFFFF3B30).withOpacity(0.3),
+                              blurRadius: 10,
+                              offset: const Offset(0, 4),
                             ),
-                            child: const Icon(Icons.delete_outline, color: Colors.white, size: 24),
-                          ),
-                          const SizedBox(width: 16),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text('Deleted Tasks', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF1E293B))),
-                              const SizedBox(height: 2),
-                              Text('ADMIN View \u2014 Trash Bin', style: TextStyle(fontSize: 12, color: Colors.grey, fontWeight: FontWeight.bold)),
-                            ],
-                          ),
-                        ],
+                          ],
+                        ),
+                        child: const Icon(Icons.delete_outline, color: Colors.white, size: 24),
                       ),
-                      ElevatedButton.icon(
-                        onPressed: () => context.read<DelegationProvider>().fetchDeleted(),
-                        icon: const Icon(Icons.refresh, size: 16),
-                        label: const Text('Refresh', style: TextStyle(fontWeight: FontWeight.bold)),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFFFF3B30),
-                          foregroundColor: Colors.white,
-                          elevation: 0,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      const SizedBox(width: 12),
+                      Flexible(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('Deleted Tasks',
+                                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: Color(0xFF1E293B), letterSpacing: -0.5),
+                                overflow: TextOverflow.ellipsis),
+                            Text('ADMIN View — Trash Bin',
+                                style: TextStyle(fontSize: 11, color: Colors.grey, fontWeight: FontWeight.bold),
+                                overflow: TextOverflow.ellipsis),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      SizedBox(
+                        width: 40,
+                        height: 40,
+                        child: ElevatedButton(
+                          onPressed: () => context.read<DelegationProvider>().fetchDeleted(),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFFFF3B30),
+                            foregroundColor: Colors.white,
+                            elevation: 0,
+                            padding: EdgeInsets.zero,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          ),
+                          child: const Icon(Icons.refresh_rounded, size: 20),
                         ),
                       ),
                     ],

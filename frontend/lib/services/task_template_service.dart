@@ -54,4 +54,19 @@ class TaskTemplateService {
       throw Exception(e.response?.data?['message'] ?? 'Failed to create template');
     }
   }
+
+  Future<TaskTemplateModel> updateTemplate(String id, Map<String, dynamic> data) async {
+    try {
+      final response = await _dio.put('${ApiConstants.taskTemplates}/$id', data: data);
+      
+      Map<String, dynamic> resData = {};
+      if (response.data is Map) {
+         resData = response.data['template'] ?? response.data['data'] ?? response.data;
+      }
+
+      return TaskTemplateModel.fromJson(resData);
+    } on DioException catch (e) {
+      throw Exception(e.response?.data?['message'] ?? 'Failed to update template');
+    }
+  }
 }

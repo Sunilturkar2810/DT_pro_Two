@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../../provider/task_template_provider.dart';
+import '../../provider/category_provider.dart';
 import '../../provider/auth_provider.dart';
+import '../../widget/task_template_sheet.dart';
+import '../../widget/app_dropdown.dart';
 
 class TaskTemplatesScreen extends StatefulWidget {
   const TaskTemplatesScreen({Key? key}) : super(key: key);
@@ -22,6 +25,7 @@ class _TaskTemplatesScreenState extends State<TaskTemplatesScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<TaskTemplateProvider>().fetchTemplates();
+      context.read<CategoryProvider>().fetchCategories();
     });
   }
 
@@ -45,25 +49,79 @@ class _TaskTemplatesScreenState extends State<TaskTemplatesScreen> {
     }
   }
 
+  Widget _buildActiveChip(String label, VoidCallback onClear) {
+    return Container(
+      margin: const EdgeInsets.only(right: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: const Color(0xFFE0F7EF),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFF20E19F).withOpacity(0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(label, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: Color(0xFF00A877))),
+          const SizedBox(width: 4),
+          GestureDetector(
+            onTap: onClear,
+            child: const Icon(Icons.close, size: 12, color: Color(0xFF00A877)),
+          )
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
+        centerTitle: true,
         title: const Text('TASK TEMPLATES', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
         backgroundColor: const Color(0xFF20E19F),
         elevation: 0,
         actions: [
           IconButton(
             icon: const Icon(Icons.add_circle_outline),
-            onPressed: () => _showAddTemplateDialog(context),
+            onPressed: () {
+              showModalBottomSheet(
+                context: context,
+                isScrollControlled: true,
+                backgroundColor: Colors.transparent,
+                builder: (context) => Padding(
+                  padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+                  child: FractionallySizedBox(
+                    heightFactor: 0.9,
+                    child: const TaskTemplateSheet(),
+                  ),
+                ),
+              );
+            },
           ),
         ],
       ),
-      body: Consumer<TaskTemplateProvider>(
-        builder: (context, provider, child) {
-          final cats = provider.categoriesWithCount;
+      body: Consumer2<TaskTemplateProvider, CategoryProvider>(
+        builder: (context, provider, catProvider, child) {
+          final Map<String, int> counts = {'All': provider.templates.length};
+          for (var cat in catProvider.categoryModels) {
+            counts[cat.name] = 0;
+          }
+          for (var t in provider.templates) {
+            if (t.category != null && t.category!.isNotEmpty && counts.containsKey(t.category!)) {
+              counts[t.category!] = counts[t.category!]! + 1;
+            } else if (t.category != null && t.category!.isNotEmpty && !counts.containsKey(t.category!)) {
+              counts[t.category!] = 1;
+            }
+          }
+          final cats = counts.entries.map((e) => {'name': e.key, 'count': e.value}).toList();
           final filteredList = provider.filteredTemplates;
+
+          final bool hasActiveFilters = provider.searchQuery.isNotEmpty || 
+                                        provider.selectedCategory != 'All' || 
+                                        provider.createdByFilter != 'All' || 
+                                        provider.priorityFilter != 'All' || 
+                                        provider.frequencyFilter != 'All';
 
           if (provider.isLoading && provider.templates.isEmpty) {
             return const Center(child: CircularProgressIndicator());
@@ -99,36 +157,93 @@ class _TaskTemplatesScreenState extends State<TaskTemplatesScreen> {
                         ),
                       ),
                       
-                      // Priority
-                      _buildFilterDropdown(
+                      // Priority Filter
+                      AppDropdown<String>(
+                        isCompact: true,
                         value: provider.priorityFilter,
                         items: priorityOptions,
-                        onChanged: (val) => provider.setPriorityFilter(val!),
+                        labelBuilder: (v) => v == 'All' ? 'Priority' : v,
+                        prefixIcon: Icons.flag_outlined,
+                        onChanged: (val) {
+                          if (val != null) provider.setPriorityFilter(val);
+                        },
                       ),
                       const SizedBox(width: 8),
 
-                      // Frequency
-                      _buildFilterDropdown(
+                      // Frequency Filter
+                      AppDropdown<String>(
+                        isCompact: true,
                         value: provider.frequencyFilter,
                         items: frequencyOptions,
-                        onChanged: (val) => provider.setFrequencyFilter(val!),
+                        labelBuilder: (v) => v == 'All' ? 'Frequency' : v,
+                        prefixIcon: Icons.repeat,
+                        onChanged: (val) {
+                          if (val != null) provider.setFrequencyFilter(val);
+                        },
                       ),
                       const SizedBox(width: 8),
 
-                      // Created By
-                      _buildFilterDropdown(
+                      // Created By Filter
+                      AppDropdown<String>(
+                        isCompact: true,
                         value: provider.createdByFilter,
                         items: ['All', ...provider.users.map((e) => e.id)],
-                        displayMap: {
-                          'All': 'Created By',
-                          for (var u in provider.users) u.id: '${u.firstName} ${u.lastName}',
+                        labelBuilder: (v) {
+                          if (v == 'All') return 'Created By';
+                          try {
+                            final user = provider.users.firstWhere((u) => u.id == v);
+                            return '${user.firstName} ${user.lastName}';
+                          } catch (_) {
+                            return v;
+                          }
                         },
-                        onChanged: (val) => provider.setCreatedByFilter(val!),
+                        prefixIcon: Icons.person_outline,
+                        onChanged: (val) {
+                          if (val != null) provider.setCreatedByFilter(val);
+                        },
                       ),
+                      
+                      if (hasActiveFilters) ...[
+                        const SizedBox(width: 8),
+                        TextButton.icon(
+                          onPressed: provider.resetFilters,
+                          icon: const Icon(Icons.refresh, size: 16, color: Colors.redAccent),
+                          label: const Text('Reset', style: TextStyle(color: Colors.redAccent, fontSize: 12, fontWeight: FontWeight.bold)),
+                          style: TextButton.styleFrom(
+                            backgroundColor: Colors.red.shade50,
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))
+                          ),
+                        )
+                      ]
                     ],
                   ),
                 ),
               ),
+              
+              if (hasActiveFilters)
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                  color: Colors.white,
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        const Text('ACTIVE:', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: Colors.grey, letterSpacing: 0.5)),
+                        const SizedBox(width: 8),
+                        if (provider.searchQuery.isNotEmpty) _buildActiveChip('"${provider.searchQuery}"', () => provider.setSearchQuery('')),
+                        if (provider.selectedCategory != 'All') _buildActiveChip(provider.selectedCategory, () => provider.setSelectedCategory('All')),
+                        if (provider.priorityFilter != 'All') _buildActiveChip(provider.priorityFilter, () => provider.setPriorityFilter('All')),
+                        if (provider.frequencyFilter != 'All') _buildActiveChip(provider.frequencyFilter, () => provider.setFrequencyFilter('All')),
+                        if (provider.createdByFilter != 'All') _buildActiveChip('User: ${provider.createdByFilter}', () => provider.setCreatedByFilter('All')),
+                        
+                        const SizedBox(width: 4),
+                        Text('- ${filteredList.length} results', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: Colors.grey)),
+                      ],
+                    ),
+                  ),
+                ),
               
               const SizedBox(height: 8),
 
@@ -140,7 +255,7 @@ class _TaskTemplatesScreenState extends State<TaskTemplatesScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   itemCount: cats.length,
                   itemBuilder: (context, index) {
-                    final catName = cats[index]['name'];
+                    final catName = cats[index]['name'] as String;
                     final count = cats[index]['count'];
                     final isSelected = provider.selectedCategory == catName;
 
@@ -179,11 +294,24 @@ class _TaskTemplatesScreenState extends State<TaskTemplatesScreen> {
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(Icons.description_outlined, size: 48, color: Colors.grey.shade400),
-                            const SizedBox(height: 8),
-                            Text(provider.searchQuery.isEmpty ? "No Templates Found" : "No matches found", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.grey)),
-                            if (provider.searchQuery.isNotEmpty)
-                              TextButton(onPressed: provider.resetFilters, child: const Text('Clear Filters', style: TextStyle(color: Color(0xFF20E19F))))
+                            Icon(Icons.description_outlined, size: 48, color: Colors.grey.shade300),
+                            const SizedBox(height: 12),
+                            const Text("No Templates Found", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: Color(0xFF1E293B))),
+                            const SizedBox(height: 4),
+                            Text(hasActiveFilters ? "Try adjusting your filters" : "Add your first template to get started", style: TextStyle(fontSize: 13, color: Colors.grey.shade500, fontWeight: FontWeight.w500)),
+                            if (hasActiveFilters) ...[
+                              const SizedBox(height: 16),
+                              ElevatedButton(
+                                onPressed: provider.resetFilters, 
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFF20E19F),
+                                  elevation: 0,
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12)
+                                ),
+                                child: const Text('Clear All Filters', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold))
+                              )
+                            ]
                           ],
                         ),
                       )
@@ -193,16 +321,32 @@ class _TaskTemplatesScreenState extends State<TaskTemplatesScreen> {
                         itemBuilder: (context, index) {
                           final template = filteredList[index];
                           
-                          return Container(
-                            margin: const EdgeInsets.only(bottom: 12),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(16),
-                              border: Border.all(color: Colors.grey.shade100),
-                              boxShadow: [
-                                BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 4, offset: const Offset(0, 2))
-                              ],
-                            ),
+                          return InkWell(
+                            onTap: () {
+                              showModalBottomSheet(
+                                context: context,
+                                isScrollControlled: true,
+                                backgroundColor: Colors.transparent,
+                                builder: (context) => Padding(
+                                  padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+                                  child: FractionallySizedBox(
+                                    heightFactor: 0.9,
+                                    child: TaskTemplateSheet(template: template),
+                                  ),
+                                ),
+                              );
+                            },
+                            borderRadius: BorderRadius.circular(16),
+                            child: Container(
+                              margin: const EdgeInsets.only(bottom: 12),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(color: Colors.grey.shade100),
+                                boxShadow: [
+                                  BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 4, offset: const Offset(0, 2))
+                                ],
+                              ),
                             child: Padding(
                               padding: const EdgeInsets.all(16.0),
                               child: Column(
@@ -301,6 +445,24 @@ class _TaskTemplatesScreenState extends State<TaskTemplatesScreen> {
                                             ],
                                           ),
                                         ),
+                                      // Display Checklist count badge if available
+                                      if (template.checklistItems != null && template.checklistItems!.isNotEmpty)
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                          decoration: BoxDecoration(
+                                            color: Colors.teal.shade50,
+                                            border: Border.all(color: Colors.teal.shade100),
+                                            borderRadius: BorderRadius.circular(8),
+                                          ),
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Icon(Icons.checklist, size: 10, color: Colors.teal.shade600),
+                                              const SizedBox(width: 4),
+                                              Text('${template.checklistItems!.length} ITEMS', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.teal.shade600)),
+                                            ],
+                                          ),
+                                        ),
                                     ],
                                   ),
 
@@ -350,187 +512,16 @@ class _TaskTemplatesScreenState extends State<TaskTemplatesScreen> {
                                 ],
                               ),
                             ),
-                          );
-                        },
-                      ),
-              )
-            ],
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildFilterDropdown({
-    required String value,
-    required List<String> items,
-    required Function(String?) onChanged,
-    Map<String, String>? displayMap,
-  }) {
-    return Container(
-      height: 36,
-      padding: const EdgeInsets.symmetric(horizontal: 10),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<String>(
-          value: value,
-          icon: const Icon(Icons.keyboard_arrow_down, size: 16, color: Colors.grey),
-          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.black87),
-          onChanged: onChanged,
-          items: items.map<DropdownMenuItem<String>>((String val) {
-            return DropdownMenuItem<String>(
-              value: val,
-              child: Text(displayMap != null ? (displayMap[val] ?? val) : val),
-            );
-          }).toList(),
-        ),
-      ),
-    );
-  }
-
-  void _showAddTemplateDialog(BuildContext context) {
-    final titleController = TextEditingController();
-    final descriptionController = TextEditingController();
-    String selectedCategory = 'General';
-    String selectedPriority = 'Medium';
-    String selectedFrequency = 'Once';
-
-    showDialog(
-      context: context,
-      builder: (ctx) {
-        return StatefulBuilder(
-          builder: (context, setState) {
-            return AlertDialog(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              title: const Text('Create Task Template', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text('Title', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 4),
-                    TextField(
-                      controller: titleController,
-                      decoration: InputDecoration(
-                        hintText: 'e.g. Server Maintenance',
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    const Text('Description', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 4),
-                    TextField(
-                      controller: descriptionController,
-                      maxLines: 3,
-                      decoration: InputDecoration(
-                        hintText: 'Template details...',
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text('Priority', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                              const SizedBox(height: 4),
-                              Container(
-                                decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade400), borderRadius: BorderRadius.circular(8)),
-                                padding: const EdgeInsets.symmetric(horizontal: 8),
-                                child: DropdownButtonHideUnderline(
-                                  child: DropdownButton<String>(
-                                    isExpanded: true,
-                                    value: selectedPriority,
-                                    items: ['Urgent', 'High', 'Medium', 'Low'].map((e) => DropdownMenuItem(value: e, child: Text(e, style: const TextStyle(fontSize: 13)))).toList(),
-                                    onChanged: (val) => setState(() => selectedPriority = val!),
-                                  ),
-                                ),
-                              )
-                            ],
                           ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text('Frequency', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                              const SizedBox(height: 4),
-                              Container(
-                                decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade400), borderRadius: BorderRadius.circular(8)),
-                                padding: const EdgeInsets.symmetric(horizontal: 8),
-                                child: DropdownButtonHideUnderline(
-                                  child: DropdownButton<String>(
-                                    isExpanded: true,
-                                    value: selectedFrequency,
-                                    items: ['Once', 'Daily', 'Weekly', 'Monthly'].map((e) => DropdownMenuItem(value: e, child: Text(e, style: const TextStyle(fontSize: 13)))).toList(),
-                                    onChanged: (val) => setState(() => selectedFrequency = val!),
-                                  ),
-                                ),
-                              )
-                            ],
-                          ),
-                        ),
-                      ],
+                        );
+                      },
                     ),
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(ctx),
-                  child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
-                ),
-                ElevatedButton(
-                  onPressed: () async {
-                    if (titleController.text.trim().isEmpty) {
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Title is required')));
-                      return;
-                    }
-                    
-                    try {
-                      final provider = ctx.read<TaskTemplateProvider>();
-                      final auth = ctx.read<AuthProvider>().currentUser;
-                      
-                      final data = {
-                        "title": titleController.text.trim(),
-                        "description": descriptionController.text.trim(),
-                        "category": selectedCategory,
-                        "priority": selectedPriority,
-                        "frequency": selectedFrequency,
-                        "createdBy": auth?.id ?? '',
-                      };
-                      
-                      Navigator.pop(ctx);
-                      
-                      const snackInfo = SnackBar(content: Text('Creating Template...'));
-                      ScaffoldMessenger.of(context).showSnackBar(snackInfo);
-                      
-                      // Assume create method exists or we quickly add it in provider
-                      await provider.createTemplate(data);
-                      
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Template created!', style: TextStyle(color: Colors.white)), backgroundColor: Colors.green));
-                    } catch (e) {
-                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed: $e'), backgroundColor: Colors.red));
-                    }
-                  },
-                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF20E19F), elevation: 0),
-                  child: const Text('Save Template', style: TextStyle(color: Colors.white)),
-                ),
-              ],
-            );
-          }
+            )
+          ],
         );
-      }
-    );
-  }
+      },
+    ),
+  );
+}
+
 }

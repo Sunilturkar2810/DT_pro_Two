@@ -268,155 +268,131 @@ class _InLoopTasksScreenState extends State<InLoopTasksScreen>
             child: const Icon(Icons.loop_rounded, color: Colors.white, size: 24),
           ),
           const SizedBox(width: 12),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: const [
-              Text(
-                "In Loop Tasks",
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.w900,
-                  color: Color(0xFF1E293B),
-                  letterSpacing: -0.5,
+          Flexible(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: const [
+                Text(
+                  "In Loop Tasks",
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w900,
+                    color: Color(0xFF1E293B),
+                    letterSpacing: -0.5,
+                  ),
+                  overflow: TextOverflow.ellipsis,
                 ),
-              ),
-              Text(
-                "Tasks you are copied on",
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.grey,
+                Text(
+                  "Tasks you are copied on",
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey,
+                  ),
+                  overflow: TextOverflow.ellipsis,
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-          const Spacer(),
         ],
       ),
     );
   }
 
-  // ─────────────────────────────────────────────────────────────────
-  // QUICK STATS
-  // ─────────────────────────────────────────────────────────────────
   Widget _buildQuickStats(Map<String, int> counts) {
-    final stats = [
-      {'label': 'TOTAL', 'value': counts['All'], 'color': Colors.grey[500]!, 'bg': Colors.white},
-      {'label': 'OVERDUE', 'value': counts['OverDue'], 'color': Colors.redAccent, 'bg': const Color(0xFFFFF0F0)},
-      {'label': 'PENDING', 'value': counts['Pending'], 'color': Colors.grey[400]!, 'bg': Colors.white},
-      {'label': 'IN PROGRESS', 'value': counts['In Progress'], 'color': Colors.orangeAccent, 'bg': const Color(0xFFFFF7ED)},
-      {'label': 'COMPLETED', 'value': counts['Completed'], 'color': const Color(0xFF10B981), 'bg': const Color(0xFFECFDF5)},
+    final cards = [
+      {'label': 'Total', 'value': counts['All'], 'color': const Color(0xFF6366F1), 'icon': Icons.loop_rounded},
+      {'label': 'Overdue', 'value': counts['OverDue'], 'color': const Color(0xFFEF4444), 'icon': Icons.warning_amber_rounded},
+      {'label': 'Pending', 'value': counts['Pending'], 'color': const Color(0xFF64748B), 'icon': Icons.hourglass_top_rounded},
+      {'label': 'In Progress', 'value': counts['In Progress'], 'color': const Color(0xFFF59E0B), 'icon': Icons.rotate_right_rounded},
+      {'label': 'Done', 'value': counts['Completed'], 'color': const Color(0xFF10B981), 'icon': Icons.check_circle_rounded},
     ];
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Row(
-        children: stats.map((s) {
-          final isPending = s['label'] == 'PENDING';
-          return Expanded(
-            child: Container(
-              margin: const EdgeInsets.only(right: 8),
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-              decoration: BoxDecoration(
-                color: s['bg'] as Color,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.white, width: 2),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.02),
-                    blurRadius: 4,
-                    offset: const Offset(0, 2),
-                  )
-                ],
+    return SizedBox(
+      height: 120,
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        itemCount: cards.length,
+        itemBuilder: (_, i) {
+          final c = cards[i];
+          final color = c['color'] as Color;
+          final icon = c['icon'] as IconData;
+          return Container(
+            width: 112,
+            margin: const EdgeInsets.only(right: 10),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [color, color.withOpacity(0.72)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
               ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    width: 10,
-                    height: 10,
-                    margin: const EdgeInsets.only(top: 2),
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: isPending ? Colors.transparent : s['color'] as Color,
-                      border: isPending ? Border.all(color: Colors.grey[400]!, width: 2) : null,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: color.withOpacity(0.32),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 10),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Icon(icon, color: Colors.white.withOpacity(0.9), size: 20),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.18),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        '${c['value']}',
+                        style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: Colors.white),
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          s['label'] as String,
-                          style: const TextStyle(
-                            fontSize: 9,
-                            fontWeight: FontWeight.w900,
-                            color: Colors.grey,
-                            letterSpacing: 0.5,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          '${s['value']}',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w900,
-                            color: (s['label'] == 'TOTAL' || s['label'] == 'PENDING')
-                                ? const Color(0xFF1E293B)
-                                : s['color'] as Color,
-                          ),
-                        ),
-                      ],
-                    ),
-                  )
-                ],
-              ),
+                  ],
+                ),
+                const Spacer(),
+                Text(
+                  '${c['value']}',
+                  style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w900, color: Colors.white, height: 1),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  c['label'] as String,
+                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Colors.white.withOpacity(0.82), letterSpacing: 0.3),
+                ),
+              ],
             ),
           );
-        }).toList(),
+        },
       ),
     );
   }
 
-  // ─────────────────────────────────────────────────────────────────
-  // TOOLBAR ROW 1
-  // ─────────────────────────────────────────────────────────────────
   Widget _buildToolbar(AppColors appColors, Color primary, List<UserModel> users) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 24, 20, 24),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          // Date Range Dropdown
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 6),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 10),
+          child: Row(
             children: [
-              const Text(
-                "DATE RANGE",
-                style: TextStyle(
-                  fontSize: 9,
-                  fontWeight: FontWeight.w900,
-                  color: Colors.grey,
-                  letterSpacing: 0.5,
-                ),
-              ),
-              const SizedBox(height: 6),
-              SizedBox(
+              Container(
+                width: 150,
                 height: 40,
                 child: AppDropdown<String>(
                   isCompact: true,
                   value: selectedDateRange,
                   items: const [
-                    "All Time",
-                    "Today",
-                    "Yesterday",
-                    "This Week",
-                    "Last Week",
-                    "This Month",
-                    "Last Month",
-                    "This Year",
-                    "Custom"
+                    "All Time", "Today", "Yesterday", "This Week",
+                    "Last Week", "This Month", "Last Month", "This Year", "Custom"
                   ],
                   labelBuilder: (v) => v,
                   accentColor: primary,
@@ -440,109 +416,95 @@ class _InLoopTasksScreenState extends State<InLoopTasksScreen>
                   },
                 ),
               ),
-            ],
-          ),
-          const SizedBox(width: 10),
-
-          // Filter Button
-          Container(
-            height: 40,
-            decoration: BoxDecoration(
-              color: primary,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: ElevatedButton.icon(
-              onPressed: () => _showFilterDialog(appColors, primary, users),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.transparent,
-                shadowColor: Colors.transparent,
-                padding: const EdgeInsets.symmetric(horizontal: 16),
+              const SizedBox(width: 8),
+              SizedBox(
+                height: 40,
+                child: ElevatedButton.icon(
+                  onPressed: () => _showFilterDialog(appColors, primary, users),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: primary,
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    padding: const EdgeInsets.symmetric(horizontal: 14),
+                  ),
+                  icon: const Icon(Icons.filter_alt_outlined, size: 16, color: Colors.white),
+                  label: const Text("Filter",
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.white)),
+                ),
               ),
-              icon: const Icon(Icons.filter_alt_outlined, size: 18, color: Colors.white),
-              label: const Text(
-                "Filter",
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.white),
-              ),
-            ),
-          ),
-          const SizedBox(width: 10),
-
-          // Search Field
-          Expanded(
-            child: Container(
-              height: 40,
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.grey.shade300),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.search_rounded, color: Colors.grey, size: 18),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: TextField(
-                      controller: searchController,
-                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-                      decoration: const InputDecoration(
-                        hintText: "Search tasks...",
-                        hintStyle: TextStyle(
-                            color: Colors.grey,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w500),
-                        border: InputBorder.none,
-                        isDense: true,
+              const SizedBox(width: 8),
+              Container(
+                width: 200,
+                height: 40,
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF1F5F9),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.search_rounded, color: Colors.grey.shade500, size: 18),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: TextField(
+                        controller: searchController,
+                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                        decoration: const InputDecoration(
+                          hintText: "Search tasks...",
+                          hintStyle: TextStyle(color: Colors.grey, fontSize: 13),
+                          border: InputBorder.none,
+                          isDense: true,
+                        ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
+              const SizedBox(width: 8),
+              SizedBox(
+                width: 40,
+                height: 40,
+                child: ElevatedButton(
+                  onPressed: () {
+                    setState(() {
+                      searchController.clear();
+                      searchQuery = "";
+                      selectedDateRange = "All Time";
+                      _activeStatusTab = "All";
+                    });
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: primary,
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    padding: EdgeInsets.zero,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  child: const Icon(Icons.refresh_rounded, size: 18),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                height: 40,
+                padding: const EdgeInsets.all(2),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF1F5F9),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.grey.shade200),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _viewToggleBtn(Icons.view_list_rounded, 0, primary),
+                    _viewToggleBtn(Icons.view_module_rounded, 1, primary),
+                    _viewToggleBtn(Icons.calendar_month_rounded, 2, primary),
+                  ],
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: 10),
-
-          // Refresh/Clear Button
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: primary,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: IconButton(
-              icon: const Icon(Icons.refresh_rounded, color: Colors.white, size: 20),
-              onPressed: () {
-                setState(() {
-                  searchController.clear();
-                  searchQuery = "";
-                  selectedDateRange = "All Time";
-                  _activeStatusTab = "All";
-                });
-              },
-            ),
-          ),
-          const SizedBox(width: 10),
-
-          // View Toggle
-          Container(
-            height: 40,
-            padding: const EdgeInsets.all(2),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.grey.shade300),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _viewToggleBtn(Icons.view_list_rounded, 0, primary),
-                _viewToggleBtn(Icons.view_module_rounded, 1, primary),
-                _viewToggleBtn(Icons.calendar_month_rounded, 2, primary),
-              ],
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -669,82 +631,86 @@ class _InLoopTasksScreenState extends State<InLoopTasksScreen>
         borderRadius: BorderRadius.circular(12),
         child: Padding(
           padding: const EdgeInsets.all(16),
-          child: Row(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Checkbox and Avatar
-              SizedBox(
-                width: 24,
-                height: 24,
-                child: Checkbox(
-                  value: false,
-                  onChanged: (v) {},
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(4)),
-                ),
-              ),
-              const SizedBox(width: 12),
-              CircleAvatar(
-                radius: 18,
-                backgroundColor: primary.withOpacity(0.1),
-                child: Text(
-                  initial,
-                  style: TextStyle(
-                    color: primary,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-
-              // Title and "From: "
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      task.delegationName,
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w800,
-                        color: Color(0xFF1E293B),
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+              // ── Top row: Checkbox + Avatar + Title/From ──
+              Row(
+                children: [
+                  SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: Checkbox(
+                      value: false,
+                      onChanged: (v) {},
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(4)),
                     ),
-                    const SizedBox(height: 4),
+                  ),
+                  const SizedBox(width: 10),
+                  CircleAvatar(
+                    radius: 16,
+                    backgroundColor: primary.withOpacity(0.1),
+                    child: Text(
+                      initial,
+                      style: TextStyle(
+                        color: primary,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          task.delegationName,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF1E293B),
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          "From: $delegatorName",
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.grey,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Icon(Icons.more_vert_rounded, size: 18, color: Colors.grey),
+                ],
+              ),
+              const SizedBox(height: 10),
+              // ── Bottom row: Status + Date + Priority + Time ──
+              Wrap(
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 8,
+                runSpacing: 4,
+                children: [
+                  _statusBadge(task.status, statusColor),
+                  _dateTag(task.dueDate, appColors),
+                  _priorityTag(task.priority),
+                  if (timeAgo.isNotEmpty)
                     Text(
-                      "From: $delegatorName",
+                      timeAgo,
                       style: const TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.bold,
                         color: Colors.grey,
                       ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
                     ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 12),
-
-              // Status, Date, Priority, Time, Menu
-              Wrap(
-                crossAxisAlignment: WrapCrossAlignment.center,
-                spacing: 12,
-                children: [
-                  _statusBadge(task.status, statusColor),
-                  _dateTag(task.dueDate, appColors),
-                  _priorityTag(task.priority),
-                  Text(
-                    timeAgo,
-                    style: const TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.grey,
-                    ),
-                  ),
-                  const Icon(Icons.more_vert_rounded, size: 18, color: Colors.grey),
                 ],
               ),
             ],
