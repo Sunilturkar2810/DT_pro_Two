@@ -13,6 +13,13 @@ class _NotificationsRemindersScreenState extends State<NotificationsRemindersScr
   late TabController _mainTabController;
   int _activeRoleTab = 0; // 0: Admin, 1: Manager, 2: Member
 
+  // Template State
+  String _activeEventTemplate = 'newTask';
+  String _activeChannel = 'email'; // 'email' or 'whatsapp'
+  final TextEditingController _subjectController = TextEditingController();
+  final TextEditingController _bodyController = TextEditingController();
+  bool _isTemplateActive = true;
+
   final List<String> _roles = ['Admin', 'Manager', 'Member'];
   final Map<String, String> _eventLabels = {
     'newTask': 'New Task',
@@ -21,16 +28,91 @@ class _NotificationsRemindersScreenState extends State<NotificationsRemindersScr
     'taskInProgress': 'Task In-Progress',
     'taskComplete': 'Task Complete',
     'taskReOpen': 'Task Re-Open',
-    'dailyPendingReminders': 'Daily Pending Task Reminders'
+    'dailyPendingReminders': 'Daily Pending Reminders',
+    'custom': 'Custom',
+    'inLoopNewTask': 'In Loop: New Task',
+    'inLoopTaskEdit': 'In Loop: Task Edited',
+    'inLoopTaskComment': 'In Loop: Task Comment',
+    'inLoopTaskInProgress': 'In Loop: Task In-Progress',
+    'inLoopTaskComplete': 'In Loop: Task Complete',
+    'inLoopTaskReOpen': 'In Loop: Task Re-Open',
   };
+
+  final List<String> _templateVariables = [
+    '{taskTitle}',
+    '{taskDescription}',
+    '{priority}',
+    '{category}',
+    '{dueDate}',
+    '{assignerName}',
+    '{userName}',
+  ];
 
   @override
   void initState() {
     super.initState();
     _mainTabController = TabController(length: 2, vsync: this);
+    _mainTabController.addListener(() {
+      setState(() {});
+      if (_mainTabController.index == 1 && _mainTabController.indexIsChanging) {
+        _fetchCurrentTemplate();
+      }
+    });
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<NotificationProvider>().fetchNotificationSettings();
     });
+  }
+
+  void _fetchCurrentTemplate() async {
+    final provider = context.read<NotificationProvider>();
+    await provider.fetchTemplate(_activeEventTemplate, _activeChannel);
+    if (provider.activeTemplate != null) {
+      _subjectController.text = provider.activeTemplate!['subject'] ?? '';
+      _bodyController.text = provider.activeTemplate!['body'] ?? '';
+      setState(() {
+        _isTemplateActive = provider.activeTemplate!['isActive'] ?? true;
+      });
+    } else {
+      _subjectController.clear();
+      _bodyController.clear();
+      setState(() {
+        _isTemplateActive = true;
+      });
+    }
+  }
+  
+  void _saveCurrentTemplate() async {
+    final provider = context.read<NotificationProvider>();
+    final success = await provider.saveTemplate({
+      'eventName': _activeEventTemplate,
+      'channel': _activeChannel,
+      'subject': _subjectController.text.trim(),
+      'body': _bodyController.text.trim(),
+      'isActive': _isTemplateActive,
+    });
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(success ? 'Template saved successfully' : 'Failed to save template'),
+          backgroundColor: success ? Colors.green : Colors.red,
+        ),
+      );
+    }
+  }
+
+  void _insertVariable(String variable) {
+    int cursorPosition = _bodyController.selection.base.offset;
+    if (cursorPosition == -1) cursorPosition = _bodyController.text.length;
+
+    String currentText = _bodyController.text;
+    String newText = currentText.substring(0, cursorPosition) + variable + currentText.substring(cursorPosition);
+    
+    _bodyController.value = TextEditingValue(
+      text: newText,
+      selection: TextSelection.collapsed(offset: cursorPosition + variable.length),
+    );
   }
 
   @override
@@ -55,21 +137,308 @@ class _NotificationsRemindersScreenState extends State<NotificationsRemindersScr
       ),
       body: Consumer<NotificationProvider>(
         builder: (context, provider, _) {
-          if (provider.isLoading) return const Center(child: CircularProgressIndicator());
+          if (provider.isLoading && _mainTabController.index == 0) {
+            return const Center(child: CircularProgressIndicator());
+          }
           
           return TabBarView(
             controller: _mainTabController,
+            physics: const NeverScrollableScrollPhysics(), // complex nested scrolling
             children: [
               _buildPreferencesTab(provider),
-              const Center(child: Text("Notification Templates Coming Soon", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey))),
+              _buildTemplatesTab(provider),
             ],
           );
         },
       ),
-      bottomNavigationBar: _buildBottomSaveBar(),
+      bottomNavigationBar: _mainTabController.index == 0 ? _buildBottomSaveBar() : null,
     );
   }
 
+  // ==========================================
+  // TEMPLATES TAB LOGIC
+  // ==========================================
+  Widget _buildTemplatesTab(NotificationProvider provider) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Left Rail: Events
+        Container(
+          width: 160,
+          color: Colors.white,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Padding(
+                padding: EdgeInsets.all(16.0),
+                child: Text("EVENT TYPES", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey, fontSize: 11, letterSpacing: 1.1)),
+              ),
+              Expanded(
+                child: ListView.builder(
+                  physics: const BouncingScrollPhysics(),
+                  itemCount: _eventLabels.length,
+                  itemBuilder: (context, index) {
+                    final entry = _eventLabels.entries.elementAt(index);
+                    final isSelected = _activeEventTemplate == entry.key;
+                    
+                    return InkWell(
+                      onTap: () {
+                        setState(() {
+                          _activeEventTemplate = entry.key;
+                        });
+                        _fetchCurrentTemplate();
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                        decoration: BoxDecoration(
+                          color: isSelected ? const Color(0xFF10B981) : Colors.transparent,
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Expanded(
+                              child: Text(
+                                entry.value,
+                                style: TextStyle(
+                                  color: isSelected ? Colors.white : Colors.black87,
+                                  fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
+                            if (isSelected) const Icon(Icons.check, color: Colors.white, size: 16),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+        
+        // Right Side: Editor
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Channel Tabs
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                color: Colors.white,
+                child: Row(
+                  children: [
+                    _buildChannelTab('email', 'Email', Icons.mail_outline),
+                    const SizedBox(width: 12),
+                    _buildChannelTab('whatsapp', 'WhatsApp', Icons.smartphone_outlined),
+                  ],
+                ),
+              ),
+              const Divider(height: 1),
+              
+              // Editor Space
+              Expanded(
+                child: provider.isTemplateLoading
+                    ? const Center(child: CircularProgressIndicator())
+                    : _buildTemplateEditor(),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildChannelTab(String key, String label, IconData icon) {
+    final isSelected = _activeChannel == key;
+    return InkWell(
+      onTap: () {
+        setState(() {
+          _activeChannel = key;
+        });
+        _fetchCurrentTemplate();
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected ? Colors.white : const Color(0xFFF8F9FD),
+          border: Border.all(color: isSelected ? const Color(0xFF10B981) : Colors.grey.shade300),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, size: 16, color: isSelected ? const Color(0xFF10B981) : Colors.grey.shade600),
+            const SizedBox(width: 8),
+            Text(label, style: TextStyle(color: isSelected ? const Color(0xFF10B981) : Colors.grey.shade700, fontWeight: FontWeight.bold, fontSize: 12)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTemplateEditor() {
+    String eventTitle = _eventLabels[_activeEventTemplate]!.toUpperCase();
+    String channelTitle = _activeChannel.toUpperCase();
+    
+    return SingleChildScrollView(
+      physics: const BouncingScrollPhysics(),
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text("$eventTitle $channelTitle TEMPLATE", style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+                    const Text("Design how this notification will look", style: TextStyle(color: Colors.grey, fontSize: 11)),
+                  ],
+                ),
+              ),
+              Row(
+                children: [
+                  const Text("ACTIVE", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
+                  const SizedBox(width: 8),
+                  Switch.adaptive(
+                    value: _isTemplateActive,
+                    activeColor: const Color(0xFF10B981),
+                    onChanged: (val) {
+                      setState(() {
+                        _isTemplateActive = val;
+                      });
+                    },
+                  ),
+                  const SizedBox(width: 16),
+                  ElevatedButton.icon(
+                    onPressed: _saveCurrentTemplate,
+                    icon: const Icon(Icons.save, size: 16, color: Colors.white),
+                    label: const Text('Save Template', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF10B981),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+
+          // Main Editor vs Variables Row
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Editor
+              Expanded(
+                flex: 2,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (_activeChannel == 'email') ...[
+                      const Text("EMAIL SUBJECT", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10, color: Colors.grey, letterSpacing: 1.1)),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: _subjectController,
+                        decoration: InputDecoration(
+                          hintText: "Enter email subject...",
+                          filled: true,
+                          fillColor: Colors.white,
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                    ],
+                    
+                    Text("${_activeChannel == 'email' ? 'EMAIL' : 'WHATSAPP'} BODY", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 10, color: Colors.grey, letterSpacing: 1.1)),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: _bodyController,
+                      maxLines: 15,
+                      decoration: InputDecoration(
+                        hintText: "Enter your content here...",
+                        filled: true,
+                        fillColor: Colors.white,
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              
+              const SizedBox(width: 20),
+              
+              // Variables side panel
+              Expanded(
+                flex: 1,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF10B981).withOpacity(0.05),
+                        border: Border.all(color: const Color(0xFF10B981).withOpacity(0.2)),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.info_outline, size: 16, color: Colors.green.shade700),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              "Click on a variable to insert it into your body at the current cursor position.",
+                              style: TextStyle(color: Colors.green.shade800, fontSize: 10),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Text("AVAILABLE VARIABLES (${_templateVariables.length})", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 10, color: Colors.grey, letterSpacing: 1.1)),
+                    const SizedBox(height: 8),
+                    Container(
+                      height: 400,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.grey.shade200),
+                      ),
+                      child: ListView.separated(
+                        physics: const BouncingScrollPhysics(),
+                        padding: EdgeInsets.zero,
+                        itemCount: _templateVariables.length,
+                        separatorBuilder: (_, __) => const Divider(height: 1),
+                        itemBuilder: (context, index) {
+                          String variable = _templateVariables[index];
+                          return InkWell(
+                            onTap: () => _insertVariable(variable),
+                            child: Padding(
+                              padding: const EdgeInsets.all(12.0),
+                              child: Text(variable, style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF10B981), fontSize: 12)),
+                            ),
+                          );
+                        },
+                      ),
+                    )
+                  ],
+                ),
+              ),
+            ],
+          )
+        ],
+      ),
+    );
+  }
+
+  // ==========================================
+  // PREFERENCES TAB LOGIC
+  // ==========================================
   Widget _buildPreferencesTab(NotificationProvider provider) {
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(),
