@@ -52,7 +52,7 @@ class TagService {
 
   Future<void> deleteTag(String id) async {
     try {
-      await _dio.delete('${ApiConstants.tags}/$id');
+      await _dio.delete('${ApiConstants.tags}/$id', data: {});
     } on DioException catch (e) {
       throw Exception(e.response?.data?['message'] ?? 'Failed to delete tag: ${e.message}');
     }

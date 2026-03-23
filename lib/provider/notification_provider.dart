@@ -15,6 +15,9 @@ class NotificationProvider extends ChangeNotifier {
   bool emailNotifications = false;
   String timezone = 'Asia/Kolkata';
   String dailyReminderTime = '09:00';
+  bool whatsappReminders = false;
+  bool emailReminders = false;
+  bool dailyTaskReport = false;
   List<String> weeklyOffs = ['Sunday'];
   Map<String, dynamic> notificationChannels = {};
   Map<String, dynamic> notificationFrequency = {};
@@ -57,6 +60,9 @@ class NotificationProvider extends ChangeNotifier {
         emailNotifications = response['emailNotifications'] ?? false;
         timezone = response['timezone'] ?? 'Asia/Kolkata';
         dailyReminderTime = response['dailyReminderTime'] ?? '09:00';
+        whatsappReminders = response['whatsappReminders'] ?? false;
+        emailReminders = response['emailReminders'] ?? false;
+        dailyTaskReport = response['dailyTaskReport'] ?? false;
         weeklyOffs = List<String>.from(response['weeklyOffs'] ?? ['Sunday']);
         notificationChannels = Map<String, dynamic>.from(response['notificationChannels'] ?? {});
         notificationFrequency = Map<String, dynamic>.from(response['notificationFrequency'] ?? {});
@@ -79,6 +85,9 @@ class NotificationProvider extends ChangeNotifier {
         'emailNotifications': emailNotifications,
         'timezone': timezone,
         'dailyReminderTime': dailyReminderTime,
+        'whatsappReminders': whatsappReminders,
+        'emailReminders': emailReminders,
+        'dailyTaskReport': dailyTaskReport,
         'weeklyOffs': weeklyOffs,
         'notificationChannels': notificationChannels,
         'notificationFrequency': notificationFrequency,
@@ -129,9 +138,13 @@ class NotificationProvider extends ChangeNotifier {
   }
 
   // UI Helper Methods
-  void updateGlobal(String key, bool value) {
+  void updateGlobal(String key, dynamic value) {
     if (key == 'whatsappNotifications') whatsappNotifications = value;
     if (key == 'emailNotifications') emailNotifications = value;
+    if (key == 'timezone') timezone = value;
+    if (key == 'whatsappReminders') whatsappReminders = value;
+    if (key == 'emailReminders') emailReminders = value;
+    if (key == 'dailyTaskReport') dailyTaskReport = value;
     notifyListeners();
   }
 

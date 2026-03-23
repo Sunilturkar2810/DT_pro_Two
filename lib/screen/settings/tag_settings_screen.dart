@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:intl/intl.dart';
 import '../../provider/tag_provider.dart';
 import '../../provider/auth_provider.dart';
 
@@ -328,20 +329,32 @@ class _TagSettingsScreenState extends State<TagSettingsScreen> {
                               title: Text(tag.name, style: const TextStyle(fontWeight: FontWeight.bold)),
                               subtitle: Padding(
                                 padding: const EdgeInsets.only(top: 8.0),
-                                child: Wrap(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                      decoration: BoxDecoration(
-                                        color: color.withOpacity(0.15),
-                                        border: Border.all(color: color.withOpacity(0.5)),
-                                        borderRadius: BorderRadius.circular(20),
-                                      ),
-                                      child: Text(
-                                        tag.name.toUpperCase(),
-                                        style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: color),
-                                      ),
+                                    Wrap(
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                          decoration: BoxDecoration(
+                                            color: color.withOpacity(0.15),
+                                            border: Border.all(color: color.withOpacity(0.5)),
+                                            borderRadius: BorderRadius.circular(20),
+                                          ),
+                                          child: Text(
+                                            tag.name.toUpperCase(),
+                                            style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: color),
+                                          ),
+                                        ),
+                                      ],
                                     ),
+                                    if (tag.createdAt != null) ...[
+                                      const SizedBox(height: 8),
+                                      Text(
+                                        'Created on: ${DateFormat('dd MMM yyyy, hh:mm a').format(tag.createdAt!.toLocal())}',
+                                        style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                                      ),
+                                    ],
                                   ],
                                 ),
                               ),

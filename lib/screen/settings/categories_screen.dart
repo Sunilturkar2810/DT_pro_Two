@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:intl/intl.dart';
 import '../../provider/category_provider.dart';
 
 class CategoriesScreen extends StatefulWidget {
@@ -151,6 +152,9 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
         final cat = categories[index];
         final name = cat['name']?.toString() ?? "Unknown";
         final color = _parseColor(cat['color']?.toString());
+        final createdAtStr = cat['createdAt']?.toString();
+        final createdAt = createdAtStr != null ? DateTime.tryParse(createdAtStr) : null;
+        
         return Container(
           margin: const EdgeInsets.only(bottom: 12),
           decoration: BoxDecoration(
@@ -161,6 +165,9 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
           child: ListTile(
             leading: CircleAvatar(backgroundColor: color.withOpacity(0.2), child: Icon(Icons.tag, color: color, size: 20)),
             title: Text(name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+            subtitle: createdAt != null 
+                ? Text('Created on: ${DateFormat('dd MMM yyyy, hh:mm a').format(createdAt.toLocal())}', style: TextStyle(fontSize: 12, color: Colors.grey.shade600))
+                : null,
             trailing: IconButton(
               icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 20),
               onPressed: () => _confirmDelete(cat['id']?.toString() ?? ""),
@@ -180,6 +187,9 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
         final cat = categories[index];
         final name = cat['name']?.toString() ?? "Unknown";
         final color = _parseColor(cat['color']?.toString());
+        final createdAtStr = cat['createdAt']?.toString();
+        final createdAt = createdAtStr != null ? DateTime.tryParse(createdAtStr) : null;
+        
         return Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
@@ -199,6 +209,14 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
               ),
               const Spacer(),
               Text(name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14), maxLines: 2, overflow: TextOverflow.ellipsis),
+              if (createdAt != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4.0),
+                  child: Text(
+                    DateFormat('MMM dd, yyyy').format(createdAt.toLocal()),
+                    style: TextStyle(fontSize: 10, color: Colors.grey.shade500),
+                  ),
+                ),
             ],
           ),
         );

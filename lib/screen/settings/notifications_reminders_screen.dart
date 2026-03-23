@@ -109,12 +109,41 @@ class _NotificationsRemindersScreenState extends State<NotificationsRemindersScr
   }
 
   Widget _buildGlobalToggles(NotificationProvider provider) {
-    return Row(
+    return Column(
       children: [
-        // ✅ Fixed emerald color error
-        Expanded(child: _toggleCard("WhatsApp", Icons.chat_bubble_outline, provider.whatsappNotifications, (v) => provider.updateGlobal('whatsappNotifications', v), Colors.green)),
-        const SizedBox(width: 12),
-        Expanded(child: _toggleCard("Email", Icons.mail_outline, provider.emailNotifications, (v) => provider.updateGlobal('emailNotifications', v), Colors.redAccent)),
+        Row(
+          children: [
+            Expanded(child: _toggleCard("WhatsApp Notifications", Icons.chat_bubble_outline, provider.whatsappNotifications, (v) => provider.updateGlobal('whatsappNotifications', v), Colors.green)),
+            const SizedBox(width: 12),
+            Expanded(child: _toggleCard("Email Notifications", Icons.mail_outline, provider.emailNotifications, (v) => provider.updateGlobal('emailNotifications', v), Colors.redAccent)),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), border: Border.all(color: const Color(0xFFE2E8F0))),
+          child: Row(
+            children: [
+              const Icon(Icons.public, color: Colors.blueGrey),
+              const SizedBox(width: 16),
+              const Expanded(child: Text("Timezone", style: TextStyle(fontWeight: FontWeight.bold))),
+              DropdownButtonHideUnderline(
+                child: DropdownButton<String>(
+                  value: provider.timezone.isEmpty ? 'Asia/Kolkata' : provider.timezone,
+                  items: const [
+                    DropdownMenuItem(value: 'Asia/Kolkata', child: Text('Asia/Kolkata')),
+                    DropdownMenuItem(value: 'UTC', child: Text('UTC')),
+                    DropdownMenuItem(value: 'America/New_York', child: Text('America/New_York')),
+                    DropdownMenuItem(value: 'Europe/London', child: Text('Europe/London')),
+                  ],
+                  onChanged: (val) {
+                    if (val != null) provider.updateGlobal('timezone', val);
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
       ],
     );
   }
@@ -137,32 +166,52 @@ class _NotificationsRemindersScreenState extends State<NotificationsRemindersScr
   }
 
   Widget _buildReminderSettings(NotificationProvider provider) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), border: Border.all(color: const Color(0xFFE2E8F0))),
-      child: Row(
-        children: [
-          Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: const Color(0xFF10B981).withOpacity(0.1), borderRadius: BorderRadius.circular(12)), child: const Icon(Icons.access_time_filled, color: Color(0xFF10B981))),
-          const SizedBox(width: 15),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text("Daily Reminder Time", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey)),
-                Text(provider.dailyReminderTime, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
-              ],
-            ),
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), border: Border.all(color: const Color(0xFFE2E8F0))),
+          child: Row(
+            children: [
+              Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: const Color(0xFF10B981).withOpacity(0.1), borderRadius: BorderRadius.circular(12)), child: const Icon(Icons.access_time_filled, color: Color(0xFF10B981))),
+              const SizedBox(width: 15),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text("Daily Reminder Time", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey)),
+                    Text(provider.dailyReminderTime, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
+                  ],
+                ),
+              ),
+              ElevatedButton(
+                onPressed: () async {
+                  final time = await showTimePicker(context: context, initialTime: TimeOfDay.now());
+                  if (time != null) provider.updateReminderTime("${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}");
+                },
+                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFF1F5F9), elevation: 0, foregroundColor: Colors.black, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+                child: const Text("Edit"),
+              )
+            ],
           ),
-          ElevatedButton(
-            onPressed: () async {
-              final time = await showTimePicker(context: context, initialTime: TimeOfDay.now());
-              if (time != null) provider.updateReminderTime("${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}");
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFF1F5F9), elevation: 0, foregroundColor: Colors.black, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
-            child: const Text("Edit"),
-          )
-        ],
-      ),
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(child: _toggleCard("WhatsApp Reminders", Icons.chat_bubble_outline, provider.whatsappReminders, (v) => provider.updateGlobal('whatsappReminders', v), Colors.green)),
+            const SizedBox(width: 12),
+            Expanded(child: _toggleCard("Email Reminders", Icons.mail_outline, provider.emailReminders, (v) => provider.updateGlobal('emailReminders', v), Colors.redAccent)),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(child: _toggleCard("Daily Task Report", Icons.analytics_outlined, provider.dailyTaskReport, (v) => provider.updateGlobal('dailyTaskReport', v), Colors.blue)),
+            const SizedBox(width: 12),
+            Expanded(child: Container()), 
+          ],
+        )
+      ],
     );
   }
 
