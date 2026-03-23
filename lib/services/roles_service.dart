@@ -80,11 +80,11 @@ class RolesService {
   // Update role permissions
   Future<Map<String, dynamic>> updateRolePermissions({
     required String roleId,
-    required Map<String, bool> permissions,
+    required Map<String, dynamic> permissions,
   }) async {
     try {
       final response = await _dio.put(
-        '/roles/$roleId/permissions',
+        '/roles/$roleId',
         data: {
           'permissions': permissions,
         },

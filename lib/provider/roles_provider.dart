@@ -71,35 +71,93 @@ class RolesProvider extends ChangeNotifier {
     }
   }
 
-  // ========== UPDATE ROLE (Not available in new backend) ==========
+  // ========== UPDATE ROLE ==========
   Future<bool> updateRole({
     required String roleId,
     required String name,
     required String? description,
   }) async {
-    // ⚠️ Not available in new backend
-    _errorMessage = 'Update role not available in current backend';
+    _isLoading = true;
+    _errorMessage = null;
     notifyListeners();
-    return false;
+
+    try {
+      await _service.updateRole(
+        roleId: roleId,
+        name: name,
+        description: description,
+      );
+
+      print('✅ Role updated successfully: $name');
+      // Refresh all roles
+      await fetchAllRoles();
+      return true;
+    } catch (e) {
+      _errorMessage = e.toString();
+      print('❌ Update role error: $_errorMessage');
+      return false;
+    } finally {
+      if (_isLoading) {
+        _isLoading = false;
+        notifyListeners();
+      }
+    }
   }
 
-  // ========== DELETE ROLE (Not available in new backend) ==========
+  // ========== DELETE ROLE ==========
   Future<bool> deleteRole(String roleId) async {
-    // ⚠️ Not available in new backend
-    _errorMessage = 'Delete role not available in current backend';
+    _isLoading = true;
+    _errorMessage = null;
     notifyListeners();
-    return false;
+
+    try {
+      await _service.deleteRole(roleId);
+      print('✅ Role deleted successfully: $roleId');
+      // Refresh all roles
+      await fetchAllRoles();
+      return true;
+    } catch (e) {
+      _errorMessage = e.toString();
+      print('❌ Delete role error: $_errorMessage');
+      return false;
+    } finally {
+      // notifyListeners() is called by fetchAllRoles or manually if we need to
+      if (_isLoading) {
+        _isLoading = false;
+        notifyListeners();
+      }
+    }
   }
 
-  // ========== UPDATE ROLE PERMISSIONS (Not available in new backend) ==========
+  // ========== UPDATE ROLE PERMISSIONS ==========
   Future<bool> updateRolePermissions({
     required String roleId,
-    required Map<String, bool> permissions,
+    required Map<String, dynamic> permissions,
   }) async {
-    // ⚠️ Not available in new backend
-    _errorMessage = 'Update permissions not available in current backend';
+    _isLoading = true;
+    _errorMessage = null;
     notifyListeners();
-    return false;
+
+    try {
+      await _service.updateRolePermissions(
+        roleId: roleId,
+        permissions: permissions,
+      );
+
+      print('✅ Role permissions updated successfully: $roleId');
+      // Refresh all roles after updating permissions to ensure UI states match DB
+      await fetchAllRoles();
+      return true;
+    } catch (e) {
+      _errorMessage = e.toString();
+      print('❌ Update permissions error: $_errorMessage');
+      return false;
+    } finally {
+      if (_isLoading) {
+        _isLoading = false;
+        notifyListeners();
+      }
+    }
   }
 
   // ========== GET ROLE BY ID (from cached list) ==========
@@ -113,12 +171,12 @@ class RolesProvider extends ChangeNotifier {
 
   // ========== GET DEFAULT ROLES ONLY ==========
   List<Map<String, dynamic>> getDefaultRoles() {
-    return _roles.where((role) => role['isDefault'] == true).toList();
+    return _roles.where((role) => role['isCustom'] == false).toList();
   }
 
   // ========== GET CUSTOM ROLES ONLY ==========
   List<Map<String, dynamic>> getCustomRoles() {
-    return _roles.where((role) => role['isDefault'] == false).toList();
+    return _roles.where((role) => role['isCustom'] == true).toList();
   }
 
   void clearError() {
