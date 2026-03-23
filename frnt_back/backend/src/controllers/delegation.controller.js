@@ -109,8 +109,8 @@ export const createDelegation = async (req, reply) => {
     if (!dueDate) return reply.status(400).send({ success: false, message: 'Due Date is required' });
     if (!category) return reply.status(400).send({ success: false, message: 'Category is required' });
     if (!priority) return reply.status(400).send({ success: false, message: 'Priority is required' });
-    if (!inLoopIds || (Array.isArray(inLoopIds) && inLoopIds.length === 0)) return reply.status(400).send({ success: false, message: 'In Loop is required' });
-
+    // In Loop should be optional, removing the strict validation
+    // if (!inLoopIds || (Array.isArray(inLoopIds) && inLoopIds.length === 0)) return reply.status(400).send({ success: false, message: 'In Loop is required' });
 
     try {
         const doerIds = Array.isArray(doerId) ? doerId : [doerId];

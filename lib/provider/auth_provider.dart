@@ -49,6 +49,9 @@ class AuthProvider extends ChangeNotifier {
       // 🕵️ Is print se check karein ki ID khali toh nahi?
       print("🚀 LOGIN SUCCESS! ID: ${_currentUser?.id}, Role: ${_currentUser?.role}");
 
+      // 🔄 Fetch full profile details not returned by login (workEmail, designation, etc)
+      await fetchCurrentUserProfile();
+
       return true;
     } catch (e) {
       _errorMessage = e.toString();
@@ -57,6 +60,25 @@ class AuthProvider extends ChangeNotifier {
     } finally {
       _isLoading = false;
       notifyListeners();
+    }
+  }
+
+  // --- FETCH FULL PROFILE ---
+  Future<void> fetchCurrentUserProfile() async {
+    if (!_isAuthenticated) return;
+    try {
+      final data = await _authService.fetchMe();
+      final merged = {...(_currentUser?.toJson() ?? {}), ...data};
+      _currentUser = UserModel.fromJson(merged);
+      
+      final box = Hive.box('settingsBox');
+      await box.put('auth_user', jsonEncode(_currentUser!.toJson()));
+      
+      // Update UI with full profile data
+      notifyListeners();
+      print("✅ Full profile fetched for: ${_currentUser?.workEmail}");
+    } catch (e) {
+      print("⚠️ Failed to fetch full profile: $e");
     }
   }
 
@@ -284,6 +306,9 @@ class AuthProvider extends ChangeNotifier {
       _isAuthenticated = true;
       _currentUser = UserModel.fromJson(jsonDecode(userStr));
       print("✅ Session Restored for: ${_currentUser?.workEmail} as ${_currentUser?.role}");
+      
+      // Fetch latest full profile data in the background
+      fetchCurrentUserProfile();
     }
   }
 

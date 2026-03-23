@@ -242,30 +242,55 @@ export const updateUser = async (request, reply) => {
     const {
         firstName,
         lastName,
+        workEmail,
         mobileNumber,
         role,
         designation,
         department,
         reportingManagerId,
         taskAccess,
-        leaveAccess
+        leaveAccess,
+        personalEmail,
+        dateOfBirth,
+        maritalStatus,
+        gender,
+        address,
+        city,
+        state,
+        nationality,
+        emergencyMobileNo,
+        profilePhotoUrl
     } = request.body;
 
     try {
         await db.update(users).set({
-            firstName,
-            lastName,
-            mobileNumber,
-            role,
-            designation,
-            department,
-            reportingManagerId,
-            taskAccess,
-            leaveAccess,
+            ...(firstName !== undefined && { firstName }),
+            ...(lastName !== undefined && { lastName }),
+            ...(workEmail !== undefined && { workEmail }),
+            ...(mobileNumber !== undefined && { mobileNumber }),
+            ...(role !== undefined && { role }),
+            ...(designation !== undefined && { designation }),
+            ...(department !== undefined && { department }),
+            ...(reportingManagerId !== undefined && { reportingManagerId }),
+            ...(taskAccess !== undefined && { taskAccess }),
+            ...(leaveAccess !== undefined && { leaveAccess }),
+            ...(personalEmail !== undefined && { personalEmail }),
+            ...(dateOfBirth !== undefined && { dateOfBirth }),
+            ...(maritalStatus !== undefined && { maritalStatus }),
+            ...(gender !== undefined && { gender }),
+            ...(address !== undefined && { address }),
+            ...(city !== undefined && { city }),
+            ...(state !== undefined && { state }),
+            ...(nationality !== undefined && { nationality }),
+            ...(emergencyMobileNo !== undefined && { emergencyMobileNo }),
+            ...(profilePhotoUrl !== undefined && { profilePhotoUrl }),
             updatedAt: new Date()
         }).where(eq(users.userId, userId));
 
-        return reply.send({ message: 'User updated successfully' });
+        const updatedUserArr = await db.select().from(users).where(eq(users.userId, userId));
+        const updatedUser = updatedUserArr[0];
+
+        return reply.send({ message: 'User updated successfully', ...updatedUser });
     } catch (error) {
         request.log.error(error);
         return reply.code(500).send({ message: 'Internal Server Error' });

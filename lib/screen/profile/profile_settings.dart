@@ -104,11 +104,13 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
                             backgroundImage:
                                 (user.profilePhotoUrl != null &&
                                     user.profilePhotoUrl!.isNotEmpty)
-                                ? MemoryImage(
-                                    base64Decode(
-                                      user.profilePhotoUrl!.split(',').last,
-                                    ),
-                                  )
+                                ? (user.profilePhotoUrl!.startsWith('http')
+                                    ? NetworkImage(user.profilePhotoUrl!)
+                                    : MemoryImage(
+                                        base64Decode(
+                                          user.profilePhotoUrl!.split(',').last,
+                                        ),
+                                      ) as ImageProvider)
                                 : null,
                             child:
                                 (user.profilePhotoUrl == null ||

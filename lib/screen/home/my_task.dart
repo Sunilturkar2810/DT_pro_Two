@@ -199,10 +199,10 @@ class _MyTaskScreenState extends State<MyTaskScreen>
             expandedHeight: 120,
             pinned: true,
             elevation: 0,
-            leading: IconButton(
+            leading: ModalRoute.of(context)?.canPop == true ? IconButton(
               icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.black, size: 20),
               onPressed: () => Navigator.pop(context),
-            ),
+            ) : null,
             flexibleSpace: FlexibleSpaceBar(
               centerTitle: true,
               title: Text(widget.title.toUpperCase(), 

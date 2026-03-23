@@ -23,6 +23,7 @@ class _HolidaysScreenState extends State<HolidaysScreen> {
   void _showAddHolidayDialog() {
     final TextEditingController nameController = TextEditingController();
     DateTime? selectedDate;
+    bool isAdding = false;
 
     showDialog(
       context: context,
@@ -119,14 +120,24 @@ class _HolidaysScreenState extends State<HolidaysScreen> {
                       width: double.infinity,
                       height: 45,
                       child: ElevatedButton(
-                        onPressed: () async {
+                        onPressed: isAdding ? null : () async {
                           if (nameController.text.isNotEmpty && selectedDate != null) {
+                            setState(() { isAdding = true; });
+                            
                             final success = await context.read<HolidayProvider>().addHoliday(
                               nameController.text,
                               selectedDate!.toIso8601String().split('T')[0],
                             );
-                            if (success && context.mounted) {
-                              Navigator.pop(context);
+                            
+                            if (context.mounted) {
+                              setState(() { isAdding = false; });
+                              if (success) {
+                                Navigator.pop(context);
+                              } else {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text(context.read<HolidayProvider>().error ?? 'Failed to add holiday'), backgroundColor: Colors.redAccent),
+                                );
+                              }
                             }
                           }
                         },
@@ -134,7 +145,9 @@ class _HolidaysScreenState extends State<HolidaysScreen> {
                           backgroundColor: const Color(0xFF20E19F),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
                         ),
-                        child: const Text("Add Holiday", style: TextStyle(color: Colors.white)),
+                        child: isAdding 
+                            ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                            : const Text("Add Holiday", style: TextStyle(color: Colors.white)),
                       ),
                     ),
                   ],
@@ -228,7 +241,45 @@ class _HolidaysScreenState extends State<HolidaysScreen> {
                                 Expanded(flex: 1, child: Center(
                                   child: IconButton(
                                     icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 20),
-                                    onPressed: () => provider.deleteHoliday(holiday['id'].toString()),
+                                    onPressed: () async {
+                                      // Log to see if button is clicked
+                                      print("Attempting to delete holiday ID: ${holiday['id']}");
+                                      
+                                      bool? confirm = await showDialog<bool>(
+                                        context: context,
+                                        builder: (context) => AlertDialog(
+                                          title: const Text('Delete Holiday'),
+                                          content: const Text('Are you sure you want to delete this holiday?'),
+                                          actions: [
+                                            TextButton(
+                                              onPressed: () => Navigator.pop(context, false),
+                                              child: const Text('Cancel'),
+                                            ),
+                                            const SizedBox(width: 8),
+                                            ElevatedButton(
+                                              onPressed: () => Navigator.pop(context, true),
+                                              style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+                                              child: const Text('Delete', style: TextStyle(color: Colors.white)),
+                                            ),
+                                          ],
+                                        ),
+                                      );
+
+                                      if (confirm == true && context.mounted) {
+                                        final success = await provider.deleteHoliday(holiday['id'].toString());
+                                        if (context.mounted) {
+                                          if (success) {
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              const SnackBar(content: Text('Holiday deleted successfully'), backgroundColor: Colors.green),
+                                            );
+                                          } else {
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              SnackBar(content: Text(provider.error ?? 'Failed to delete holiday'), backgroundColor: Colors.redAccent),
+                                            );
+                                          }
+                                        }
+                                      }
+                                    },
                                   ),
                                 )),
                               ],

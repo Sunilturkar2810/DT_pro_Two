@@ -345,7 +345,9 @@ class _AssignTaskSheetState extends State<AssignTaskSheet>
           _startDate?.toIso8601String() ??
           DateTime.now().toIso8601String(),
       category: _category,
-      inLoopIds: _selectedInLoop.map((u) => u.id).toList(),
+      inLoopIds: _selectedInLoop.isNotEmpty 
+          ? _selectedInLoop.map((u) => u.id).toList() 
+          : [auth.currentUser!.id],
       checklistItems: _checklist
           .map((t) => {'text': t, 'status': 'Pending'})
           .toList(),

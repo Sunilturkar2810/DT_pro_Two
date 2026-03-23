@@ -44,6 +44,16 @@ class AuthService {
     }
   }
 
+  /// Get current user profile details — GET /auth/me
+  Future<Map<String, dynamic>> fetchMe() async {
+    try {
+      final response = await _dio.get(ApiConstants.me);
+      return response.data;
+    } on DioException catch (e) {
+      throw e.response?.data['message'] ?? 'Failed to fetch user profile';
+    }
+  }
+
   /// Update any user's profile — PUT /auth/users/:userId
   Future<Map<String, dynamic>> updateUser(String userId, Map<String, dynamic> data) async {
     try {

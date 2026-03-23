@@ -124,8 +124,10 @@ class MyCustomDrawer extends StatelessWidget {
           CircleAvatar(
             radius: 30,
             backgroundColor: Colors.white,
-            backgroundImage: (photoUrl != null && photoUrl.isNotEmpty)
-                ? MemoryImage(dart_convert.base64Decode(photoUrl.split(',').last))
+            backgroundImage: (photoUrl != null && photoUrl.isNotEmpty) // Fix to handle both HTTP and Base64 URLs
+                ? (photoUrl.startsWith('http')
+                    ? NetworkImage(photoUrl)
+                    : MemoryImage(dart_convert.base64Decode(photoUrl.split(',').last)) as ImageProvider)
                 : null,
             child: (photoUrl == null || photoUrl.isEmpty)
                 ? Text(initial, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Color(0xFF20E19F)))

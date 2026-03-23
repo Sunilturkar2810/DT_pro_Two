@@ -32,7 +32,11 @@ class HolidayProvider with ChangeNotifier {
         _holidays = [];
       }
     } on DioException catch (e) {
-      _error = e.response?.data['message'] ?? e.message;
+      if (e.response != null && e.response!.data is Map) {
+        _error = e.response!.data['message'] ?? e.message;
+      } else {
+        _error = e.message;
+      }
       print('❌ Fetch holidays error: $_error');
     } catch (e) {
       _error = e.toString();
@@ -58,7 +62,11 @@ class HolidayProvider with ChangeNotifier {
       }
       return false;
     } on DioException catch (e) {
-      _error = e.response?.data['message'] ?? 'Failed to add holiday';
+      if (e.response != null && e.response!.data is Map) {
+        _error = e.response!.data['message'] ?? 'Failed to add holiday';
+      } else {
+        _error = 'Failed to add holiday: ${e.message}';
+      }
       print('❌ Add holiday error: $_error');
       return false;
     } catch (e) {
@@ -70,7 +78,10 @@ class HolidayProvider with ChangeNotifier {
   Future<bool> deleteHoliday(String id) async {
     try {
       print('🚀 SENDING REQUEST: [DELETE] ${ApiConstants.holidays}/$id');
-      final response = await _dio.delete('${ApiConstants.holidays}/$id');
+      final response = await _dio.delete(
+        '${ApiConstants.holidays}/$id',
+        data: {}, // Fix: Fastify requires body to not be empty when content-type is application/json
+      );
       
       if (response.statusCode == 200) {
         _holidays.removeWhere((h) => h['id'].toString() == id.toString());
@@ -79,7 +90,11 @@ class HolidayProvider with ChangeNotifier {
       }
       return false;
     } on DioException catch (e) {
-      _error = e.response?.data['message'] ?? 'Failed to delete holiday';
+      if (e.response != null && e.response!.data is Map) {
+        _error = e.response!.data['message'] ?? 'Failed to delete holiday';
+      } else {
+        _error = 'Failed to delete holiday: ${e.message}';
+      }
       print('❌ Delete holiday error: $_error');
       return false;
     } catch (e) {
