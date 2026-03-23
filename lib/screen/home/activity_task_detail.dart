@@ -12,22 +12,22 @@ import 'package:d_table_delegate_system/provider/user_provider.dart';
 import 'package:d_table_delegate_system/widget/app_dropdown.dart';
 import 'package:d_table_delegate_system/widget/assign_task_sheet.dart';
 
-class TaskDetailScreen extends StatefulWidget {
+class ActivityTaskDetailScreen extends StatefulWidget {
   final dynamic task;
   final bool allowEdit;
 
-  const TaskDetailScreen({
+  const ActivityTaskDetailScreen({
     super.key,
     required this.task,
     this.allowEdit = false,
   });
 
   @override
-  State<TaskDetailScreen> createState() => _TaskDetailScreenState();
+  State<ActivityTaskDetailScreen> createState() => _ActivityTaskDetailScreenState();
 }
 
-class _TaskDetailScreenState extends State<TaskDetailScreen> {
-  final TextEditingController remarkController = TextEditingController();
+class _ActivityTaskDetailScreenState extends State<ActivityTaskDetailScreen> {
+  // Removed remarkController
   String selectedStatus = "Pending";
   DateTime? _holdTillDate;
   bool _isDetailLoading = true;
@@ -95,7 +95,6 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
 
   @override
   void dispose() {
-    remarkController.dispose();
     _audioPlayer.dispose();
     super.dispose();
   }
@@ -240,52 +239,10 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
                     }).toList(),
                   ),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 16),
 
-            // 3. Quick Actions
-            const Text("QUICK ACTIONS", style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: Color(0xFF64748B), letterSpacing: 0.5)),
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              children: [
-                _quickActionButton("IN PROGRESS", LucideIcons.playCircle, Colors.orange),
-                _quickActionButton("COMPLETE", LucideIcons.checkCircle, Colors.green),
-                _quickActionButton("REMINDERS", LucideIcons.bell, Colors.blue),
-                _quickActionButton("COMMENT", LucideIcons.messageCircle, Colors.indigo),
-                _quickActionButton("SUB TASK", LucideIcons.layers, Colors.cyan, onTap: _showAssignBottomSheet),
-                _quickActionButton("EDIT", LucideIcons.edit, Colors.purple),
-              ],
-            ),
-            const SizedBox(height: 24),
-
-            // 4. Quick Remark
-            const Text("QUICK REMARK", style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: Color(0xFF64748B), letterSpacing: 0.5)),
-            const SizedBox(height: 12),
-            TextField(
-              controller: remarkController,
-              maxLines: 3,
-              decoration: InputDecoration(
-                hintText: "Focus on specific details or updates...",
-                filled: true,
-                fillColor: Colors.white,
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
-                enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
-              ),
-            ),
-            const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () {},
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF20E19F),
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                ),
-                child: const Text("SUBMIT UPDATE", style: TextStyle(fontWeight: FontWeight.w900, color: Colors.white)),
-              ),
-            ),
+            // Observer Mode
+            _buildObserverModeCard(),
             const SizedBox(height: 24),
 
             // 5. Revision & Remark History
@@ -391,28 +348,6 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
           ],
         ),
       ],
-    );
-  }
-
-  Widget _quickActionButton(String label, IconData icon, Color color, {VoidCallback? onTap}) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: color.withOpacity(0.3)),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 16, color: color),
-            const SizedBox(width: 8),
-            Text(label, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: color)),
-          ],
-        ),
-      ),
     );
   }
 
@@ -561,6 +496,50 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
          ],
        ),
      );
+  }
+
+  Widget _buildObserverModeCard() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: const BoxDecoration(
+              color: Color(0xFFEEF2FF),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(LucideIcons.bell, color: Color(0xFF4F46E5), size: 24),
+          ),
+          const SizedBox(height: 16),
+          const Text("OBSERVER MODE", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF1E293B))),
+          const SizedBox(height: 4),
+          const Text("YOU ARE CURRENTLY SUBSCRIBED.", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFF94A3B8))),
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            decoration: BoxDecoration(
+              color: const Color(0xFFE2E8F0),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: const [
+                Icon(Icons.check_circle_outline, size: 16, color: Color(0xFF64748B)),
+                SizedBox(width: 6),
+                Text("SUBSCRIBED", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: Color(0xFF64748B))),
+              ],
+            ),
+          )
+        ],
+      ),
+    );
   }
 
   Widget _buildMetadataCard(DelegationModel task) {

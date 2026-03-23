@@ -607,7 +607,7 @@ class _DelegateTasksScreenState extends State<DelegateTasksScreen> {
       margin: const EdgeInsets.only(bottom: 8, left: 20, right: 20),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(18),
         border: Border.all(color: Colors.grey.shade200),
         boxShadow: [
           BoxShadow(
@@ -630,8 +630,8 @@ class _DelegateTasksScreenState extends State<DelegateTasksScreen> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               decoration: BoxDecoration(
-                color: const Color(0xFF00D094).withValues(alpha: 0.25),
-                border: Border(bottom: BorderSide(color: Colors.grey.shade300)),
+                color: const Color(0xFFF8FAFC),
+                border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
               ),
               child: Row(
                 children: [
