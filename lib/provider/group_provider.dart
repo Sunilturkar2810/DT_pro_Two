@@ -15,6 +15,14 @@ class GroupProvider extends ChangeNotifier {
   List<dynamic> _groupTasks = [];
   List<dynamic> _groupMembers = [];
 
+  // Filter states
+  String _searchQuery = "";
+  String _dateRange = "This Month";
+  DateTime? _customStartDate;
+  DateTime? _customEndDate;
+  String _assignedTo = "Assigned To";
+  String _frequency = "Frequency";
+
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
   List<GroupModel> get myGroups => _myGroups;
@@ -22,7 +30,34 @@ class GroupProvider extends ChangeNotifier {
   List<dynamic> get groupTasks => _groupTasks;
   List<dynamic> get groupMembers => _groupMembers;
 
-  int get myGroupsCount => _myGroups.length;
+  String get searchQuery => _searchQuery;
+  String get dateRange => _dateRange;
+  DateTime? get customStartDate => _customStartDate;
+  DateTime? get customEndDate => _customEndDate;
+  String get assignedTo => _assignedTo;
+  String get frequency => _frequency;
+
+  void setSearchQuery(String query) {
+    _searchQuery = query;
+    notifyListeners();
+  }
+
+  void setDateRange(String range, {DateTime? start, DateTime? end}) {
+    _dateRange = range;
+    _customStartDate = start;
+    _customEndDate = end;
+    notifyListeners();
+  }
+
+  void setAssignedTo(String userId) {
+    _assignedTo = userId;
+    notifyListeners();
+  }
+
+  void setFrequency(String freq) {
+    _frequency = freq;
+    notifyListeners();
+  }
 
   Future<void> fetchMyGroups() async {
     _isLoading = true;
@@ -54,8 +89,8 @@ class GroupProvider extends ChangeNotifier {
       await _service.createGroup({
         "name": name,
         "description": description,
-        "memberIds": memberIds,
-        "photo": photoUrl, // Backend usually expects "photo" or "image"
+        "members": memberIds,
+        "imageUrl": photoUrl,
       });
       await fetchMyGroups();
       return true;
@@ -76,8 +111,53 @@ class GroupProvider extends ChangeNotifier {
       final data = await _service.getGroupById(id);
       _selectedGroup = GroupModel.fromJson(data);
 
-      // 2. Get Group Tasks (Delegations with groupId=id)
-      _groupTasks = await _service.getGroupTasks(id);
+      // 2. Get Group Tasks with Filters matching backend delegation controller
+      final queryParams = {
+        'groupId': id,
+        'search': _searchQuery.isNotEmpty ? _searchQuery : null,
+        'doerId': _assignedTo != "Assigned To" ? _assignedTo : null,
+        'frequency': _frequency != "Frequency" ? _frequency : null,
+      };
+
+      // Handle Date Range Logic
+      if (_dateRange != "All Time") {
+        final now = DateTime.now();
+        DateTime? start;
+        DateTime? end;
+
+        if (_dateRange == "Today") {
+          start = DateTime(now.year, now.month, now.day);
+          end = start.add(const Duration(days: 1)).subtract(const Duration(milliseconds: 1));
+        } else if (_dateRange == "Yesterday") {
+          start = DateTime(now.year, now.month, now.day - 1);
+          end = start.add(const Duration(days: 1)).subtract(const Duration(milliseconds: 1));
+        } else if (_dateRange == "This Week") {
+          start = now.subtract(Duration(days: now.weekday - 1));
+          start = DateTime(start.year, start.month, start.day);
+          end = start.add(const Duration(days: 7)).subtract(const Duration(milliseconds: 1));
+        } else if (_dateRange == "Last Week") {
+          start = now.subtract(Duration(days: now.weekday - 1 + 7));
+          start = DateTime(start.year, start.month, start.day);
+          end = start.add(const Duration(days: 7)).subtract(const Duration(milliseconds: 1));
+        } else if (_dateRange == "This Month") {
+          start = DateTime(now.year, now.month, 1);
+          end = DateTime(now.year, now.month + 1, 0, 23, 59, 59);
+        } else if (_dateRange == "Last Month") {
+          start = DateTime(now.year, now.month - 1, 1);
+          end = DateTime(now.year, now.month, 0, 23, 59, 59);
+        } else if (_dateRange == "This Year") {
+          start = DateTime(now.year, 1, 1);
+          end = DateTime(now.year, 12, 31, 23, 59, 59);
+        } else if (_dateRange == "Custom") {
+          start = _customStartDate;
+          end = _customEndDate;
+        }
+
+        if (start != null) queryParams['startDate'] = start.toIso8601String();
+        if (end != null) queryParams['endDate'] = end.toIso8601String();
+      }
+
+      _groupTasks = await _service.getGroupTasksFiltered(queryParams);
 
       // 3. Get Group Members
       _groupMembers = await _service.getGroupMembers(id);
@@ -89,39 +169,17 @@ class GroupProvider extends ChangeNotifier {
     }
   }
 
-  Future<bool> updateGroup(String groupId, Map<String, dynamic> data) async {
-    _isLoading = true;
-    _errorMessage = null;
-    notifyListeners();
-
-    try {
-      await _service.updateGroup(groupId, data);
-      await fetchMyGroups();
-      return true;
-    } catch (e) {
-      _errorMessage = e.toString();
-      _isLoading = false;
-      notifyListeners();
-      return false;
-    }
-  }
-
   Future<bool> assignTaskToGroup(String groupId, Map<String, dynamic> data) async {
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
 
     try {
-      // Web behavior: Call delegations endpoint with groupId in the payload
       final payload = {
         ...data,
         'groupId': groupId,
       };
-      
-      // Use the generic delegation service or just dio here
-      // For now, let's stick to a clean implementation in provider
       await _service.createGroupTask(payload);
-      
       await fetchGroupDetails(groupId);
       return true;
     } catch (e) {

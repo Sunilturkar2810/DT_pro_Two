@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:d_table_delegate_system/provider/theme_provider.dart';
 import 'package:d_table_delegate_system/provider/user_provider.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import '../../../provider/group_provider.dart';
 import 'group_detail.dart';
 
@@ -99,31 +100,42 @@ class _MyGroupsScreenState extends State<MyGroupsScreen> {
                       return Container(
                         height: 200,
                         decoration: BoxDecoration(
-                          border: Border.all(color: Colors.grey.shade300),
+                          color: Colors.white,
+                          border: Border.all(color: primary.withOpacity(0.5), width: 2), // Highlighted border
                           borderRadius: BorderRadius.circular(12),
+                          boxShadow: [
+                            BoxShadow(
+                              color: primary.withOpacity(0.1),
+                              blurRadius: 10,
+                              spreadRadius: 2,
+                            ),
+                          ],
                         ),
-                        child: ListView.builder(
-                          itemCount: userProv.users.length,
-                          itemBuilder: (context, index) {
-                            final user = userProv.users[index];
-                            final isSelected = _selectedMemberIds.contains(user.id);
-                            return CheckboxListTile(
-                              title: Text(user.fullName, style: const TextStyle(fontSize: 13)),
-                              subtitle: Text(user.workEmail ?? '', style: const TextStyle(fontSize: 11)),
-                              value: isSelected,
-                              activeColor: primary,
-                              dense: true,
-                              onChanged: (val) {
-                                setDialogState(() {
-                                  if (val == true) {
-                                    _selectedMemberIds.add(user.id);
-                                  } else {
-                                    _selectedMemberIds.remove(user.id);
-                                  }
-                                });
-                              },
-                            );
-                          },
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(10),
+                          child: ListView.builder(
+                            itemCount: userProv.users.length,
+                            itemBuilder: (context, index) {
+                              final user = userProv.users[index];
+                              final isSelected = _selectedMemberIds.contains(user.id);
+                              return CheckboxListTile(
+                                title: Text(user.fullName, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                                subtitle: Text(user.workEmail ?? '', style: const TextStyle(fontSize: 11)),
+                                value: isSelected,
+                                activeColor: primary,
+                                dense: true,
+                                onChanged: (val) {
+                                  setDialogState(() {
+                                    if (val == true) {
+                                      _selectedMemberIds.add(user.id);
+                                    } else {
+                                      _selectedMemberIds.remove(user.id);
+                                    }
+                                  });
+                                },
+                              );
+                            },
+                          ),
                         ),
                       );
                     },
@@ -187,7 +199,7 @@ class _MyGroupsScreenState extends State<MyGroupsScreen> {
     final primary = ThemeProvider.primaryGreen;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFE6F9F1),
+      backgroundColor: const Color(0xFFF8FAFC),
       body: NestedScrollView(
         headerSliverBuilder: (context, innerBoxIsScrolled) => [
           SliverAppBar(
@@ -213,9 +225,20 @@ class _MyGroupsScreenState extends State<MyGroupsScreen> {
               background: Container(color: primary),
             ),
             actions: [
-              IconButton(
-                icon: const Icon(Icons.add, color: Colors.black),
-                onPressed: _showCreateGroupDialog,
+              Padding(
+                padding: const EdgeInsets.only(right: 12.0, top: 8, bottom: 8),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.3),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.white.withOpacity(0.4), width: 1),
+                  ),
+                  child: IconButton(
+                    icon: const Icon(LucideIcons.plus, color: Colors.black, size: 20),
+                    onPressed: _showCreateGroupDialog,
+                    tooltip: 'Create New Group',
+                  ),
+                ),
               ),
             ],
           ),
