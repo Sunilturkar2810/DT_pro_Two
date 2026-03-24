@@ -159,23 +159,25 @@ class _NotificationsRemindersScreenState extends State<NotificationsRemindersScr
   // TEMPLATES TAB LOGIC
   // ==========================================
   Widget _buildTemplatesTab(NotificationProvider provider) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // Left Rail: Events
+        // Top Rail: Events
         Container(
-          width: 160,
           color: Colors.white,
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Padding(
-                padding: EdgeInsets.all(16.0),
+                padding: EdgeInsets.fromLTRB(16, 12, 16, 4),
                 child: Text("EVENT TYPES", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey, fontSize: 11, letterSpacing: 1.1)),
               ),
-              Expanded(
+              SizedBox(
+                height: 50,
                 child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
                   physics: const BouncingScrollPhysics(),
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
                   itemCount: _eventLabels.length,
                   itemBuilder: (context, index) {
                     final entry = _eventLabels.entries.elementAt(index);
@@ -189,24 +191,27 @@ class _NotificationsRemindersScreenState extends State<NotificationsRemindersScr
                         _fetchCurrentTemplate();
                       },
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
                         decoration: BoxDecoration(
                           color: isSelected ? const Color(0xFF10B981) : Colors.transparent,
+                          borderRadius: BorderRadius.circular(20),
                         ),
                         child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          mainAxisSize: MainAxisSize.min,
                           children: [
-                            Expanded(
-                              child: Text(
-                                entry.value,
-                                style: TextStyle(
-                                  color: isSelected ? Colors.white : Colors.black87,
-                                  fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                                  fontSize: 12,
-                                ),
+                            Text(
+                              entry.value,
+                              style: TextStyle(
+                                color: isSelected ? Colors.white : Colors.black87,
+                                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                                fontSize: 12,
                               ),
                             ),
-                            if (isSelected) const Icon(Icons.check, color: Colors.white, size: 16),
+                            if (isSelected) ...[
+                              const SizedBox(width: 6),
+                              const Icon(Icons.check, color: Colors.white, size: 14)
+                            ]
                           ],
                         ),
                       ),
@@ -217,8 +222,9 @@ class _NotificationsRemindersScreenState extends State<NotificationsRemindersScr
             ],
           ),
         ),
+        const Divider(height: 1),
         
-        // Right Side: Editor
+        // Editor Side
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -227,12 +233,15 @@ class _NotificationsRemindersScreenState extends State<NotificationsRemindersScr
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                 color: Colors.white,
-                child: Row(
-                  children: [
-                    _buildChannelTab('email', 'Email', Icons.mail_outline),
-                    const SizedBox(width: 12),
-                    _buildChannelTab('whatsapp', 'WhatsApp', Icons.smartphone_outlined),
-                  ],
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      _buildChannelTab('email', 'Email', Icons.mail_outline),
+                      const SizedBox(width: 12),
+                      _buildChannelTab('whatsapp', 'WhatsApp', Icons.smartphone_outlined),
+                    ],
+                  ),
                 ),
               ),
               const Divider(height: 1),
@@ -267,6 +276,7 @@ class _NotificationsRemindersScreenState extends State<NotificationsRemindersScr
           borderRadius: BorderRadius.circular(8),
         ),
         child: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
             Icon(icon, size: 16, color: isSelected ? const Color(0xFF10B981) : Colors.grey.shade600),
             const SizedBox(width: 8),
@@ -288,32 +298,36 @@ class _NotificationsRemindersScreenState extends State<NotificationsRemindersScr
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Header
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text("$eventTitle $channelTitle TEMPLATE", style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
-                    const Text("Design how this notification will look", style: TextStyle(color: Colors.grey, fontSize: 11)),
-                  ],
-                ),
-              ),
-              Row(
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text("ACTIVE", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
-                  const SizedBox(width: 8),
-                  Switch.adaptive(
-                    value: _isTemplateActive,
-                    activeColor: const Color(0xFF10B981),
-                    onChanged: (val) {
-                      setState(() {
-                        _isTemplateActive = val;
-                      });
-                    },
+                  Text("$eventTitle $channelTitle TEMPLATE", style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+                  const Text("Design how this notification will look", style: TextStyle(color: Colors.grey, fontSize: 11)),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 16,
+                runSpacing: 12,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text("ACTIVE", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
+                      const SizedBox(width: 8),
+                      Switch.adaptive(
+                        value: _isTemplateActive,
+                        activeColor: const Color(0xFF10B981),
+                        onChanged: (val) {
+                          setState(() { _isTemplateActive = val; });
+                        },
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 16),
                   ElevatedButton.icon(
                     onPressed: _saveCurrentTemplate,
                     icon: const Icon(Icons.save, size: 16, color: Colors.white),
@@ -330,104 +344,98 @@ class _NotificationsRemindersScreenState extends State<NotificationsRemindersScr
           ),
           const SizedBox(height: 20),
 
-          // Main Editor vs Variables Row
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          // Main Editor vs Variables Column
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               // Editor
-              Expanded(
-                flex: 2,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (_activeChannel == 'email') ...[
-                      const Text("EMAIL SUBJECT", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10, color: Colors.grey, letterSpacing: 1.1)),
-                      const SizedBox(height: 8),
-                      TextField(
-                        controller: _subjectController,
-                        decoration: InputDecoration(
-                          hintText: "Enter email subject...",
-                          filled: true,
-                          fillColor: Colors.white,
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                    ],
-                    
-                    Text("${_activeChannel == 'email' ? 'EMAIL' : 'WHATSAPP'} BODY", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 10, color: Colors.grey, letterSpacing: 1.1)),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (_activeChannel == 'email') ...[
+                    const Text("EMAIL SUBJECT", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10, color: Colors.grey, letterSpacing: 1.1)),
                     const SizedBox(height: 8),
                     TextField(
-                      controller: _bodyController,
-                      maxLines: 15,
+                      controller: _subjectController,
                       decoration: InputDecoration(
-                        hintText: "Enter your content here...",
+                        hintText: "Enter email subject...",
                         filled: true,
                         fillColor: Colors.white,
                         border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
                       ),
                     ),
+                    const SizedBox(height: 20),
                   ],
-                ),
+                  
+                  Text("${_activeChannel == 'email' ? 'EMAIL' : 'WHATSAPP'} BODY", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 10, color: Colors.grey, letterSpacing: 1.1)),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _bodyController,
+                    maxLines: 10,
+                    decoration: InputDecoration(
+                      hintText: "Enter your content here...",
+                      filled: true,
+                      fillColor: Colors.white,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
+                    ),
+                  ),
+                ],
               ),
               
-              const SizedBox(width: 20),
+              const SizedBox(height: 24),
               
               // Variables side panel
-              Expanded(
-                flex: 1,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF10B981).withOpacity(0.05),
-                        border: Border.all(color: const Color(0xFF10B981).withOpacity(0.2)),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(Icons.info_outline, size: 16, color: Colors.green.shade700),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              "Click on a variable to insert it into your body at the current cursor position.",
-                              style: TextStyle(color: Colors.green.shade800, fontSize: 10),
-                            ),
-                          ),
-                        ],
-                      ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF10B981).withOpacity(0.05),
+                      border: Border.all(color: const Color(0xFF10B981).withOpacity(0.2)),
+                      borderRadius: BorderRadius.circular(8),
                     ),
-                    const SizedBox(height: 16),
-                    Text("AVAILABLE VARIABLES (${_templateVariables.length})", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 10, color: Colors.grey, letterSpacing: 1.1)),
-                    const SizedBox(height: 8),
-                    Container(
-                      height: 400,
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.grey.shade200),
-                      ),
-                      child: ListView.separated(
-                        physics: const BouncingScrollPhysics(),
-                        padding: EdgeInsets.zero,
-                        itemCount: _templateVariables.length,
-                        separatorBuilder: (_, __) => const Divider(height: 1),
-                        itemBuilder: (context, index) {
-                          String variable = _templateVariables[index];
-                          return InkWell(
-                            onTap: () => _insertVariable(variable),
-                            child: Padding(
-                              padding: const EdgeInsets.all(12.0),
-                              child: Text(variable, style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF10B981), fontSize: 12)),
-                            ),
-                          );
-                        },
-                      ),
-                    )
-                  ],
-                ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.info_outline, size: 16, color: Colors.green.shade700),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            "Click on a variable to insert it into your body at the current cursor position.",
+                            style: TextStyle(color: Colors.green.shade800, fontSize: 10),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text("AVAILABLE VARIABLES (${_templateVariables.length})", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 10, color: Colors.grey, letterSpacing: 1.1)),
+                  const SizedBox(height: 8),
+                  Container(
+                    height: 250, // Reduced height since it's stacked vertically now
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.grey.shade200),
+                    ),
+                    child: ListView.separated(
+                      physics: const BouncingScrollPhysics(),
+                      padding: EdgeInsets.zero,
+                      itemCount: _templateVariables.length,
+                      separatorBuilder: (_, __) => const Divider(height: 1),
+                      itemBuilder: (context, index) {
+                        String variable = _templateVariables[index];
+                        return InkWell(
+                          onTap: () => _insertVariable(variable),
+                          child: Padding(
+                            padding: const EdgeInsets.all(12.0),
+                            child: Text(variable, style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF10B981), fontSize: 12)),
+                          ),
+                        );
+                      },
+                    ),
+                  )
+                ],
               ),
             ],
           )
