@@ -64,6 +64,22 @@ class _ActivitiesScreenState extends State<ActivitiesScreen> {
     return DateFormat('MMM d, y, hh:mm a').format(time);
   }
 
+  String _safeInitials(String? firstName, String? lastName) {
+    final first = (firstName ?? '').trim();
+    final last = (lastName ?? '').trim();
+    final firstInitial = first.isNotEmpty ? first[0] : '';
+    final lastInitial = last.isNotEmpty ? last[0] : '';
+    final initials = '$firstInitial$lastInitial';
+    return initials.isNotEmpty ? initials.toUpperCase() : '?';
+  }
+
+  String _safeDisplayName(String? firstName, String? lastName) {
+    final first = (firstName ?? '').trim();
+    final last = (lastName ?? '').trim();
+    final fullName = [first, last].where((part) => part.isNotEmpty).join(' ');
+    return fullName.isNotEmpty ? fullName : 'Unknown User';
+  }
+
   @override
   Widget build(BuildContext context) {
     final primary = ThemeProvider.primaryGreen;
@@ -283,7 +299,14 @@ class _ActivitiesScreenState extends State<ActivitiesScreen> {
                               itemCount: filteredList.length,
                               itemBuilder: (context, index) {
                                 final act = filteredList[index];
-                                final uInitials = act.user != null ? '${act.user!.firstName[0]}${act.user!.lastName[0]}' : '?';
+                                final uInitials = _safeInitials(
+                                  act.user?.firstName,
+                                  act.user?.lastName,
+                                );
+                                final userName = _safeDisplayName(
+                                  act.user?.firstName,
+                                  act.user?.lastName,
+                                );
                                 
                                 return Container(
                                   margin: const EdgeInsets.only(bottom: 12),
@@ -354,7 +377,10 @@ class _ActivitiesScreenState extends State<ActivitiesScreen> {
                                                     child: Text(uInitials, style: TextStyle(fontSize: 8, color: primary, fontWeight: FontWeight.w900))
                                                   ),
                                                   const SizedBox(width: 6),
-                                                  Text(act.user?.firstName ?? '', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: Color(0xFF1E293B))),
+                                                  Text(
+                                                    userName,
+                                                    style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: Color(0xFF1E293B)),
+                                                  ),
                                                 ],
                                               ),
                                               const SizedBox(height: 6),

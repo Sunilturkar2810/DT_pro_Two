@@ -1,11 +1,10 @@
 import 'dart:io';
 import 'dart:convert';
-import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import 'package:image_picker/image_picker.dart';
-import '../../../provider/ticket_provider.dart';
+import 'package:d_table_delegate_system/provider/ticket_provider.dart';
 import 'package:d_table_delegate_system/widget/app_dropdown.dart';
-
+import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:provider/provider.dart';
 
 class RaiseTicketScreen extends StatefulWidget {
   const RaiseTicketScreen({Key? key}) : super(key: key);
@@ -62,6 +61,12 @@ class _RaiseTicketScreenState extends State<RaiseTicketScreen> {
     } catch (e) {
       debugPrint("Error picking image: $e");
     }
+  }
+
+  void _showUnavailableMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
   }
 
   void _submitTicket() async {
@@ -192,7 +197,11 @@ class _RaiseTicketScreenState extends State<RaiseTicketScreen> {
                 children: [
                   IconButton(
                     icon: const Icon(Icons.mic, color: Colors.black54),
-                    onPressed: () {},
+                    onPressed: () {
+                      _showUnavailableMessage(
+                        'Voice notes are not available for support tickets in the current backend.',
+                      );
+                    },
                   ),
                 ],
               ),

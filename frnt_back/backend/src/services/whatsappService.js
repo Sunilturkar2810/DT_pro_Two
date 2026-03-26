@@ -3,20 +3,19 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-const AISENSY_API_KEY = process.env.AISENSY_API_KEY;
-const CAMPAIGN_NAME = process.env.AISENSY_CAMPAIGN_NAME;
-const USER_NAME = process.env.AISENSY_USER_NAME;
-const SOURCE = process.env.AISENSY_SOURCE || 'kesharia_rld';
+const API_KEY = process.env.AISENSY_API_KEY;
 
 /**
- * Send a WhatsApp message using AiSensy API
- * @param {string} to - Recipient phone number
- * @param {string} content - The final content from our Notification Templates
- * @param {object} options - Optional overrides for campaignName, etc.
+ * Trigger a WhatsApp Campaign via AiSensy/Veup API
+ * @param {string} to - Recipient phone number (with country code, e.g., "919876543210")
+ * @param {string} userName - Name of the user receiving the message
+ * @param {string} campaignName - Name of the campaign created in the WABA dashboard
+ * @param {Array<string>} templateParams - Array of parameters mapping to {{1}}, {{2}}, etc.
  */
-export const sendWhatsAppMessage = async (to, content, options = {}) => {
+export const sendWhatsAppCampaign = async (to, userName, campaignName, templateParams = []) => {
     try {
-        const url = 'https://backend.aisensy.com/campaign/t1/api/v2';
+        // Veup is typically a whitelabel of AiSensy, using the standard AiSensy backend endpoint
+        const url = 'https://backend.api-wa.co/campaign/veup/api/v2';
         
         // AiSensy expects specific number format (e.g. 919876543210)
         const cleanTo = to.replace(/\D/g, '');
@@ -31,20 +30,20 @@ export const sendWhatsAppMessage = async (to, content, options = {}) => {
         // The user's campaign "RLD3" might have a variable like "$FirstName" or similar.
         // If "content" is designed in our app, we can pass it as a param.
         const data = {
-            apiKey: AISENSY_API_KEY,
-            campaignName: options.campaignName || CAMPAIGN_NAME,
-            destination: cleanTo,
-            userName: USER_NAME,
-            templateParams: [
-                sanitizedContent // This maps to the first variable in the AiSensy template
-            ],
-            source: SOURCE,
+            apiKey: API_KEY,
+            campaignName: campaignName,
+            destination: to,
+            userName: userName || 'User',
+            templateParams: templateParams,
+            source: process.env.AISENSY_SOURCE || 'kesharia_rld_app',
             media: {},
             buttons: [],
             carouselCards: [],
             location: {},
             attributes: {},
-            paramsFallbackValue: {}
+            paramsFallbackValue: {
+                FirstName: "user"
+            }
         };
 
         const response = await axios.post(url, data, {
@@ -53,10 +52,10 @@ export const sendWhatsAppMessage = async (to, content, options = {}) => {
             },
         });
 
-        console.log('AiSensy WhatsApp message sent:', response.data);
+        console.log(`WhatsApp campaign '${campaignName}' triggered successfully to ${to}`);
         return response.data;
     } catch (error) {
-        console.error('Error sending AiSensy WhatsApp message:', error.response?.data || error.message);
-        throw error;
+        console.error('Error triggering WhatsApp campaign:', error.response?.data || error.message);
+        return false;
     }
 };

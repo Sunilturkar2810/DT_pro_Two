@@ -22,7 +22,25 @@ class NotificationModel {
       type: json['type'] ?? 'general',
       isRead: json['isRead'] ?? false,
       createdAt: json['createdAt'] ?? '',
-      refId: json['refId'],
+      refId: json['refId']?.toString() ?? json['relatedId']?.toString(),
+    );
+  }
+
+  NotificationModel copyWith({
+    String? id,
+    String? message,
+    String? type,
+    bool? isRead,
+    String? createdAt,
+    String? refId,
+  }) {
+    return NotificationModel(
+      id: id ?? this.id,
+      message: message ?? this.message,
+      type: type ?? this.type,
+      isRead: isRead ?? this.isRead,
+      createdAt: createdAt ?? this.createdAt,
+      refId: refId ?? this.refId,
     );
   }
 }

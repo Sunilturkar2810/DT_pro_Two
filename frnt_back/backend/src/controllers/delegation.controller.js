@@ -26,7 +26,7 @@ const calculateReminderTime = (dueDate, timeValue, timeUnit, triggerType) => {
 
     let ms = 0;
     const value = parseInt(timeValue);
-    
+
     if (timeUnit === 'minutes') ms = value * 60 * 1000;
     else if (timeUnit === 'hours') ms = value * 60 * 60 * 1000;
     else if (timeUnit === 'days') ms = value * 24 * 60 * 60 * 1000;
@@ -48,9 +48,9 @@ const formatAttachmentsForEmail = (voiceNoteUrl, referenceDocs, evidenceUrl) => 
         });
     }
     if (referenceDocs) {
-        const docs = Array.isArray(referenceDocs) ? referenceDocs : 
-                     (typeof referenceDocs === 'string' ? referenceDocs.split(',') : []);
-        
+        const docs = Array.isArray(referenceDocs) ? referenceDocs :
+            (typeof referenceDocs === 'string' ? referenceDocs.split(',') : []);
+
         docs.forEach(url => {
             if (url && typeof url === 'string' && url.trim()) {
                 attachments.push({
@@ -109,8 +109,8 @@ export const createDelegation = async (req, reply) => {
     if (!dueDate) return reply.status(400).send({ success: false, message: 'Due Date is required' });
     if (!category) return reply.status(400).send({ success: false, message: 'Category is required' });
     if (!priority) return reply.status(400).send({ success: false, message: 'Priority is required' });
-    // In Loop should be optional, removing the strict validation
-    // if (!inLoopIds || (Array.isArray(inLoopIds) && inLoopIds.length === 0)) return reply.status(400).send({ success: false, message: 'In Loop is required' });
+    if (!inLoopIds || (Array.isArray(inLoopIds) && inLoopIds.length === 0)) return reply.status(400).send({ success: false, message: 'In Loop is required' });
+
 
     try {
         const doerIds = Array.isArray(doerId) ? doerId : [doerId];
@@ -130,7 +130,7 @@ export const createDelegation = async (req, reply) => {
             // For repeat tasks starting today/past, dueDate of the first instance = the start date (today)
             const firstInstanceDueDate = isRepeat && repeatStartDate && repeatStartDate <= todayStr
                 ? new Date(repeatStartDate)
-                : (dueDate ? new Date(new Date(dueDate).toISOString().split('T')[0]) : null);
+                : (dueDate ? new Date(dueDate) : null);
 
             const [newDelegation] = await db.insert(delegations).values({
                 taskTitle,
@@ -213,7 +213,7 @@ export const createDelegation = async (req, reply) => {
             // Fetch doer details
             const [doer] = await db.select().from(users).where(eq(users.userId, targetDoerId));
 
-            // Notify via External Channels (Email/WhatsApp) based on preferences
+            // Notify via External Channels (Email) based on preferences
             await notifyUser(targetDoerId, 'newTask', {
                 title: 'New Task Delegated',
                 message: `You have been assigned a new task: ${taskTitle}\nDescription: ${description || 'No description'}\nPriority: ${priority}\nDue Date: ${firstInstanceDueDate ? new Date(firstInstanceDueDate).toLocaleDateString() : 'No due date'}`,
@@ -229,6 +229,7 @@ export const createDelegation = async (req, reply) => {
                     </div>
                 `,
                 // Variables for templates
+                taskId: newDelegation.id,
                 taskTitle,
                 taskDescription: description || 'No description',
                 priority,
@@ -237,69 +238,64 @@ export const createDelegation = async (req, reply) => {
                 assignerName: assigner ? `${assigner.firstName} ${assigner.lastName}` : 'Assigner',
                 doerName: doer ? `${doer.firstName} ${doer.lastName}` : 'You',
                 status: status || 'Pending',
+                frequency: isRepeat ? (repeatFrequency || 'Recurring') : 'One-Time',
+                startDate: repeatStartDate ? new Date(repeatStartDate).toLocaleDateString() : (firstInstanceDueDate ? new Date(firstInstanceDueDate).toLocaleDateString() : 'N/A'),
+                endDate: repeatEndDate ? new Date(repeatEndDate).toLocaleDateString() : 'N/A',
                 attachments: formatAttachmentsForEmail(voiceNoteUrl, referenceDocs, evidenceUrl),
                 taskList: taskListStr,
-                // New variables requested by user
-                voiceNoteUrl: voiceNoteUrl || 'None',
-                referenceDocs: referenceDocs || 'None',
-                tags: Array.isArray(parsedTags) ? parsedTags.map(t => typeof t === 'object' ? t.text : t).join(', ') : 'None',
-                checklistItems: taskListStr,
-                evidenceRequired: evidenceRequired === true ? 'Yes' : 'No',
-                evidenceUrl: evidenceUrl || 'None',
-                revisionCount: 0,
-                inLoopIds: Array.isArray(inLoopIds) ? inLoopIds.join(', ') : 'None',
-                frequency: repeatFrequency || 'Once',
-                fromDate: (repeatStartDate || todayStr)
+                voiceNoteUrl: voiceNoteUrl || 'No audio note',
+                referenceDocs: Array.isArray(referenceDocs) ? referenceDocs.join(', ') : (referenceDocs || 'No reference documents'),
+                evidenceUrl: evidenceUrl || 'No evidence provided'
             });
 
-            // Notify everyone in loop (In-app & External)
-            const loopIds = Array.isArray(inLoopIds) ? inLoopIds : (typeof inLoopIds === 'string' ? JSON.parse(inLoopIds) : []);
-            for (const loopId of loopIds) {
-                if (loopId === targetDoerId) continue;
-                
+            // Notify in-loop members individually
+            const inLoopList = Array.isArray(inLoopIds) ? inLoopIds : [];
+            for (const loopMemberId of inLoopList) {
+                if (!loopMemberId || loopMemberId === targetDoerId || loopMemberId === assignerId) continue;
+
+                // In-app notification
                 await createNotification(
-                    loopId,
-                    'New Task in Loop',
-                    `A new task [${taskTitle}] where you are in loop has been created.`,
+                    loopMemberId,
+                    'You Are In Loop',
+                    `You have been added in loop for task: ${taskTitle}`,
                     'delegation',
                     newDelegation.id
                 );
 
-                await notifyUser(loopId, 'loopNewTask', {
-                    title: 'New Task in Loop',
-                    message: `A new task [${taskTitle}] where you are in loop has been created.\nDescription: ${description || 'No description'}\nPriority: ${priority}\nDue Date: ${firstInstanceDueDate ? new Date(firstInstanceDueDate).toLocaleDateString() : 'No due date'}`,
+                // Fetch in-loop member details for personalised notification
+                const [loopMember] = await db.select().from(users).where(eq(users.userId, loopMemberId));
+                if (!loopMember) continue;
+
+                // Email + WhatsApp via notifier service
+                await notifyUser(loopMemberId, 'newTaskInLoop', {
+                    title: 'You Are In Loop: New Task',
+                    message: `You have been added in loop for task: ${taskTitle}\nAssigned To: ${doer ? `${doer.firstName} ${doer.lastName}` : 'Assignee'}\nPriority: ${priority}\nDue Date: ${firstInstanceDueDate ? new Date(firstInstanceDueDate).toLocaleDateString() : 'No due date'}`,
                     html: `
                         <div style="font-family: sans-serif; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
-                            <h2 style="color: #6366f1;">In Loop: New Task Created</h2>
-                            <p>You are in loop for the following new task.</p>
-                            <p><strong>Title:</strong> ${taskTitle}</p>
-                            <p><strong>Description:</strong> ${description || 'No description'}</p>
+                            <h2 style="color: #6366f1;">You Are In Loop</h2>
+                            <p><strong>Task:</strong> ${taskTitle}</p>
+                            <p><strong>Assigned To:</strong> ${doer ? `${doer.firstName} ${doer.lastName}` : 'Assignee'}</p>
                             <p><strong>Priority:</strong> ${priority}</p>
                             <p><strong>Due Date:</strong> ${firstInstanceDueDate ? new Date(firstInstanceDueDate).toLocaleDateString() : 'No due date'}</p>
                             <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
-                            <p style="font-size: 12px; color: #6b7280;">Please log in to the portal to view more details.</p>
+                            <p style="font-size: 12px; color: #6b7280;">You are copied on this task for visibility. Please log in for details.</p>
                         </div>
                     `,
+                    taskId: newDelegation.id,
                     taskTitle,
                     taskDescription: description || 'No description',
                     priority,
                     category,
                     dueDate: firstInstanceDueDate ? new Date(firstInstanceDueDate).toLocaleDateString() : 'No due date',
                     assignerName: assigner ? `${assigner.firstName} ${assigner.lastName}` : 'Assigner',
-                    doerName: doer ? `${doer.firstName} ${doer.lastName}` : 'You',
+                    doerName: doer ? `${doer.firstName} ${doer.lastName}` : 'Assignee',
                     status: status || 'Pending',
-                    attachments: formatAttachmentsForEmail(voiceNoteUrl, referenceDocs, evidenceUrl),
-                    taskList: taskListStr,
-                    voiceNoteUrl: voiceNoteUrl || 'None',
-                    referenceDocs: referenceDocs || 'None',
-                    tags: Array.isArray(parsedTags) ? parsedTags.map(t => typeof t === 'object' ? t.text : t).join(', ') : 'None',
-                    checklistItems: taskListStr,
-                    evidenceRequired: evidenceRequired === true ? 'Yes' : 'No',
-                    evidenceUrl: evidenceUrl || 'None',
-                    revisionCount: 0,
-                    inLoopIds: Array.isArray(inLoopIds) ? inLoopIds.join(', ') : 'None',
-                    frequency: repeatFrequency || 'Once',
-                    fromDate: (repeatStartDate || todayStr)
+                    frequency: isRepeat ? (repeatFrequency || 'Recurring') : 'One-Time',
+                    startDate: repeatStartDate ? new Date(repeatStartDate).toLocaleDateString() : (firstInstanceDueDate ? new Date(firstInstanceDueDate).toLocaleDateString() : 'N/A'),
+                    endDate: repeatEndDate ? new Date(repeatEndDate).toLocaleDateString() : 'N/A',
+                    voiceNoteUrl: voiceNoteUrl || 'No audio note',
+                    referenceDocs: Array.isArray(referenceDocs) ? referenceDocs.join(', ') : (referenceDocs || 'No reference documents'),
+                    evidenceUrl: evidenceUrl || 'No evidence provided'
                 });
             }
 
@@ -369,7 +365,7 @@ export const createDelegationTemplate = async (req, reply) => {
             verificationRequired: evidenceRequired || false,
             attachmentRequired: evidenceRequired || false,
             frequency: isRepeat ? combinedFrequency : null,
-            dueDate: repeatEndDate ? new Date(new Date(repeatEndDate).toISOString().split('T')[0]) : null,
+            dueDate: repeatEndDate ? new Date(repeatEndDate) : null,
         }).returning();
 
         masterId = newTemplateMaster.id;
@@ -388,7 +384,7 @@ export const createDelegationTemplate = async (req, reply) => {
                     attachmentRequired: evidenceRequired || false,
                     frequency: isRepeat ? combinedFrequency : null,
                     status: 'Pending',
-                    dueDate: repeatEndDate ? new Date(new Date(repeatEndDate).toISOString().split('T')[0]) : null,
+                    dueDate: repeatEndDate ? new Date(repeatEndDate) : null,
                 });
             }
         } else {
@@ -404,7 +400,7 @@ export const createDelegationTemplate = async (req, reply) => {
                 attachmentRequired: evidenceRequired || false,
                 frequency: isRepeat ? combinedFrequency : null,
                 status: 'Pending',
-                dueDate: repeatEndDate ? new Date(new Date(repeatEndDate).toISOString().split('T')[0]) : null,
+                dueDate: repeatEndDate ? new Date(repeatEndDate) : null,
             });
         }
 
@@ -424,56 +420,68 @@ export const createDelegationTemplate = async (req, reply) => {
     }
 };
 
-    export const getDelegations = async (req, reply) => {
-        try {
-            const { doerId, assignerId, startDate, endDate, search, category, groupId, tag, frequency } = req.query;
-            let conditions = [];
-    
-            if (doerId) {
-                conditions.push(eq(delegations.doerId, doerId));
-            }
-    
-            if (groupId) {
-                conditions.push(eq(delegations.groupId, groupId));
-            }
-    
-            if (assignerId) {
-                conditions.push(eq(delegations.assignerId, assignerId));
-            }
-    
-            if (category && category !== 'Category' && category !== 'undefined') {
-                conditions.push(ilike(delegations.category, category));
-            }
-            
-            if (tag && tag !== 'Tag' && tag !== 'undefined') {
-                conditions.push(sql`${delegations.tags}::text ILIKE ${`%${tag}%`}`);
-            }
-            
-            if (frequency && frequency !== 'Frequency' && frequency !== 'undefined') {
-                if (frequency.toLowerCase() === 'once') {
-                    conditions.push(or(
-                        sql`${checklistMaster.frequency} IS NULL`,
-                        eq(checklistMaster.frequency, 'Once')
-                    ));
-                } else {
-                    conditions.push(ilike(checklistMaster.frequency, frequency));
-                }
-            }
-    
-            if (startDate) {
-                conditions.push(gte(delegations.createdAt, new Date(startDate)));
-            }
-    
-            if (endDate) {
-                conditions.push(lte(delegations.createdAt, new Date(endDate)));
-            }
-    
-            if (search) {
+export const getDelegations = async (req, reply) => {
+    try {
+        const { doerId, assignerId, startDate, endDate, search, category, groupId, tag, frequency } = req.query;
+        const user = req.user;
+        const isAdmin = user && (user.role === 'ADMIN' || user.role === 'SUPERADMIN');
+        let conditions = [];
+
+        if (doerId) {
+            conditions.push(eq(delegations.doerId, doerId));
+        }
+
+        // If not admin, restrict visibility to tasks the user is involved in
+        if (!isAdmin && user) {
+            const userId = user.id;
+            conditions.push(or(
+                eq(delegations.doerId, userId),
+                eq(delegations.assignerId, userId),
+                sql`${delegations.inLoopIds}::jsonb @> ${JSON.stringify([userId])}::jsonb`
+            ));
+        }
+
+        if (groupId) {
+            conditions.push(eq(delegations.groupId, groupId));
+        }
+
+        if (assignerId) {
+            conditions.push(eq(delegations.assignerId, assignerId));
+        }
+
+        if (category && category !== 'Category' && category !== 'undefined') {
+            conditions.push(ilike(delegations.category, category));
+        }
+
+        if (tag && tag !== 'Tag' && tag !== 'undefined') {
+            conditions.push(sql`${delegations.tags}::text ILIKE ${`%${tag}%`}`);
+        }
+
+        if (frequency && frequency !== 'Frequency' && frequency !== 'undefined') {
+            if (frequency.toLowerCase() === 'once') {
                 conditions.push(or(
-                    ilike(delegations.taskTitle, `%${search}%`),
-                    ilike(delegations.description, `%${search}%`)
+                    sql`${checklistMaster.frequency} IS NULL`,
+                    eq(checklistMaster.frequency, 'Once')
                 ));
+            } else {
+                conditions.push(ilike(checklistMaster.frequency, frequency));
             }
+        }
+
+        if (startDate) {
+            conditions.push(gte(delegations.createdAt, new Date(startDate)));
+        }
+
+        if (endDate) {
+            conditions.push(lte(delegations.createdAt, new Date(endDate)));
+        }
+
+        if (search) {
+            conditions.push(or(
+                ilike(delegations.taskTitle, `%${search}%`),
+                ilike(delegations.description, `%${search}%`)
+            ));
+        }
 
         let queryBuilder = db.select({
             id: delegations.id,
@@ -502,10 +510,10 @@ export const createDelegationTemplate = async (req, reply) => {
             doerLastName: doerAlias.lastName,
             frequency: checklistMaster.frequency
         })
-        .from(delegations)
-        .leftJoin(assignerAlias, eq(delegations.assignerId, assignerAlias.userId))
-        .leftJoin(doerAlias, eq(delegations.doerId, doerAlias.userId))
-        .leftJoin(checklistMaster, eq(delegations.id, checklistMaster.delegationId));
+            .from(delegations)
+            .leftJoin(assignerAlias, eq(delegations.assignerId, assignerAlias.userId))
+            .leftJoin(doerAlias, eq(delegations.doerId, doerAlias.userId))
+            .leftJoin(checklistMaster, eq(delegations.id, checklistMaster.delegationId));
 
         // Always exclude soft-deleted records from normal queries
         conditions.push(isNull(delegations.deletedAt));
@@ -580,8 +588,40 @@ export const updateDelegation = async (req, reply) => {
             });
         }
 
-        const newDueDate = updates.dueDate ? new Date(new Date(updates.dueDate).toISOString().split('T')[0]) : existingDelegation.dueDate;
-        const isDueDateChanged = updates.dueDate && newDueDate !== existingDelegation.dueDate;
+        // --- Permission Check ---
+        const user = req.user;
+        const userRole = (user && user.role ? String(user.role).toUpperCase() : '');
+        const isAdmin = userRole === 'ADMIN' || userRole === 'SUPERADMIN';
+        const isAssigner = user && user.id === existingDelegation.assignerId;
+        const isDoer = user && user.id === existingDelegation.doerId;
+
+        if (!isAdmin && !isAssigner && !isDoer) {
+            return reply.status(403).send({ 
+                success: false, 
+                message: 'Forbidden: You do not have permission to update this task.' 
+            });
+        }
+
+        // If doer (and not admin/assigner), restricted fields check
+        if (isDoer && !isAdmin && !isAssigner) {
+            const allowedDoerFields = ['status', 'evidenceUrl', 'checklistItems', 'changedBy', 'reason', 'voiceNoteUrl', 'referenceDocs'];
+            const updatesAttempted = Object.keys(updates);
+            const forbiddenUpdates = updatesAttempted.filter(k => !allowedDoerFields.includes(k));
+            
+            if (forbiddenUpdates.length > 0) {
+                return reply.status(403).send({ 
+                    success: false, 
+                    message: `Forbidden: As a Doer, you cannot update: ${forbiddenUpdates.join(', ')}` 
+                });
+            }
+        }
+        // ------------------------
+
+        const newDueDate = updates.dueDate ? new Date(updates.dueDate) : (existingDelegation.dueDate ? new Date(existingDelegation.dueDate) : null);
+        const isDueDateChanged = updates.dueDate && (
+            !existingDelegation.dueDate || 
+            new Date(updates.dueDate).getTime() !== new Date(existingDelegation.dueDate).getTime()
+        );
         const isStatusChanged = updates.status && updates.status !== existingDelegation.status;
 
         let revisionCount = existingDelegation.revisionCount || 0;
@@ -633,7 +673,7 @@ export const updateDelegation = async (req, reply) => {
         if (updates.reminders) {
             // Remove old reminders
             await db.delete(taskReminders).where(eq(taskReminders.delegationId, id));
-            
+
             // Add new ones
             const reminderData = updates.reminders.map(r => ({
                 delegationId: id,
@@ -682,10 +722,10 @@ export const updateDelegation = async (req, reply) => {
             id
         );
 
-        // Notify via External Channels (Email/WhatsApp)
+        // Notify via External Channels (Email)
         const updater = req.user;
         const updaterName = updater ? `${updater.firstName} ${updater.lastName}` : 'System';
-        
+
         // Determine notification event type
         let eventType = 'taskEdit';
         if (isStatusChanged) {
@@ -712,6 +752,8 @@ export const updateDelegation = async (req, reply) => {
                 </div>
             `,
             // Variables for templates
+            taskId: updatedDelegation.id,
+            category: existingDelegation.category,
             taskTitle: existingDelegation.taskTitle,
             message,
             updatedBy: updaterName,
@@ -722,26 +764,44 @@ export const updateDelegation = async (req, reply) => {
             taskList: (updatedDelegation.checklistItems && updatedDelegation.checklistItems.length > 0)
                 ? updatedDelegation.checklistItems.map(item => `• ${item.text || item.itemName || 'Checklist Item'}`).join('\n')
                 : 'No checklist items',
-            // New variables requested by user
-            voiceNoteUrl: updatedDelegation.voiceNoteUrl || 'None',
-            referenceDocs: updatedDelegation.referenceDocs || 'None',
-            tags: Array.isArray(updatedDelegation.tags) ? updatedDelegation.tags.map(t => typeof t === 'object' ? t.text : t).join(', ') : 'None',
-            checklistItems: (updatedDelegation.checklistItems && updatedDelegation.checklistItems.length > 0)
-                ? updatedDelegation.checklistItems.map(item => `• ${item.text || item.itemName || 'Checklist Item'}`).join('\n')
-                : 'No checklist items',
-            evidenceRequired: updatedDelegation.evidenceRequired === true ? 'Yes' : 'No',
-            evidenceUrl: updatedDelegation.evidenceUrl || 'None',
-            revisionCount: updatedDelegation.revisionCount || 0,
-            inLoopIds: Array.isArray(updatedDelegation.inLoopIds) ? updatedDelegation.inLoopIds.join(', ') : 'None',
-            frequency: (updatedDelegation.frequency || 'Once'),
-            fromDate: updatedDelegation.createdAt ? new Date(updatedDelegation.createdAt).toLocaleDateString() : 'N/A'
+            voiceNoteUrl: updatedDelegation.voiceNoteUrl || 'No audio note',
+            referenceDocs: Array.isArray(updatedDelegation.referenceDocs) ? updatedDelegation.referenceDocs.join(', ') : (updatedDelegation.referenceDocs || 'No reference documents'),
+            evidenceUrl: updatedDelegation.evidenceUrl || 'No evidence provided'
         });
+
+        // Notify in-loop members about the update
+        const inLoopOnUpdate = Array.isArray(existingDelegation.inLoopIds) ? existingDelegation.inLoopIds : [];
+        for (const loopMemberId of inLoopOnUpdate) {
+            if (!loopMemberId || loopMemberId === recipientId) continue;
+            const [loopMember] = await db.select().from(users).where(eq(users.userId, loopMemberId));
+            if (!loopMember) continue;
+
+            await createNotification(loopMemberId, title, message, isStatusChanged ? 'status_change' : 'revision', id);
+            await notifyUser(loopMemberId, eventType + 'InLoop', {
+                title,
+                message: `${message}\nTask: ${existingDelegation.taskTitle}\nUpdated by: ${updaterName}`,
+                html: `<div style="font-family: sans-serif; padding: 20px; border: 1px solid #eee; border-radius: 10px;"><h2 style="color: #f59e0b;">[In Loop] ${title}</h2><p>${message}</p><p><strong>Task:</strong> ${existingDelegation.taskTitle}</p><p><strong>Updated by:</strong> ${updaterName}</p></div>`,
+                taskId: updatedDelegation.id,
+                category: existingDelegation.category,
+                taskTitle: existingDelegation.taskTitle,
+                taskDescription: existingDelegation.description || 'No description',
+                updatedBy: updaterName,
+                priority: existingDelegation.priority,
+                dueDate: existingDelegation.dueDate ? new Date(existingDelegation.dueDate).toLocaleDateString() : 'No due date',
+                status: updates.status || existingDelegation.status,
+                assignerName: updaterName,
+                doerName: `${loopMember.firstName} ${loopMember.lastName}`,
+                voiceNoteUrl: updatedDelegation.voiceNoteUrl || 'No audio note',
+                referenceDocs: Array.isArray(updatedDelegation.referenceDocs) ? updatedDelegation.referenceDocs.join(', ') : (updatedDelegation.referenceDocs || 'No reference documents'),
+                evidenceUrl: updatedDelegation.evidenceUrl || 'No evidence provided'
+            });
+        }
 
         // Log activity
         await logActivity({
             type: isStatusChanged ? 'status_change' : 'revision',
             title: updatedDelegation.taskTitle,
-            description: isStatusChanged 
+            description: isStatusChanged
                 ? `Status of task "${updatedDelegation.taskTitle}" changed to ${updates.status}`
                 : `Task "${updatedDelegation.taskTitle}" was updated/revised`,
             userId: changedBy || existingDelegation.assignerId,
@@ -835,11 +895,39 @@ export const deleteDelegation = async (req, reply) => {
             return reply.status(404).send({ success: false, message: 'Delegation not found' });
         }
 
+        // --- Granular Role & Permission Check ---
+        const user = req.user;
+        const userRole = (user && user.role ? String(user.role).toUpperCase() : '');
+        const isAdmin = userRole === 'ADMIN' || userRole === 'SUPERADMIN';
+        const isAssigner = user && user.id === existing.assignerId;
+        const isDoer = user && user.id === existing.doerId;
+
+        if (!isAdmin) {
+            // Fetch the role to get permissions
+            const [roleData] = await db.select().from(roles).where(eq(roles.name, userRole));
+            const permissions = roleData?.permissions?.task || {};
+            const deletePerm = permissions.delete;
+
+            let allowed = false;
+            if (deletePerm === 'All') allowed = true;
+            else if (deletePerm === 'Assigned' && isAssigner) allowed = true;
+            else if (deletePerm === 'Assignee' && isDoer) allowed = true;
+            else if (deletePerm === 'Both' && (isAssigner || isDoer)) allowed = true;
+            
+            if (!allowed) {
+                return reply.status(403).send({ 
+                    success: false, 
+                    message: 'Forbidden: You do not have permission to delete this task. Permissions can be managed from roles and permissions settings.' 
+                });
+            }
+        }
+        // ----------------------------------------
+
         // Soft delete — set deletedAt timestamp instead of removing
         const [softDeleted] = await db.update(delegations)
             .set({
                 deletedAt: new Date(),
-                deletedBy: deletedBy || existing.assignerId,
+                deletedBy: user?.id || existing.assignerId,
                 updatedAt: new Date()
             })
             .where(eq(delegations.id, id))
@@ -850,7 +938,7 @@ export const deleteDelegation = async (req, reply) => {
             type: 'deleted',
             title: existing.taskTitle,
             description: `Task "${existing.taskTitle}" moved to trash`,
-            userId: deletedBy || existing.assignerId,
+            userId: user?.id || existing.assignerId,
             relatedId: id,
             relatedType: 'task'
         });
@@ -871,6 +959,14 @@ export const deleteDelegation = async (req, reply) => {
 };
 
 export const getDeletedDelegations = async (req, reply) => {
+    // Role check: only admins should see the global trash
+    const user = req.user;
+    const isAdmin = user && (user.role === 'ADMIN' || user.role === 'SUPERADMIN');
+
+    if (!isAdmin) {
+        return reply.status(403).send({ success: false, message: 'Forbidden: Only admins can access deleted tasks.' });
+    }
+
     try {
         const { startDate, endDate, search, status } = req.query;
         let conditions = [isNotNull(delegations.deletedAt)];
@@ -916,12 +1012,12 @@ export const getDeletedDelegations = async (req, reply) => {
             deletedByFirstName: deletedBy.firstName,
             deletedByLastName: deletedBy.lastName,
         })
-        .from(delegations)
-        .leftJoin(assignerAlias, eq(delegations.assignerId, assignerAlias.userId))
-        .leftJoin(doerAlias, eq(delegations.doerId, doerAlias.userId))
-        .leftJoin(deletedBy, eq(delegations.deletedBy, deletedBy.userId))
-        .where(and(...conditions))
-        .orderBy(desc(delegations.deletedAt));
+            .from(delegations)
+            .leftJoin(assignerAlias, eq(delegations.assignerId, assignerAlias.userId))
+            .leftJoin(doerAlias, eq(delegations.doerId, doerAlias.userId))
+            .leftJoin(deletedBy, eq(delegations.deletedBy, deletedBy.userId))
+            .where(and(...conditions))
+            .orderBy(desc(delegations.deletedAt));
 
         return reply.status(200).send({ success: true, data: results });
     } catch (error) {
@@ -938,6 +1034,19 @@ export const restoreDelegation = async (req, reply) => {
             return reply.status(404).send({ success: false, message: 'Deleted delegation not found' });
         }
 
+        // --- Role & Permission Check ---
+        const user = req.user;
+        const isAdmin = user && (user.role === 'ADMIN' || user.role === 'SUPERADMIN');
+        const isAssigner = user && user.id === existing.assignerId;
+
+        if (!isAdmin && !isAssigner) {
+            return reply.status(403).send({ 
+                success: false, 
+                message: 'Forbidden: Only Admins or the Original Assigner can restore this task.' 
+            });
+        }
+        // -------------------------------
+
         const [restored] = await db.update(delegations)
             .set({ deletedAt: null, deletedBy: null, updatedAt: new Date() })
             .where(eq(delegations.id, id))
@@ -948,7 +1057,7 @@ export const restoreDelegation = async (req, reply) => {
             type: 'restored',
             title: restored.taskTitle,
             description: `Task "${restored.taskTitle}" restored from trash`,
-            userId: restored.assignerId, // Assuming assigner or person who restored? 
+            userId: user?.id || restored.assignerId, 
             relatedId: id,
             relatedType: 'task'
         });
@@ -986,7 +1095,7 @@ export const addRemark = async (req, reply) => {
                 id
             );
 
-            // Notify via External Channels (Email/WhatsApp)
+            // Notify via External Channels (Email)
             const commenter = await db.select().from(users).where(eq(users.userId, userId)).limit(1);
             const commenterName = commenter[0] ? `${commenter[0].firstName} ${commenter[0].lastName}` : 'Someone';
 
@@ -1004,14 +1113,47 @@ export const addRemark = async (req, reply) => {
                     </div>
                 `,
                 // Variables for templates
+                taskId: delegation.id,
                 taskTitle: delegation.taskTitle,
                 remark,
                 commenterName,
                 priority: delegation.priority,
                 category: delegation.category,
                 dueDate: delegation.dueDate ? new Date(delegation.dueDate).toLocaleDateString() : 'No due date',
-                status: delegation.status
+                status: delegation.status,
+                voiceNoteUrl: delegation.voiceNoteUrl || 'No audio note',
+                referenceDocs: Array.isArray(delegation.referenceDocs) ? delegation.referenceDocs.join(', ') : (delegation.referenceDocs || 'No reference documents'),
+                evidenceUrl: delegation.evidenceUrl || 'No evidence provided'
             });
+
+            // Notify in-loop members about the remark
+            const inLoopOnRemark = Array.isArray(delegation.inLoopIds) ? delegation.inLoopIds : [];
+            for (const loopMemberId of inLoopOnRemark) {
+                if (!loopMemberId || loopMemberId === recipientId || loopMemberId === userId) continue;
+                const [loopMember] = await db.select().from(users).where(eq(users.userId, loopMemberId));
+                if (!loopMember) continue;
+
+                await createNotification(loopMemberId, 'New Remark Added', `A new remark has been added to task: ${delegation.taskTitle}`, 'remark', id);
+                await notifyUser(loopMemberId, 'taskCommentInLoop', {
+                    title: 'New Remark Added',
+                    message: `A new remark has been added to task "${delegation.taskTitle}" by ${commenterName}: ${remark}`,
+                    html: `<div style="font-family: sans-serif; padding: 20px; border: 1px solid #eee; border-radius: 10px;"><h2 style="color: #6366f1;">[In Loop] New Remark Added</h2><p><strong>Task:</strong> ${delegation.taskTitle}</p><p><strong>Remark:</strong> ${remark}</p><p><strong>Added by:</strong> ${commenterName}</p></div>`,
+                    taskId: delegation.id,
+                    taskTitle: delegation.taskTitle,
+                    remark,
+                    commenterName,
+                    taskDescription: remark,
+                    priority: delegation.priority,
+                    category: delegation.category,
+                    dueDate: delegation.dueDate ? new Date(delegation.dueDate).toLocaleDateString() : 'No due date',
+                    status: delegation.status,
+                    assignerName: commenterName,
+                    doerName: `${loopMember.firstName} ${loopMember.lastName}`,
+                    voiceNoteUrl: delegation.voiceNoteUrl || 'No audio note',
+                    referenceDocs: Array.isArray(delegation.referenceDocs) ? delegation.referenceDocs.join(', ') : (delegation.referenceDocs || 'No reference documents'),
+                    evidenceUrl: delegation.evidenceUrl || 'No evidence provided'
+                });
+            }
 
             // Log activity
             await logActivity({

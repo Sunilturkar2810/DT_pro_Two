@@ -116,6 +116,7 @@ console.log('Team IDs:', teamIds);
             addedBy: teamMembers.addedBy,
             teamName: teams.name,
             teamId: teamMembers.teamId,
+            status: users.status,
         })
         .from(teamMembers)
         .innerJoin(users, eq(teamMembers.userId, users.userId))
@@ -127,6 +128,26 @@ console.log('Team IDs:', teamIds);
 
         console.log('My Team Members:', members);
         return reply.send(members);
+    } catch (error) {
+        request.log.error(error);
+        return reply.code(500).send({ message: 'Internal Server Error' });
+    }
+};
+
+export const removeTeamMember = async (request, reply) => {
+    const { teamId, userId } = request.params;
+    try {
+        if (!['SUPERADMIN', 'ADMIN'].includes(request.user.role?.toUpperCase())) {
+            return reply.code(403).send({ message: 'Only SUPERADMIN and ADMIN can remove team members' });
+        }
+
+        await db.delete(teamMembers)
+            .where(and(
+                eq(teamMembers.teamId, teamId),
+                eq(teamMembers.userId, userId)
+            ));
+
+        return reply.send({ message: 'Member removed from team' });
     } catch (error) {
         request.log.error(error);
         return reply.code(500).send({ message: 'Internal Server Error' });

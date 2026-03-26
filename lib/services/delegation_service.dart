@@ -1,13 +1,14 @@
 import 'dart:io';
+
 import 'package:dio/dio.dart';
 import 'package:hive/hive.dart';
+
 import '../config/api_constants.dart';
 import 'dio_client.dart';
 
 class DelegationService {
   final Dio _dio = DioClient().dio;
 
-  // 1. GET ALL (READ)
   Future<List<dynamic>> getAllDelegations() async {
     try {
       final response = await _dio.get(ApiConstants.delegations);
@@ -17,7 +18,6 @@ class DelegationService {
     }
   }
 
-  // 2. GET BY ID (READ)
   Future<Map<String, dynamic>> getDelegationById(String id) async {
     try {
       final response = await _dio.get('${ApiConstants.delegations}/$id');
@@ -27,7 +27,6 @@ class DelegationService {
     }
   }
 
-  // 2b. GET DELETED DELEGATIONS
   Future<List<dynamic>> getDeletedDelegations() async {
     try {
       final response = await _dio.get(ApiConstants.deletedDelegations);
@@ -37,19 +36,15 @@ class DelegationService {
     }
   }
 
-  // 3. CREATE
-  Future<Map<String, dynamic>> createDelegation(
-      Map<String, dynamic> data) async {
+  Future<Map<String, dynamic>> createDelegation(Map<String, dynamic> data) async {
     try {
-      final response =
-      await _dio.post(ApiConstants.delegations, data: data);
+      final response = await _dio.post(ApiConstants.delegations, data: data);
       return response.data;
     } catch (e) {
       rethrow;
     }
   }
 
-  // 4. UPDATE (PATCH)
   Future<void> updateDelegation(String id, Map<String, dynamic> data) async {
     try {
       await _dio.patch('${ApiConstants.delegations}/$id', data: data);
@@ -58,50 +53,29 @@ class DelegationService {
     }
   }
 
-  // 5. DELETE
-  // ✅ ROOT CAUSE: DioClient mein globally 'Content-Type: application/json' set hai.
-  // Backend DELETE pe body expect karta hai jab Content-Type json ho.
-  // Fix: Content-Type override karke 'text/plain' karo — body ki zarurat nahi padegi.
   Future<void> deleteDelegation(String id) async {
     try {
-      final String path = '${ApiConstants.delegations}/$id';
-
-      final response = await _dio.delete(
-        path,
-        options: Options(
-          headers: {
-            'Content-Type': 'text/plain', // JSON body required nahi hogi
-          },
-        ),
-      );
-
-      print('✅ DELETE SUCCESS: ${response.statusCode}');
-    } on DioException catch (e) {
-      print('❌ DELETE ERROR: ${e.response?.statusCode}');
-      print('❌ BODY: ${e.response?.data}');
+      await _dio.delete('${ApiConstants.delegations}/$id');
+    } catch (e) {
       rethrow;
     }
   }
 
-  // 5b. RESTORE DELEGATION
   Future<void> restoreDelegation(String id) async {
     try {
-      final response = await _dio.post(ApiConstants.delegationRestore(id));
-      print('✅ RESTORE SUCCESS: ${response.statusCode}');
-    } on DioException catch (e) {
-      print('❌ RESTORE ERROR: ${e.response?.data}');
+      await _dio.patch(ApiConstants.delegationRestore(id));
+    } catch (e) {
       rethrow;
     }
   }
 
-  // 6. ADD REMARK (POST)
   Future<void> addRemark(String id, String remark, String userId) async {
     try {
       await _dio.post(
         '${ApiConstants.delegations}/$id/remarks',
         data: {
-          "remark": remark,
-          "userId": userId,    // ✅ Backend expects "userId" not "assignedUserId"
+          'remark': remark,
+          'userId': userId,
         },
       );
     } catch (e) {
@@ -109,43 +83,25 @@ class DelegationService {
     }
   }
 
-  // 7. UPDATE REMARK (PATCH)
   Future<void> updateRemark(String delegationId, String remarkId, String remark) async {
-    try {
-      await _dio.patch(
-        '${ApiConstants.delegations}/$delegationId/remarks/$remarkId',
-        data: {"remark": remark},
-      );
-    } catch (e) {
-      rethrow;
-    }
+    throw UnsupportedError('Remark editing is not supported by the current backend.');
   }
 
-  // 8. DELETE REMARK (DELETE)
   Future<void> deleteRemark(String delegationId, String remarkId) async {
-    try {
-      await _dio.delete(
-        '${ApiConstants.delegations}/$delegationId/remarks/$remarkId',
-        options: Options(headers: {'Content-Type': 'text/plain'}),
-      );
-    } catch (e) {
-      rethrow;
-    }
+    throw UnsupportedError('Remark deletion is not supported by the current backend.');
   }
-  // 9. UPLOAD FILE → returns public URL string
-  // NOTE: Fresh Dio used here (no interceptor) to avoid FormData jsonEncode crash
+
   Future<String> uploadFile(File file, {String folder = 'general'}) async {
     try {
       final fileName = file.path.split('/').last.split('\\').last;
+      final uploadDio = Dio(
+        BaseOptions(
+          baseUrl: ApiConstants.baseUrl,
+          connectTimeout: ApiConstants.connectTimeout,
+          receiveTimeout: ApiConstants.requestTimeout,
+        ),
+      );
 
-      // Clean Dio — no logging interceptor that breaks FormData
-      final uploadDio = Dio(BaseOptions(
-        baseUrl: ApiConstants.baseUrl,
-        connectTimeout: ApiConstants.connectTimeout,
-        receiveTimeout: ApiConstants.requestTimeout,
-      ));
-
-      // Auth token manually add karo
       final token = Hive.box('settingsBox').get('auth_token');
       final extraHeaders = token != null
           ? {'Authorization': 'Bearer $token'}
@@ -155,11 +111,8 @@ class DelegationService {
         'file': await MultipartFile.fromFile(file.path, filename: fileName),
       });
 
-      print('📤 Uploading file: $fileName to folder: $folder');
-
-      // ✅ New backend upload route: /upload/profile-image
       final response = await uploadDio.post(
-        '${ApiConstants.uploadProfileImage}?folder=$folder',
+        '${ApiConstants.delegations}/upload?folder=$folder',
         data: formData,
         options: Options(
           contentType: 'multipart/form-data',
@@ -167,21 +120,44 @@ class DelegationService {
         ),
       );
 
-      final url = response.data['url'] as String;
-      print('✅ Upload success: $url');
-      return url;
+      return response.data['url'] as String;
     } catch (e) {
-      print('❌ Upload error: $e');
       rethrow;
     }
   }
 
-  // 10. UPDATE CHECKLIST STATUS (PATCH)
   Future<void> updateChecklistStatus(String delegationId, String checklistId, String status) async {
     try {
+      final detailResponse = await getDelegationById(delegationId);
+      final payload = Map<String, dynamic>.from(detailResponse['data'] ?? {});
+      final rawChecklist = payload['checklistItems'];
+      final checklistItems = (rawChecklist is List)
+          ? rawChecklist
+              .map((item) => Map<String, dynamic>.from(item as Map))
+              .toList()
+          : <Map<String, dynamic>>[];
+
+      int itemIndex = checklistItems.indexWhere(
+        (item) => item['id']?.toString() == checklistId,
+      );
+      if (itemIndex == -1) {
+        final parsedIndex = int.tryParse(checklistId);
+        if (parsedIndex != null &&
+            parsedIndex >= 0 &&
+            parsedIndex < checklistItems.length) {
+          itemIndex = parsedIndex;
+        }
+      }
+
+      if (itemIndex == -1) {
+        throw Exception('Checklist item not found');
+      }
+
+      checklistItems[itemIndex]['status'] = status;
+
       await _dio.patch(
-        '${ApiConstants.delegations}/$delegationId/checklist/$checklistId',
-        data: {"status": status},
+        '${ApiConstants.delegations}/$delegationId',
+        data: {'checklistItems': checklistItems},
       );
     } catch (e) {
       rethrow;

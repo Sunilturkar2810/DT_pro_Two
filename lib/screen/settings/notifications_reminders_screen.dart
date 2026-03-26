@@ -39,13 +39,25 @@ class _NotificationsRemindersScreenState extends State<NotificationsRemindersScr
   };
 
   final List<String> _templateVariables = [
+    '{title}',
+    '{message}',
+    '{taskId}',
     '{taskTitle}',
     '{taskDescription}',
     '{priority}',
     '{category}',
     '{dueDate}',
     '{assignerName}',
+    '{doerName}',
     '{userName}',
+    '{updatedBy}',
+    '{status}',
+    '{remark}',
+    '{commenterName}',
+    '{taskList}',
+    '{reminderChannel}',
+    '{html}',
+    '{attachments}',
   ];
 
   @override
@@ -55,18 +67,32 @@ class _NotificationsRemindersScreenState extends State<NotificationsRemindersScr
     _mainTabController.addListener(() {
       setState(() {});
       if (_mainTabController.index == 1 && _mainTabController.indexIsChanging) {
-        _fetchCurrentTemplate();
+        _loadTemplateWorkspace();
       }
     });
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<NotificationProvider>().fetchNotificationSettings();
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final provider = context.read<NotificationProvider>();
+      await provider.fetchNotificationSettings();
+      await provider.fetchTemplates();
+      if (mounted && _mainTabController.index == 1) {
+        await _fetchCurrentTemplate();
+      }
     });
   }
 
-  void _fetchCurrentTemplate() async {
+  Future<void> _loadTemplateWorkspace() async {
+    final provider = context.read<NotificationProvider>();
+    await provider.fetchTemplates();
+    if (mounted) {
+      await _fetchCurrentTemplate();
+    }
+  }
+
+  Future<void> _fetchCurrentTemplate() async {
     final provider = context.read<NotificationProvider>();
     await provider.fetchTemplate(_activeEventTemplate, _activeChannel);
+    if (!mounted) return;
     if (provider.activeTemplate != null) {
       _subjectController.text = provider.activeTemplate!['subject'] ?? '';
       _bodyController.text = provider.activeTemplate!['body'] ?? '';
@@ -82,7 +108,7 @@ class _NotificationsRemindersScreenState extends State<NotificationsRemindersScr
     }
   }
   
-  void _saveCurrentTemplate() async {
+  Future<void> _saveCurrentTemplate() async {
     final provider = context.read<NotificationProvider>();
     final success = await provider.saveTemplate({
       'eventName': _activeEventTemplate,
@@ -92,14 +118,68 @@ class _NotificationsRemindersScreenState extends State<NotificationsRemindersScr
       'isActive': _isTemplateActive,
     });
 
+    if (!mounted) return;
+
+    if (success) {
+      await provider.fetchTemplates();
+      await provider.fetchTemplate(_activeEventTemplate, _activeChannel);
+    }
+
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(success ? 'Template saved successfully' : 'Failed to save template'),
-          backgroundColor: success ? Colors.green : Colors.red,
+          backgroundColor: success ? const Color(0xFF10B981) : Colors.red,
+          behavior: SnackBarBehavior.floating,
         ),
       );
     }
+  }
+
+  Future<void> _deleteCurrentTemplate() async {
+    final provider = context.read<NotificationProvider>();
+    final templateId = provider.activeTemplate?['id']?.toString();
+    if (templateId == null || templateId.isEmpty) {
+      return;
+    }
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Template'),
+        content: const Text('Remove the current template for this event and channel?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) {
+      return;
+    }
+
+    final success = await provider.deleteTemplate(templateId);
+    if (!mounted) return;
+
+    if (success) {
+      await provider.fetchTemplates();
+      await _fetchCurrentTemplate();
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(success ? 'Template deleted successfully' : 'Failed to delete template'),
+        backgroundColor: success ? const Color(0xFF10B981) : Colors.red,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
   }
 
   void _insertVariable(String variable) {
@@ -113,6 +193,36 @@ class _NotificationsRemindersScreenState extends State<NotificationsRemindersScr
       text: newText,
       selection: TextSelection.collapsed(offset: cursorPosition + variable.length),
     );
+  }
+
+  bool _hasTemplateForEvent(NotificationProvider provider, String eventName) {
+    return provider.templates.any(
+      (template) =>
+          template['eventName'] == eventName &&
+          template['channel'] == _activeChannel,
+    );
+  }
+
+  List<Map<String, dynamic>> _templatesForActiveChannel(
+    NotificationProvider provider,
+  ) {
+    final filtered = provider.templates
+        .where((template) => template['channel'] == _activeChannel)
+        .toList();
+    filtered.sort(
+      (a, b) => (a['eventName'] ?? '').toString().compareTo(
+            (b['eventName'] ?? '').toString(),
+          ),
+    );
+    return filtered;
+  }
+
+  @override
+  void dispose() {
+    _mainTabController.dispose();
+    _subjectController.dispose();
+    _bodyController.dispose();
+    super.dispose();
   }
 
   @override
@@ -182,13 +292,14 @@ class _NotificationsRemindersScreenState extends State<NotificationsRemindersScr
                   itemBuilder: (context, index) {
                     final entry = _eventLabels.entries.elementAt(index);
                     final isSelected = _activeEventTemplate == entry.key;
+                    final hasTemplate = _hasTemplateForEvent(provider, entry.key);
                     
                     return InkWell(
-                      onTap: () {
+                      onTap: () async {
                         setState(() {
                           _activeEventTemplate = entry.key;
                         });
-                        _fetchCurrentTemplate();
+                        await _fetchCurrentTemplate();
                       },
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -200,6 +311,16 @@ class _NotificationsRemindersScreenState extends State<NotificationsRemindersScr
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
+                            if (hasTemplate)
+                              Container(
+                                width: 8,
+                                height: 8,
+                                margin: const EdgeInsets.only(right: 8),
+                                decoration: BoxDecoration(
+                                  color: isSelected ? Colors.white : const Color(0xFF10B981),
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
                             Text(
                               entry.value,
                               style: TextStyle(
@@ -248,9 +369,9 @@ class _NotificationsRemindersScreenState extends State<NotificationsRemindersScr
               
               // Editor Space
               Expanded(
-                child: provider.isTemplateLoading
+                child: provider.isTemplateLoading && provider.activeTemplate == null
                     ? const Center(child: CircularProgressIndicator())
-                    : _buildTemplateEditor(),
+                    : _buildTemplateEditor(provider),
               ),
             ],
           ),
@@ -262,11 +383,11 @@ class _NotificationsRemindersScreenState extends State<NotificationsRemindersScr
   Widget _buildChannelTab(String key, String label, IconData icon) {
     final isSelected = _activeChannel == key;
     return InkWell(
-      onTap: () {
+      onTap: () async {
         setState(() {
           _activeChannel = key;
         });
-        _fetchCurrentTemplate();
+        await _fetchCurrentTemplate();
       },
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -287,54 +408,106 @@ class _NotificationsRemindersScreenState extends State<NotificationsRemindersScr
     );
   }
 
-  Widget _buildTemplateEditor() {
-    String eventTitle = _eventLabels[_activeEventTemplate]!.toUpperCase();
-    String channelTitle = _activeChannel.toUpperCase();
-    
+  Widget _buildTemplateEditor(NotificationProvider provider) {
+    final eventTitle = _eventLabels[_activeEventTemplate]!.toUpperCase();
+    final channelTitle = _activeChannel.toUpperCase();
+    final savedTemplates = _templatesForActiveChannel(provider);
+    final hasCurrentTemplate =
+        provider.activeTemplate?['id']?.toString().isNotEmpty == true;
+
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(),
       padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text("$eventTitle $channelTitle TEMPLATE", style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
-                  const Text("Design how this notification will look", style: TextStyle(color: Colors.grey, fontSize: 11)),
-                ],
+              Text(
+                "$eventTitle $channelTitle TEMPLATE",
+                style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                "Design how this notification will look",
+                style: TextStyle(color: Colors.grey, fontSize: 11),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                provider.activeTemplate == null
+                    ? 'No saved template for this event and channel yet'
+                    : 'Saved template is loaded from backend',
+                style: const TextStyle(
+                  color: Color(0xFF94A3B8),
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
               const SizedBox(height: 12),
               Wrap(
-                spacing: 16,
+                spacing: 12,
                 runSpacing: 12,
                 crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
                   Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Text("ACTIVE", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
+                      const Text(
+                        "ACTIVE",
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
+                      ),
                       const SizedBox(width: 8),
                       Switch.adaptive(
                         value: _isTemplateActive,
                         activeColor: const Color(0xFF10B981),
                         onChanged: (val) {
-                          setState(() { _isTemplateActive = val; });
+                          setState(() {
+                            _isTemplateActive = val;
+                          });
                         },
                       ),
                     ],
                   ),
                   ElevatedButton.icon(
-                    onPressed: _saveCurrentTemplate,
-                    icon: const Icon(Icons.save, size: 16, color: Colors.white),
-                    label: const Text('Save Template', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    onPressed: provider.isTemplateLoading ? null : _saveCurrentTemplate,
+                    icon: provider.isTemplateLoading
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Icon(Icons.save, size: 16, color: Colors.white),
+                    label: Text(
+                      provider.isTemplateLoading ? 'Saving...' : 'Save Template',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF10B981),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    ),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: (!hasCurrentTemplate || provider.isTemplateLoading)
+                        ? null
+                        : _deleteCurrentTemplate,
+                    icon: const Icon(Icons.delete_outline, size: 16),
+                    label: const Text('Delete Template'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.redAccent,
+                      side: const BorderSide(color: Colors.redAccent),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                     ),
                   ),
@@ -343,102 +516,231 @@ class _NotificationsRemindersScreenState extends State<NotificationsRemindersScr
             ],
           ),
           const SizedBox(height: 20),
-
-          // Main Editor vs Variables Column
           Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Editor
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (_activeChannel == 'email') ...[
-                    const Text("EMAIL SUBJECT", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10, color: Colors.grey, letterSpacing: 1.1)),
-                    const SizedBox(height: 8),
-                    TextField(
-                      controller: _subjectController,
-                      decoration: InputDecoration(
-                        hintText: "Enter email subject...",
-                        filled: true,
-                        fillColor: Colors.white,
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
+              if (_activeChannel == 'email') ...[
+                const Text(
+                  "EMAIL SUBJECT",
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 10,
+                    color: Colors.grey,
+                    letterSpacing: 1.1,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: _subjectController,
+                  decoration: InputDecoration(
+                    hintText: "Enter email subject...",
+                    filled: true,
+                    fillColor: Colors.white,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide.none,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+              ],
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF10B981).withOpacity(0.05),
+                  border: Border.all(color: const Color(0xFF10B981).withOpacity(0.2)),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.info_outline, size: 16, color: Colors.green.shade700),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        "Available variables are shown in the row below. Tap one to insert it into the body at the current cursor position.",
+                        style: TextStyle(color: Colors.green.shade800, fontSize: 10),
                       ),
                     ),
-                    const SizedBox(height: 20),
                   ],
-                  
-                  Text("${_activeChannel == 'email' ? 'EMAIL' : 'WHATSAPP'} BODY", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 10, color: Colors.grey, letterSpacing: 1.1)),
-                  const SizedBox(height: 8),
-                  TextField(
-                    controller: _bodyController,
-                    maxLines: 10,
-                    decoration: InputDecoration(
-                      hintText: "Enter your content here...",
-                      filled: true,
-                      fillColor: Colors.white,
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
-                    ),
-                  ),
-                ],
+                ),
               ),
-              
-              const SizedBox(height: 24),
-              
-              // Variables side panel
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF10B981).withOpacity(0.05),
-                      border: Border.all(color: const Color(0xFF10B981).withOpacity(0.2)),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(Icons.info_outline, size: 16, color: Colors.green.shade700),
-                        const SizedBox(width: 8),
-                        Expanded(
+              const SizedBox(height: 16),
+              Text(
+                "AVAILABLE VARIABLES (${_templateVariables.length})",
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 10,
+                  color: Colors.grey,
+                  letterSpacing: 1.1,
+                ),
+              ),
+              const SizedBox(height: 8),
+              SizedBox(
+                height: 64,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  physics: const BouncingScrollPhysics(),
+                  itemCount: _templateVariables.length,
+                  separatorBuilder: (_, __) => const SizedBox(width: 10),
+                  itemBuilder: (context, index) {
+                    final variable = _templateVariables[index];
+                    return InkWell(
+                      onTap: () => _insertVariable(variable),
+                      borderRadius: BorderRadius.circular(14),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: const Color(0xFFD1FAE5)),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFF10B981).withOpacity(0.06),
+                              blurRadius: 8,
+                              offset: const Offset(0, 3),
+                            ),
+                          ],
+                        ),
+                        child: Center(
                           child: Text(
-                            "Click on a variable to insert it into your body at the current cursor position.",
-                            style: TextStyle(color: Colors.green.shade800, fontSize: 10),
+                            variable,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF10B981),
+                              fontSize: 12,
+                            ),
                           ),
                         ),
-                      ],
-                    ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 20),
+              Text(
+                "${_activeChannel == 'email' ? 'EMAIL' : 'WHATSAPP'} BODY",
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 10,
+                  color: Colors.grey,
+                  letterSpacing: 1.1,
+                ),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: _bodyController,
+                maxLines: 10,
+                decoration: InputDecoration(
+                  hintText: "Enter your content here...",
+                  filled: true,
+                  fillColor: Colors.white,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide.none,
                   ),
-                  const SizedBox(height: 16),
-                  Text("AVAILABLE VARIABLES (${_templateVariables.length})", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 10, color: Colors.grey, letterSpacing: 1.1)),
-                  const SizedBox(height: 8),
-                  Container(
-                    height: 250, // Reduced height since it's stacked vertically now
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.grey.shade200),
-                    ),
-                    child: ListView.separated(
-                      physics: const BouncingScrollPhysics(),
-                      padding: EdgeInsets.zero,
-                      itemCount: _templateVariables.length,
-                      separatorBuilder: (_, __) => const Divider(height: 1),
-                      itemBuilder: (context, index) {
-                        String variable = _templateVariables[index];
-                        return InkWell(
-                          onTap: () => _insertVariable(variable),
-                          child: Padding(
-                            padding: const EdgeInsets.all(12.0),
-                            child: Text(variable, style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF10B981), fontSize: 12)),
+                ),
+              ),
+              const SizedBox(height: 24),
+              Text(
+                "SAVED TEMPLATES (${savedTemplates.length})",
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 10,
+                  color: Colors.grey,
+                  letterSpacing: 1.1,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Container(
+                height: 150,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.grey.shade200),
+                ),
+                child: savedTemplates.isEmpty
+                    ? const Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(16),
+                          child: Text(
+                            'No saved templates for this channel',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Color(0xFF94A3B8),
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
-                        );
-                      },
-                    ),
-                  )
-                ],
+                        ),
+                      )
+                    : ListView.separated(
+                        scrollDirection: Axis.horizontal,
+                        physics: const BouncingScrollPhysics(),
+                        padding: const EdgeInsets.all(8),
+                        itemCount: savedTemplates.length,
+                        separatorBuilder: (_, __) => const SizedBox(width: 8),
+                        itemBuilder: (context, index) {
+                          final template = savedTemplates[index];
+                          final eventName = template['eventName']?.toString() ?? '';
+                          final isCurrent = eventName == _activeEventTemplate;
+                          return InkWell(
+                            onTap: () async {
+                              setState(() {
+                                _activeEventTemplate = eventName;
+                              });
+                              await _fetchCurrentTemplate();
+                            },
+                            borderRadius: BorderRadius.circular(10),
+                            child: Container(
+                              width: 180,
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: isCurrent
+                                    ? const Color(0xFFECFDF5)
+                                    : const Color(0xFFF8FAFC),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(
+                                  color: isCurrent
+                                      ? const Color(0xFFD1FAE5)
+                                      : const Color(0xFFF1F5F9),
+                                ),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Text(
+                                    _eventLabels[eventName] ?? eventName,
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w700,
+                                      color: isCurrent
+                                          ? const Color(0xFF059669)
+                                          : const Color(0xFF64748B),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    template['subject']?.toString().isNotEmpty == true
+                                        ? template['subject'].toString()
+                                        : 'No subject',
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontSize: 10,
+                                      color: Color(0xFF94A3B8),
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      ),
               ),
             ],
-          )
+          ),
         ],
       ),
     );

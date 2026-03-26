@@ -189,7 +189,15 @@ const sendDailyTaskReports = async () => {
             await notifyUser(user.userId, 'dailyPendingReminders', {
                 taskList,
                 title: 'Daily Task Report',
-                message: `You have ${pendingTasks.length} pending tasks.\n\nTasks:\n${taskList}`
+                message: `You have ${pendingTasks.length} pending tasks.\n\nTasks:\n${taskList}`,
+                taskId: 'Multiple',
+                taskTitle: 'Daily Pending Tasks',
+                category: 'Summary',
+                priority: 'N/A',
+                status: 'Pending',
+                assignerName: 'System',
+                doerName: `${user.firstName} ${user.lastName}`,
+                taskDescription: `You have ${pendingTasks.length} pending tasks.\n\n${taskList}`
             });
             
             console.log(`[Cron] Successfully processed daily task report for user ${user.userId}`);

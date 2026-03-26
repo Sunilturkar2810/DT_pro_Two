@@ -1,19 +1,16 @@
 import 'package:dio/dio.dart';
+
 import '../config/api_constants.dart';
 
 class SettingsService {
   final Dio _dio;
+  static const String _unsupportedMessage =
+      'These settings are not supported by the current backend.';
 
   SettingsService(this._dio);
 
-  // General Settings
   Future<Map<String, dynamic>> getGeneralSettings() async {
-    try {
-      final response = await _dio.get('/settings/general');
-      return response.data;
-    } catch (e) {
-      rethrow;
-    }
+    throw UnsupportedError(_unsupportedMessage);
   }
 
   Future<Map<String, dynamic>> updateGeneralSettings({
@@ -21,29 +18,11 @@ class SettingsService {
     required String? businessIndustry,
     required String? companySize,
   }) async {
-    try {
-      final response = await _dio.post(
-        '/settings/general',
-        data: {
-          'companyName': companyName,
-          'businessIndustry': businessIndustry,
-          'companySize': companySize,
-        },
-      );
-      return response.data;
-    } catch (e) {
-      rethrow;
-    }
+    throw UnsupportedError(_unsupportedMessage);
   }
 
-  // Task Update Settings
   Future<Map<String, dynamic>> getTaskUpdateSettings() async {
-    try {
-      final response = await _dio.get('/settings/task-update');
-      return response.data;
-    } catch (e) {
-      rethrow;
-    }
+    throw UnsupportedError(_unsupportedMessage);
   }
 
   Future<Map<String, dynamic>> updateTaskUpdateSettings({
@@ -51,53 +30,42 @@ class SettingsService {
     required bool attachmentsRequired,
     required bool imagesRequired,
   }) async {
-    try {
-      final response = await _dio.post(
-        '/settings/task-update',
-        data: {
-          'remarksRequired': remarksRequired,
-          'attachmentsRequired': attachmentsRequired,
-          'imagesRequired': imagesRequired,
-        },
-      );
-      return response.data;
-    } catch (e) {
-      rethrow;
-    }
+    throw UnsupportedError(_unsupportedMessage);
   }
 
-  // Notification Settings
   Future<Map<String, dynamic>> getNotificationSettings() async {
     try {
-      final response = await _dio.get('/settings/notifications');
-      return response.data;
+      final response = await _dio.get(ApiConstants.notificationSettings);
+      return Map<String, dynamic>.from(response.data['data'] ?? {});
     } catch (e) {
       rethrow;
     }
   }
 
   Future<Map<String, dynamic>> updateNotificationSettings({
-    required bool informaticsNotifications,
+    required bool whatsappNotifications,
     required bool emailNotifications,
-    required bool dailyReminder,
+    required String timezone,
+    required String dailyReminderTime,
+    required bool whatsappReminders,
     required bool emailReminders,
-    required String taskReminderTime,
-    required bool weeklyOnly,
-    required List<String> reminderDays,
+    required bool dailyTaskReport,
+    required List<String> weeklyOffs,
     required Map<String, dynamic> notificationChannels,
     required Map<String, dynamic> notificationFrequency,
   }) async {
     try {
       final response = await _dio.post(
-        '/settings/notifications',
+        ApiConstants.notificationSettings,
         data: {
-          'informaticsNotifications': informaticsNotifications,
+          'whatsappNotifications': whatsappNotifications,
           'emailNotifications': emailNotifications,
-          'dailyReminder': dailyReminder,
+          'timezone': timezone,
+          'dailyReminderTime': dailyReminderTime,
+          'whatsappReminders': whatsappReminders,
           'emailReminders': emailReminders,
-          'taskReminderTime': taskReminderTime,
-          'weeklyOnly': weeklyOnly,
-          'reminderDays': reminderDays,
+          'dailyTaskReport': dailyTaskReport,
+          'weeklyOffs': weeklyOffs,
           'notificationChannels': notificationChannels,
           'notificationFrequency': notificationFrequency,
         },
@@ -108,7 +76,6 @@ class SettingsService {
     }
   }
 
-  // Change Password / Credentials
   Future<Map<String, dynamic>> changeCredentials({
     required String userId,
     required String oldPassword,

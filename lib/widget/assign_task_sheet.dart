@@ -2571,10 +2571,11 @@ class _BottomSheetWrapper extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final appColors = Theme.of(context).extension<AppColors>()!;
     return Container(
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      decoration: BoxDecoration(
+        color: appColors.cardBackground,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -2585,7 +2586,7 @@ class _BottomSheetWrapper extends StatelessWidget {
               width: 38,
               height: 4,
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.5),
+                color: appColors.textMuted.withOpacity(0.4),
                 borderRadius: BorderRadius.circular(4),
               ),
             ),
@@ -2598,10 +2599,10 @@ class _BottomSheetWrapper extends StatelessWidget {
               children: [
                 Text(
                   title,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 17,
                     fontWeight: FontWeight.w800,
-                    color: Color(0xFF1A1D23),
+                    color: appColors.textPrimary,
                   ),
                 ),
                 InkWell(
@@ -2610,20 +2611,20 @@ class _BottomSheetWrapper extends StatelessWidget {
                   child: Container(
                     padding: const EdgeInsets.all(6),
                     decoration: BoxDecoration(
-                      color: Colors.grey[100],
+                      color: appColors.inputBackground,
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(
+                    child: Icon(
                       Icons.close,
                       size: 16,
-                      color: Colors.black54,
+                      color: appColors.textMuted,
                     ),
                   ),
                 ),
               ],
             ),
           ),
-          Divider(color: Colors.grey[100], height: 20),
+          Divider(color: appColors.divider, height: 20),
           child,
           SizedBox(height: MediaQuery.of(context).viewInsets.bottom + 12),
         ],

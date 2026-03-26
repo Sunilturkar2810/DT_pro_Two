@@ -1,75 +1,31 @@
-import 'package:dio/dio.dart';
-import '../config/api_constants.dart';
-
 class ExportService {
-  final Dio _dio;
+  static const String unsupportedMessage =
+      'Task export is not available in the current backend.';
 
-  ExportService(this._dio);
+  ExportService(dynamic dio);
 
-  // Create export
   Future<Map<String, dynamic>> createExport({
     required String dateRange,
     required List<String>? assignedTo,
     required List<String>? assignedBy,
     required List<String>? taskType,
   }) async {
-    try {
-      final response = await _dio.post(
-        '/exports',
-        data: {
-          'dateRange': dateRange,
-          'assignedTo': assignedTo,
-          'assignedBy': assignedBy,
-          'taskType': taskType,
-        },
-      );
-      return response.data;
-    } catch (e) {
-      rethrow;
-    }
+    throw UnsupportedError(unsupportedMessage);
   }
 
-  // Get export logs
   Future<Map<String, dynamic>> getExportLogs() async {
-    try {
-      final response = await _dio.get('/exports/logs');
-      return response.data;
-    } catch (e) {
-      rethrow;
-    }
+    throw UnsupportedError(unsupportedMessage);
   }
 
-  // Get all export logs (admin only)
   Future<Map<String, dynamic>> getAllExportLogs() async {
-    try {
-      final response = await _dio.get('/exports/admin/logs');
-      return response.data;
-    } catch (e) {
-      rethrow;
-    }
+    throw UnsupportedError(unsupportedMessage);
   }
 
-  // Download export
   Future<Map<String, dynamic>> downloadExport(String exportId) async {
-    try {
-      final response = await _dio.get(
-        '/exports/$exportId/download',
-      );
-      return response.data;
-    } catch (e) {
-      rethrow;
-    }
+    throw UnsupportedError(unsupportedMessage);
   }
 
-  // Delete export
   Future<Map<String, dynamic>> deleteExport(String exportId) async {
-    try {
-      final response = await _dio.delete(
-        '/exports/$exportId',
-      );
-      return response.data;
-    } catch (e) {
-      rethrow;
-    }
+    throw UnsupportedError(unsupportedMessage);
   }
 }

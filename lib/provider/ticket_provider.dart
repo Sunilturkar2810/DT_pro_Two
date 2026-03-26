@@ -24,7 +24,9 @@ class TicketProvider extends ChangeNotifier {
       final rawData = await _service.getMyTickets();
       _myTickets = rawData.map((json) => TicketModel.fromJson(json)).toList();
     } catch (e) {
-      _errorMessage = e.toString();
+      _errorMessage = e is UnsupportedError
+          ? TicketService.unsupportedMessage
+          : e.toString();
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -48,7 +50,9 @@ class TicketProvider extends ChangeNotifier {
       await fetchMyTickets();
       return true;
     } catch (e) {
-      _errorMessage = e.toString();
+      _errorMessage = e is UnsupportedError
+          ? TicketService.unsupportedMessage
+          : e.toString();
       _isLoading = false;
       notifyListeners();
       return false;
@@ -69,7 +73,9 @@ class TicketProvider extends ChangeNotifier {
       }
       return true;
     } catch (e) {
-      _errorMessage = e.toString();
+      _errorMessage = e is UnsupportedError
+          ? TicketService.unsupportedMessage
+          : e.toString();
       _isLoading = false;
       notifyListeners();
       return false;
@@ -83,7 +89,9 @@ class TicketProvider extends ChangeNotifier {
       final rawData = await _service.getAllTickets();
       _allTickets = rawData.map((json) => TicketModel.fromJson(json)).toList();
     } catch (e) {
-      _errorMessage = e.toString();
+      _errorMessage = e is UnsupportedError
+          ? TicketService.unsupportedMessage
+          : e.toString();
     } finally {
       _isLoading = false;
       notifyListeners();

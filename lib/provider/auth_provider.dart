@@ -93,6 +93,9 @@ class AuthProvider extends ChangeNotifier {
     required String role,
     required String designation,
     required String department,
+    String? reportingManagerId,
+    bool? taskAccess,
+    bool? leaveAccess,
   }) async {
     _isLoading = true;
     _errorMessage = null;
@@ -108,6 +111,10 @@ class AuthProvider extends ChangeNotifier {
         "role": role,
         "designation": designation,
         "department": department,
+        if (reportingManagerId != null && reportingManagerId.isNotEmpty)
+          "reportingManagerId": reportingManagerId,
+        if (taskAccess != null) "taskAccess": taskAccess,
+        if (leaveAccess != null) "leaveAccess": leaveAccess,
       };
 
       final resp = await _authService.register(registrationData);

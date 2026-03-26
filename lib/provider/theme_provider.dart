@@ -54,6 +54,37 @@ class ThemeProvider with ChangeNotifier {
     drawerTheme: const DrawerThemeData(
       backgroundColor: Colors.white,
     ),
+    dialogTheme: DialogThemeData(
+      backgroundColor: Colors.white,
+      surfaceTintColor: Colors.white,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      titleTextStyle: const TextStyle(
+        color: Color(0xFF1A1A1A),
+        fontSize: 18,
+        fontWeight: FontWeight.bold,
+      ),
+      contentTextStyle: const TextStyle(
+        color: Color(0xFF495057),
+        fontSize: 14,
+      ),
+    ),
+    bottomSheetTheme: const BottomSheetThemeData(
+      backgroundColor: Colors.white,
+      modalBackgroundColor: Colors.white,
+      surfaceTintColor: Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+    ),
+    popupMenuTheme: PopupMenuThemeData(
+      color: Colors.white,
+      surfaceTintColor: Colors.white,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      textStyle: const TextStyle(
+        color: Color(0xFF1A1A1A),
+        fontSize: 13,
+      ),
+    ),
     bottomNavigationBarTheme: const BottomNavigationBarThemeData(
       backgroundColor: primaryGreen,
       selectedItemColor: Colors.black,
@@ -99,6 +130,37 @@ class ThemeProvider with ChangeNotifier {
     ),
     drawerTheme: const DrawerThemeData(
       backgroundColor: Color(0xFF1E1E2E),
+    ),
+    dialogTheme: DialogThemeData(
+      backgroundColor: const Color(0xFF1E1E2E),
+      surfaceTintColor: const Color(0xFF1E1E2E),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      titleTextStyle: const TextStyle(
+        color: Colors.white,
+        fontSize: 18,
+        fontWeight: FontWeight.bold,
+      ),
+      contentTextStyle: const TextStyle(
+        color: Color(0xFFCBD5E1),
+        fontSize: 14,
+      ),
+    ),
+    bottomSheetTheme: const BottomSheetThemeData(
+      backgroundColor: Color(0xFF1E1E2E),
+      modalBackgroundColor: Color(0xFF1E1E2E),
+      surfaceTintColor: Color(0xFF1E1E2E),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+    ),
+    popupMenuTheme: PopupMenuThemeData(
+      color: const Color(0xFF1E1E2E),
+      surfaceTintColor: const Color(0xFF1E1E2E),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      textStyle: const TextStyle(
+        color: Colors.white,
+        fontSize: 13,
+      ),
     ),
     bottomNavigationBarTheme: const BottomNavigationBarThemeData(
       backgroundColor: Color(0xFF1E1E2E),

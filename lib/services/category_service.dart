@@ -4,6 +4,8 @@ import 'dio_client.dart';
 
 class CategoryService {
   final Dio _dio = DioClient().dio;
+  static const String _unsupportedMessage =
+      'This category action is not supported by the current backend.';
 
   // Get all categories with task count
   Future<List<Map<String, dynamic>>> getAllCategories() async {
@@ -18,11 +20,13 @@ class CategoryService {
 
   // Get single category by ID
   Future<Map<String, dynamic>> getCategoryById(String categoryId) async {
+    final categories = await getAllCategories();
     try {
-      final response = await _dio.get('${ApiConstants.categories}/$categoryId');
-      return Map<String, dynamic>.from(response.data ?? {});
-    } catch (e) {
-      throw Exception('Failed to fetch category: $e');
+      return categories.firstWhere(
+        (category) => category['id']?.toString() == categoryId,
+      );
+    } catch (_) {
+      throw Exception('Category not found');
     }
   }
 
@@ -51,18 +55,7 @@ class CategoryService {
     required String name,
     required String color,
   }) async {
-    try {
-      final response = await _dio.put(
-        '${ApiConstants.categories}/$categoryId',
-        data: {
-          'name': name.trim(),
-          'color': color.trim(),
-        },
-      );
-      return Map<String, dynamic>.from(response.data ?? {});
-    } catch (e) {
-      throw Exception('Failed to update category: $e');
-    }
+    throw UnsupportedError(_unsupportedMessage);
   }
 
   // Delete category
@@ -76,42 +69,25 @@ class CategoryService {
 
   // Delete all tasks in category
   Future<Map<String, dynamic>> deleteCategoryTasks(String categoryId) async {
-    try {
-      final response = await _dio.delete(
-        '${ApiConstants.categories}/$categoryId/tasks',
-        data: {}
-      );
-      return Map<String, dynamic>.from(response.data ?? {});
-    } catch (e) {
-      throw Exception('Failed to delete tasks: $e');
-    }
+    throw UnsupportedError(_unsupportedMessage);
   }
 
   // Remove category link from tasks (keep tasks, remove category)
   Future<Map<String, dynamic>> removeCategoryLink(String categoryId) async {
-    try {
-      final response = await _dio.delete(
-        '${ApiConstants.categories}/$categoryId/unlink',
-        data: {}
-      );
-      return Map<String, dynamic>.from(response.data ?? {});
-    } catch (e) {
-      throw Exception('Failed to remove category link: $e');
-    }
+    throw UnsupportedError(_unsupportedMessage);
   }
 
   // Search categories
   Future<List<Map<String, dynamic>>> searchCategories(String query) async {
-    try {
-      final response = await _dio.get(
-        '${ApiConstants.categories}/search',
-        queryParameters: {'search': query},
-      );
-      final categories = List<Map<String, dynamic>>.from(response.data ?? []);
+    final categories = await getAllCategories();
+    final normalizedQuery = query.trim().toLowerCase();
+    if (normalizedQuery.isEmpty) {
       return categories;
-    } catch (e) {
-      throw Exception('Failed to search categories: $e');
     }
+    return categories.where((category) {
+      final name = category['name']?.toString().toLowerCase() ?? '';
+      return name.contains(normalizedQuery);
+    }).toList();
   }
 
   // Legacy method for backward compatibility
@@ -124,4 +100,3 @@ class CategoryService {
     }
   }
 }
-

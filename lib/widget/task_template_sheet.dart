@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../provider/task_template_provider.dart';
 import '../provider/category_provider.dart';
 import '../provider/auth_provider.dart';
+import '../provider/theme_provider.dart';
 import '../model/task_template_model.dart';
 import '../model/category_model.dart';
 import 'app_dropdown.dart';
@@ -158,10 +159,11 @@ class _TaskTemplateSheetState extends State<TaskTemplateSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final appColors = Theme.of(context).extension<AppColors>()!;
     return Container(
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      decoration: BoxDecoration(
+        color: appColors.cardBackground,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
       ),
       child: SafeArea(
         child: Column(
@@ -176,17 +178,17 @@ class _TaskTemplateSheetState extends State<TaskTemplateSheet> {
                   Expanded(
                     child: Text(
                       widget.template == null ? 'Create Task Template' : 'Edit Task Template',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.w900,
-                        color: Color(0xFF1E293B),
+                        color: appColors.textPrimary,
                         letterSpacing: -0.5,
                       ),
                     ),
                   ),
                   IconButton(
                     onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.close, color: Colors.grey),
+                    icon: Icon(Icons.close, color: appColors.textMuted),
                   ),
                 ],
               ),
@@ -201,17 +203,17 @@ class _TaskTemplateSheetState extends State<TaskTemplateSheet> {
                     // Title Field
                     TextField(
                       controller: _titleController,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 22,
                         fontWeight: FontWeight.w800,
-                        color: Color(0xFF1E293B),
+                        color: appColors.textPrimary,
                       ),
                       decoration: InputDecoration(
                         hintText: "Template Title...",
                         hintStyle: TextStyle(
                           fontSize: 22,
                           fontWeight: FontWeight.w800,
-                          color: Colors.grey.shade300,
+                          color: appColors.textMuted.withOpacity(0.5),
                         ),
                         border: InputBorder.none,
                         contentPadding: EdgeInsets.zero,
@@ -223,17 +225,17 @@ class _TaskTemplateSheetState extends State<TaskTemplateSheet> {
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Icon(Icons.align_horizontal_left, size: 20, color: Colors.grey),
+                        Icon(Icons.align_horizontal_left, size: 20, color: appColors.textMuted),
                         const SizedBox(width: 12),
                         Expanded(
                           child: TextField(
                             controller: _descriptionController,
                             maxLines: 3,
                             minLines: 1,
-                            style: const TextStyle(fontSize: 14, color: Color(0xFF475569)),
-                            decoration: const InputDecoration(
+                            style: TextStyle(fontSize: 14, color: appColors.textSecondary),
+                            decoration: InputDecoration(
                               hintText: "Add description...",
-                              hintStyle: TextStyle(fontSize: 14, color: Colors.grey),
+                              hintStyle: TextStyle(fontSize: 14, color: appColors.textMuted),
                               border: InputBorder.none,
                               contentPadding: EdgeInsets.zero,
                             ),
@@ -243,7 +245,7 @@ class _TaskTemplateSheetState extends State<TaskTemplateSheet> {
                     ),
                     
                     const SizedBox(height: 24),
-                    const Divider(),
+                    Divider(color: appColors.divider),
                     const SizedBox(height: 16),
 
                     // Priority, Category, Frequency Dropdowns
@@ -310,17 +312,17 @@ class _TaskTemplateSheetState extends State<TaskTemplateSheet> {
                     ),
 
                     const SizedBox(height: 24),
-                    const Divider(),
+                    Divider(color: appColors.divider),
                     const SizedBox(height: 16),
                     
                     // Checklist Section
-                    const Text(
+                    Text(
                       'CHECKLIST',
                       style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w900,
                         letterSpacing: 1.0,
-                        color: Colors.grey,
+                        color: appColors.textMuted,
                       ),
                     ),
                     const SizedBox(height: 12),
@@ -331,16 +333,16 @@ class _TaskTemplateSheetState extends State<TaskTemplateSheet> {
                         padding: const EdgeInsets.only(bottom: 8.0),
                         child: Row(
                           children: [
-                            const Icon(Icons.check_box_outline_blank, size: 20, color: Colors.grey),
+                            Icon(Icons.check_box_outline_blank, size: 20, color: appColors.textMuted),
                             const SizedBox(width: 12),
                             Expanded(
                               child: Text(
                                 item['text'] ?? '',
-                                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFF1E293B)),
+                                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: appColors.textPrimary),
                               ),
                             ),
                             IconButton(
-                              icon: const Icon(Icons.close, size: 16, color: Colors.grey),
+                              icon: Icon(Icons.close, size: 16, color: appColors.textMuted),
                               onPressed: () => _removeChecklistItem(index),
                               padding: EdgeInsets.zero,
                               constraints: const BoxConstraints(),
@@ -359,10 +361,10 @@ class _TaskTemplateSheetState extends State<TaskTemplateSheet> {
                           child: TextField(
                             controller: _newChecklistItemController,
                             onSubmitted: (_) => _addChecklistItem(),
-                            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFF1E293B)),
-                            decoration: const InputDecoration(
+                            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: appColors.textPrimary),
+                            decoration: InputDecoration(
                               hintText: 'Add an item...',
-                              hintStyle: TextStyle(fontSize: 14, color: Colors.grey),
+                              hintStyle: TextStyle(fontSize: 14, color: appColors.textMuted),
                               border: InputBorder.none,
                               contentPadding: EdgeInsets.zero,
                             ),
@@ -383,8 +385,8 @@ class _TaskTemplateSheetState extends State<TaskTemplateSheet> {
             Container(
               padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
               decoration: BoxDecoration(
-                color: Colors.white,
-                border: Border(top: BorderSide(color: Colors.grey.shade100)),
+                color: appColors.cardBackground,
+                border: Border(top: BorderSide(color: appColors.divider)),
               ),
               child: ElevatedButton(
                 onPressed: _isSubmitting ? null : _submitTemplate,

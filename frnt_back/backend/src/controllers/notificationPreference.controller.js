@@ -16,11 +16,9 @@ export const getNotificationSettings = async (req, reply) => {
             return reply.status(200).send({
                 success: true,
                 data: {
-                    whatsappNotifications: false,
                     emailNotifications: false,
                     timezone: 'Asia/Kolkata',
                     dailyReminderTime: '09:00',
-                    whatsappReminders: false,
                     emailReminders: false,
                     dailyTaskReport: false,
                     weeklyOffs: ['Sunday'],

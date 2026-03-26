@@ -574,7 +574,13 @@ class _AllTasksScreenState extends State<AllTasksScreen>
               SizedBox(
                 height: 40,
                 child: ElevatedButton.icon(
-                  onPressed: () {},
+                  onPressed: () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Task export is not available in the current backend yet.'),
+                      ),
+                    );
+                  },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: primary,
                     foregroundColor: Colors.white,

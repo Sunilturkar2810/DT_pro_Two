@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../../provider/auth_provider.dart';
+import '../../provider/roles_provider.dart';
 import '../../provider/user_provider.dart';
 import '../../model/user_model.dart';
-import '../../services/auth_service.dart';
 
 class CreateMemberDialog extends StatefulWidget {
   final VoidCallback onSuccess;
@@ -41,7 +41,9 @@ class _CreateMemberDialogState extends State<CreateMemberDialog> {
 
   Future<void> _fetchRoles() async {
     try {
-      final roles = await AuthService().getRoles();
+      final rolesProvider = context.read<RolesProvider>();
+      await rolesProvider.fetchAllRoles();
+      final roles = rolesProvider.roles;
       final currentUser = context.read<AuthProvider>().currentUser;
       final isManager = currentUser?.role?.toUpperCase() == 'MANAGER';
       if (mounted) {
@@ -76,10 +78,26 @@ class _CreateMemberDialogState extends State<CreateMemberDialog> {
       // If custom role, create it first via API
       if (_isCustomRole && _customRoleCtrl.text.isNotEmpty) {
          try {
-           final Map<String, dynamic> newRole = await AuthService().createRole({'name': finalRole});
-           finalRole = newRole['name'] ?? finalRole;
+           final success = await context.read<RolesProvider>().createRole(
+             name: finalRole,
+             description: 'Created from team member dialog',
+           );
+           if (!success) {
+             if (mounted) {
+               _showSnackbar(
+                 context.read<RolesProvider>().errorMessage ?? 'Failed to create custom role',
+               );
+             }
+             return;
+           }
          } catch(e) {
-           // Might already exist, proceed
+           final message = e.toString();
+           if (!message.toLowerCase().contains('already exists')) {
+             if (mounted) {
+               _showSnackbar(message.replaceAll('Exception: ', ''));
+             }
+             return;
+           }
          }
       }
 
@@ -93,9 +111,10 @@ class _CreateMemberDialogState extends State<CreateMemberDialog> {
         role: finalRole,
         designation: _desigCtrl.text.trim(),
         department: _deptCtrl.text.trim(),
+        reportingManagerId: _selectedManagerId,
+        taskAccess: _taskAccess,
+        leaveAccess: _leaveAccess,
       );
-
-      // Warning: The flutter AuthProvider register doesn't officially send `reportingManagerId` or `taskAccess` inside its method call yet, so they are UI-only matching web for now unless API is updated.
       if (success) {
         if (mounted) {
           Navigator.pop(context);
@@ -126,8 +145,13 @@ class _CreateMemberDialogState extends State<CreateMemberDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final themeBg = Theme.of(context).brightness == Brightness.dark ? const Color(0xFF1E293B) : Colors.white;
-    final themeText = Theme.of(context).brightness == Brightness.dark ? Colors.white : const Color(0xFF1E293B);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final themeBg = isDark ? const Color(0xFF1E293B) : Colors.white;
+    final themeText = isDark ? Colors.white : const Color(0xFF1E293B);
+    final surfaceColor = isDark ? const Color(0xFF243244) : Colors.white;
+    final borderColor = isDark ? const Color(0xFF334155) : Colors.grey.shade200;
+    final hintColor = isDark ? const Color(0xFF94A3B8) : Colors.grey.shade400;
+    final footerColor = isDark ? const Color(0xFF182433) : Colors.grey.shade50;
     final users = context.read<UserProvider>().users;
     final currentUserInfo = context.read<AuthProvider>().currentUser;
     final bool canAddCustomRole = !(currentUserInfo?.role?.toUpperCase() == 'MANAGER');
@@ -144,7 +168,7 @@ class _CreateMemberDialogState extends State<CreateMemberDialog> {
             // Header
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-              decoration: BoxDecoration(border: Border(bottom: BorderSide(color: Colors.grey.shade200))),
+              decoration: BoxDecoration(border: Border(bottom: BorderSide(color: borderColor))),
               child: Row(
                 children: [
                   Container(
@@ -158,11 +182,11 @@ class _CreateMemberDialogState extends State<CreateMemberDialog> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text('Add New Team Member', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: themeText)),
-                        const Text('Create a new user account', style: TextStyle(fontSize: 12, color: Colors.grey, fontStyle: FontStyle.italic)),
+                        Text('Create a new user account', style: TextStyle(fontSize: 12, color: hintColor, fontStyle: FontStyle.italic)),
                       ],
                     ),
                   ),
-                  IconButton(icon: const Icon(Icons.close, color: Colors.grey), onPressed: () => Navigator.pop(context))
+                  IconButton(icon: Icon(Icons.close, color: hintColor), onPressed: () => Navigator.pop(context))
                 ],
               ),
             ),
@@ -198,18 +222,19 @@ class _CreateMemberDialogState extends State<CreateMemberDialog> {
                     const SizedBox(height: 6),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 12),
-                      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade200)),
+                      decoration: BoxDecoration(color: surfaceColor, borderRadius: BorderRadius.circular(8), border: Border.all(color: borderColor)),
                       child: DropdownButtonHideUnderline(
                         child: DropdownButton<String>(
+                          dropdownColor: surfaceColor,
                           isExpanded: true,
                           value: _isCustomRole ? 'Custom' : (_roles.map((e)=>e['name'].toString()).contains(_selectedRole) || _roles.isEmpty ? _selectedRole : null),
-                          hint: const Text("Select Role", style: TextStyle(fontSize: 13, color: Colors.grey)),
+                          hint: Text("Select Role", style: TextStyle(fontSize: 13, color: hintColor)),
                           items: [
-                            ..._roles.map((r) => DropdownMenuItem(value: r['name'].toString(), child: Text(r['name'].toString(), style: const TextStyle(fontSize: 13)))),
+                            ..._roles.map((r) => DropdownMenuItem(value: r['name'].toString(), child: Text(r['name'].toString(), style: TextStyle(fontSize: 13, color: themeText)))),
                             if (_roles.isEmpty) ...[
-                              const DropdownMenuItem(value: 'TEAM MEMBER', child: Text('TEAM MEMBER', style: TextStyle(fontSize: 13))),
-                              const DropdownMenuItem(value: 'MANAGER', child: Text('MANAGER', style: TextStyle(fontSize: 13))),
-                              const DropdownMenuItem(value: 'ADMIN', child: Text('ADMIN', style: TextStyle(fontSize: 13))),
+                              DropdownMenuItem(value: 'TEAM MEMBER', child: Text('TEAM MEMBER', style: TextStyle(fontSize: 13, color: themeText))),
+                              DropdownMenuItem(value: 'MANAGER', child: Text('MANAGER', style: TextStyle(fontSize: 13, color: themeText))),
+                              DropdownMenuItem(value: 'ADMIN', child: Text('ADMIN', style: TextStyle(fontSize: 13, color: themeText))),
                             ],
                             if (canAddCustomRole) const DropdownMenuItem(value: 'Custom', child: Text('Custom Role...', style: TextStyle(fontSize: 13, color: Color(0xFF20E19F), fontWeight: FontWeight.bold))),
                           ],
@@ -237,13 +262,14 @@ class _CreateMemberDialogState extends State<CreateMemberDialog> {
                     const SizedBox(height: 6),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 12),
-                      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade200)),
+                      decoration: BoxDecoration(color: surfaceColor, borderRadius: BorderRadius.circular(8), border: Border.all(color: borderColor)),
                       child: DropdownButtonHideUnderline(
                         child: DropdownButton<String>(
+                          dropdownColor: surfaceColor,
                           isExpanded: true,
                           value: _selectedManagerId.isEmpty ? null : _selectedManagerId,
-                          hint: const Text('Select Reporting Manager', style: TextStyle(fontSize: 13, color: Colors.grey)),
-                          items: users.map((u) => DropdownMenuItem(value: u.id, child: Text('${u.firstName} ${u.lastName} (${u.role})', style: const TextStyle(fontSize: 13)))).toList(),
+                          hint: Text('Select Reporting Manager', style: TextStyle(fontSize: 13, color: hintColor)),
+                          items: users.map((u) => DropdownMenuItem(value: u.id, child: Text('${u.firstName} ${u.lastName} (${u.role})', style: TextStyle(fontSize: 13, color: themeText)))).toList(),
                           onChanged: (val) => setState(() => _selectedManagerId = val ?? ""),
                         ),
                       ),
@@ -272,7 +298,7 @@ class _CreateMemberDialogState extends State<CreateMemberDialog> {
             // Footer
             Container(
               padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(color: Colors.grey.shade50, border: Border(top: BorderSide(color: Colors.grey.shade200)), borderRadius: const BorderRadius.only(bottomLeft: Radius.circular(20), bottomRight: Radius.circular(20))),
+              decoration: BoxDecoration(color: footerColor, border: Border(top: BorderSide(color: borderColor)), borderRadius: const BorderRadius.only(bottomLeft: Radius.circular(20), bottomRight: Radius.circular(20))),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
@@ -295,6 +321,10 @@ class _CreateMemberDialogState extends State<CreateMemberDialog> {
   }
 
   Widget _buildInput(String label, TextEditingController controller, {bool req = false, String hint = "", String helper = ""}) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final surfaceColor = isDark ? const Color(0xFF243244) : Colors.white;
+    final borderColor = isDark ? const Color(0xFF334155) : Colors.grey.shade200;
+    final hintColor = isDark ? const Color(0xFF94A3B8) : Colors.grey.shade400;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -302,35 +332,37 @@ class _CreateMemberDialogState extends State<CreateMemberDialog> {
         const SizedBox(height: 6),
         TextField(
           controller: controller,
-          style: const TextStyle(fontSize: 13),
+          style: TextStyle(fontSize: 13, color: isDark ? Colors.white : Colors.black87),
           decoration: InputDecoration(
             hintText: hint,
-            hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 13),
+            hintStyle: TextStyle(color: hintColor, fontSize: 13),
             filled: true,
-            fillColor: Colors.white,
+            fillColor: surfaceColor,
             contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: Colors.grey.shade300)),
-            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: Colors.grey.shade200)),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: borderColor)),
+            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: borderColor)),
             focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Color(0xFF20E19F))),
           ),
         ),
         if (helper.isNotEmpty) ...[
           const SizedBox(height: 4),
-          Text(helper, style: const TextStyle(fontSize: 10, color: Colors.grey)),
+          Text(helper, style: TextStyle(fontSize: 10, color: hintColor)),
         ]
       ],
     );
   }
 
   Widget _buildLabel(String text) {
-    return Text(text, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey));
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Text(text, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: isDark ? const Color(0xFFCBD5E1) : Colors.grey));
   }
 
   Widget _buildToggleRow(String title, bool val, ValueChanged<bool> onChanged) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(title, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.black87)),
+        Text(title, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black87)),
         Switch(
           value: val, 
           onChanged: onChanged,

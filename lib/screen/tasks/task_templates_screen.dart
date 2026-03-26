@@ -49,6 +49,12 @@ class _TaskTemplatesScreenState extends State<TaskTemplatesScreen> {
     }
   }
 
+  void _showUnavailableMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+
   Widget _buildActiveChip(String label, VoidCallback onClear) {
     return Container(
       margin: const EdgeInsets.only(right: 6),
@@ -370,7 +376,11 @@ class _TaskTemplatesScreenState extends State<TaskTemplatesScreen> {
                                             tooltip: 'Assign from Template',
                                             constraints: const BoxConstraints(),
                                             padding: const EdgeInsets.symmetric(horizontal: 4),
-                                            onPressed: () {},
+                                            onPressed: () {
+                                              _showUnavailableMessage(
+                                                'Direct assignment from task templates is not available in this screen yet.',
+                                              );
+                                            },
                                           ),
                                           IconButton(
                                             icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 20),

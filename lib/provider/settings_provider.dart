@@ -1,33 +1,34 @@
 import 'package:flutter/material.dart';
-import '../services/settings_service.dart';
+
 import '../services/dio_client.dart';
+import '../services/settings_service.dart';
 
 class SettingsProvider extends ChangeNotifier {
   final SettingsService _service = SettingsService(DioClient().dio);
+  static const String _unsupportedMessage =
+      'These workspace settings are not available in the current backend yet.';
 
-  // General Settings
   Map<String, dynamic> _generalSettings = {
     'companyName': '',
     'businessIndustry': '',
     'companySize': ''
   };
 
-  // Task Update Settings
   Map<String, dynamic> _taskUpdateSettings = {
     'remarksRequired': true,
     'attachmentsRequired': false,
     'imagesRequired': false
   };
 
-  // Notification Settings
   Map<String, dynamic> _notificationSettings = {
-    'informaticsNotifications': true,
-    'emailNotifications': true,
-    'dailyReminder': true,
-    'emailReminders': true,
-    'taskReminderTime': '09:00',
-    'weeklyOnly': false,
-    'reminderDays': [],
+    'whatsappNotifications': false,
+    'emailNotifications': false,
+    'timezone': 'Asia/Kolkata',
+    'dailyReminderTime': '09:00',
+    'whatsappReminders': false,
+    'emailReminders': false,
+    'dailyTaskReport': false,
+    'weeklyOffs': ['Sunday'],
     'notificationChannels': {},
     'notificationFrequency': {}
   };
@@ -35,17 +36,15 @@ class SettingsProvider extends ChangeNotifier {
   bool _isLoading = false;
   String? _errorMessage;
 
-  // Getters
   Map<String, dynamic> get generalSettings => _generalSettings;
   Map<String, dynamic> get taskUpdateSettings => _taskUpdateSettings;
   Map<String, dynamic> get notificationSettings => _notificationSettings;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
 
-  // ========== GENERAL SETTINGS (Not available in new backend) ==========
   Future<void> fetchGeneralSettings() async {
-    // ⚠️ Not available in new backend — silently skip
-    return;
+    _errorMessage = _unsupportedMessage;
+    notifyListeners();
   }
 
   Future<bool> updateGeneralSettings({
@@ -53,20 +52,14 @@ class SettingsProvider extends ChangeNotifier {
     required String? businessIndustry,
     required String? companySize,
   }) async {
-    // ⚠️ Not available in new backend
-    _generalSettings = {
-      'companyName': companyName ?? '',
-      'businessIndustry': businessIndustry ?? '',
-      'companySize': companySize ?? ''
-    };
+    _errorMessage = _unsupportedMessage;
     notifyListeners();
-    return true; // simulate success
+    return false;
   }
 
-  // ========== TASK UPDATE SETTINGS (Not available in new backend) ==========
   Future<void> fetchTaskUpdateSettings() async {
-    // ⚠️ Not available in new backend — silently skip
-    return;
+    _errorMessage = _unsupportedMessage;
+    notifyListeners();
   }
 
   Future<bool> updateTaskUpdateSettings({
@@ -74,17 +67,11 @@ class SettingsProvider extends ChangeNotifier {
     required bool attachmentsRequired,
     required bool imagesRequired,
   }) async {
-    // ⚠️ Not available in new backend — save locally only
-    _taskUpdateSettings = {
-      'remarksRequired': remarksRequired,
-      'attachmentsRequired': attachmentsRequired,
-      'imagesRequired': imagesRequired
-    };
+    _errorMessage = _unsupportedMessage;
     notifyListeners();
-    return true; // simulate success
+    return false;
   }
 
-  // ========== NOTIFICATION SETTINGS ==========
   Future<void> fetchNotificationSettings() async {
     _isLoading = true;
     _errorMessage = null;
@@ -93,20 +80,23 @@ class SettingsProvider extends ChangeNotifier {
     try {
       final data = await _service.getNotificationSettings();
       _notificationSettings = {
-        'informaticsNotifications': data['informaticsNotifications'] ?? true,
-        'emailNotifications': data['emailNotifications'] ?? true,
-        'dailyReminder': data['dailyReminder'] ?? true,
-        'emailReminders': data['emailReminders'] ?? true,
-        'taskReminderTime': data['taskReminderTime'] ?? '09:00',
-        'weeklyOnly': data['weeklyOnly'] ?? false,
-        'reminderDays': data['reminderDays'] ?? [],
-        'notificationChannels': data['notificationChannels'] ?? {},
-        'notificationFrequency': data['notificationFrequency'] ?? {}
+        'whatsappNotifications': data['whatsappNotifications'] ?? false,
+        'emailNotifications': data['emailNotifications'] ?? false,
+        'timezone': data['timezone'] ?? 'Asia/Kolkata',
+        'dailyReminderTime': data['dailyReminderTime'] ?? '09:00',
+        'whatsappReminders': data['whatsappReminders'] ?? false,
+        'emailReminders': data['emailReminders'] ?? false,
+        'dailyTaskReport': data['dailyTaskReport'] ?? false,
+        'weeklyOffs': List<String>.from(data['weeklyOffs'] ?? ['Sunday']),
+        'notificationChannels': Map<String, dynamic>.from(
+          data['notificationChannels'] ?? {},
+        ),
+        'notificationFrequency': Map<String, dynamic>.from(
+          data['notificationFrequency'] ?? {},
+        )
       };
-      print('✅ Notification settings fetched');
     } catch (e) {
       _errorMessage = e.toString();
-      print('❌ Fetch notification settings error: $_errorMessage');
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -114,13 +104,14 @@ class SettingsProvider extends ChangeNotifier {
   }
 
   Future<bool> updateNotificationSettings({
-    required bool informaticsNotifications,
+    required bool whatsappNotifications,
     required bool emailNotifications,
-    required bool dailyReminder,
+    required String timezone,
+    required String dailyReminderTime,
+    required bool whatsappReminders,
     required bool emailReminders,
-    required String taskReminderTime,
-    required bool weeklyOnly,
-    required List<String> reminderDays,
+    required bool dailyTaskReport,
+    required List<String> weeklyOffs,
     required Map<String, dynamic> notificationChannels,
     required Map<String, dynamic> notificationFrequency,
   }) async {
@@ -130,33 +121,33 @@ class SettingsProvider extends ChangeNotifier {
 
     try {
       final settingsMap = {
-        'informaticsNotifications': informaticsNotifications,
+        'whatsappNotifications': whatsappNotifications,
         'emailNotifications': emailNotifications,
-        'dailyReminder': dailyReminder,
+        'timezone': timezone,
+        'dailyReminderTime': dailyReminderTime,
+        'whatsappReminders': whatsappReminders,
         'emailReminders': emailReminders,
-        'taskReminderTime': taskReminderTime,
-        'weeklyOnly': weeklyOnly,
-        'reminderDays': reminderDays,
+        'dailyTaskReport': dailyTaskReport,
+        'weeklyOffs': weeklyOffs,
         'notificationChannels': notificationChannels,
         'notificationFrequency': notificationFrequency
       };
       await _service.updateNotificationSettings(
-        informaticsNotifications: informaticsNotifications,
+        whatsappNotifications: whatsappNotifications,
         emailNotifications: emailNotifications,
-        dailyReminder: dailyReminder,
+        timezone: timezone,
+        dailyReminderTime: dailyReminderTime,
+        whatsappReminders: whatsappReminders,
         emailReminders: emailReminders,
-        taskReminderTime: taskReminderTime,
-        weeklyOnly: weeklyOnly,
-        reminderDays: reminderDays,
+        dailyTaskReport: dailyTaskReport,
+        weeklyOffs: weeklyOffs,
         notificationChannels: notificationChannels,
         notificationFrequency: notificationFrequency,
       );
       _notificationSettings = settingsMap;
-      print('✅ Notification settings updated successfully');
       return true;
     } catch (e) {
       _errorMessage = e.toString();
-      print('❌ Update notification settings error: $_errorMessage');
       return false;
     } finally {
       _isLoading = false;
@@ -164,8 +155,6 @@ class SettingsProvider extends ChangeNotifier {
     }
   }
 
-  // ========== CHANGE PASSWORD (NEW) ==========
-  /// PUT /auth/users/:userId/credentials
   Future<bool> changeCredentials({
     required String userId,
     required String oldPassword,
@@ -183,11 +172,9 @@ class SettingsProvider extends ChangeNotifier {
         newPassword: newPassword,
         newEmail: newEmail,
       );
-      print('✅ Credentials changed successfully');
       return true;
     } catch (e) {
       _errorMessage = e.toString();
-      print('❌ Change credentials error: $_errorMessage');
       return false;
     } finally {
       _isLoading = false;
@@ -195,7 +182,6 @@ class SettingsProvider extends ChangeNotifier {
     }
   }
 
-  // ========== BULK FETCH ALL SETTINGS ==========
   Future<void> fetchAllSettings() async {
     _isLoading = true;
     _errorMessage = null;
@@ -205,12 +191,10 @@ class SettingsProvider extends ChangeNotifier {
       await Future.wait([
         fetchGeneralSettings(),
         fetchTaskUpdateSettings(),
-        fetchNotificationSettings()
+        fetchNotificationSettings(),
       ]);
-      print('✅ All settings fetched successfully');
     } catch (e) {
       _errorMessage = e.toString();
-      print('❌ Fetch all settings error: $_errorMessage');
     } finally {
       _isLoading = false;
       notifyListeners();

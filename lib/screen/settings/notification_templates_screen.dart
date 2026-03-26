@@ -30,6 +30,9 @@ class _NotificationTemplatesScreenState extends State<NotificationTemplatesScree
   };
 
   final List<Map<String, String>> _variables = [
+    {'key': '{title}', 'label': 'Title', 'desc': 'Notification title text'},
+    {'key': '{message}', 'label': 'Message', 'desc': 'Notification message summary'},
+    {'key': '{taskId}', 'label': 'Task ID', 'desc': 'Related task identifier'},
     {'key': '{taskTitle}', 'label': 'Task Title', 'desc': 'The title of the task'},
     {'key': '{taskDescription}', 'label': 'Description', 'desc': 'Task description'},
     {'key': '{priority}', 'label': 'Priority', 'desc': 'Task priority level'},
@@ -37,22 +40,32 @@ class _NotificationTemplatesScreenState extends State<NotificationTemplatesScree
     {'key': '{dueDate}', 'label': 'Due Date', 'desc': 'Formatted due date'},
     {'key': '{assignerName}', 'label': 'Assigner', 'desc': 'Who assigned the task'},
     {'key': '{doerName}', 'label': 'Assignee', 'desc': 'Who is assigned'},
+    {'key': '{userName}', 'label': 'User Name', 'desc': 'Target user name for generic notifications'},
     {'key': '{updatedBy}', 'label': 'Updated By', 'desc': 'Who edited the task'},
     {'key': '{status}', 'label': 'Status', 'desc': 'Current task status'},
     {'key': '{remark}', 'label': 'Remark', 'desc': 'Recent comment'},
     {'key': '{commenterName}', 'label': 'Commenter', 'desc': 'Who added the remark'},
     {'key': '{taskList}', 'label': 'Task List', 'desc': 'Summary list (Daily Report)'},
+    {'key': '{reminderChannel}', 'label': 'Reminder Channel', 'desc': 'Email, WhatsApp, or both'},
+    {'key': '{html}', 'label': 'HTML Content', 'desc': 'Raw HTML fallback from backend'},
+    {'key': '{attachments}', 'label': 'Attachments', 'desc': 'Attachment summary when provided'},
   ];
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _loadTemplate();
+      _loadInitialData();
     });
   }
 
-  void _loadTemplate() async {
+  Future<void> _loadInitialData() async {
+    final provider = context.read<NotificationProvider>();
+    await provider.fetchTemplates();
+    await _loadTemplate();
+  }
+
+  Future<void> _loadTemplate() async {
     final provider = context.read<NotificationProvider>();
     await provider.fetchTemplate(_activeEvent, _activeChannel);
     if (provider.activeTemplate != null) {
@@ -70,7 +83,7 @@ class _NotificationTemplatesScreenState extends State<NotificationTemplatesScree
     }
   }
 
-  void _saveTemplate() async {
+  Future<void> _saveTemplate() async {
     final provider = context.read<NotificationProvider>();
     final success = await provider.saveTemplate({
       'eventName': _activeEvent,
@@ -80,12 +93,53 @@ class _NotificationTemplatesScreenState extends State<NotificationTemplatesScree
       'isActive': _isActive,
     });
     if (success && mounted) {
+      await provider.fetchTemplates();
+      await provider.fetchTemplate(_activeEvent, _activeChannel);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text("Template saved successfully!"), 
           backgroundColor: Color(0xFF10B981),
           behavior: SnackBarBehavior.floating,
         )
+      );
+    }
+  }
+
+  Future<void> _deleteTemplate() async {
+    final provider = context.read<NotificationProvider>();
+    final templateId = provider.activeTemplate?['id']?.toString();
+    if (templateId == null || templateId.isEmpty) return;
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Template'),
+        content: const Text('Remove the current template for this event and channel?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    final success = await provider.deleteTemplate(templateId);
+    if (success && mounted) {
+      await provider.fetchTemplates();
+      await _loadTemplate();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Template deleted successfully'),
+          backgroundColor: Color(0xFF10B981),
+          behavior: SnackBarBehavior.floating,
+        ),
       );
     }
   }
@@ -103,6 +157,38 @@ class _NotificationTemplatesScreenState extends State<NotificationTemplatesScree
     } else {
       _bodyController.text += key;
     }
+  }
+
+  bool _hasTemplateForEvent(
+    NotificationProvider provider,
+    String eventName,
+  ) {
+    return provider.templates.any(
+      (template) =>
+          template['eventName'] == eventName &&
+          template['channel'] == _activeChannel,
+    );
+  }
+
+  List<Map<String, dynamic>> _templatesForActiveChannel(
+    NotificationProvider provider,
+  ) {
+    final filtered = provider.templates
+        .where((template) => template['channel'] == _activeChannel)
+        .toList();
+    filtered.sort(
+      (a, b) => (a['eventName'] ?? '').toString().compareTo(
+            (b['eventName'] ?? '').toString(),
+          ),
+    );
+    return filtered;
+  }
+
+  @override
+  void dispose() {
+    _subjectController.dispose();
+    _bodyController.dispose();
+    super.dispose();
   }
 
   @override
@@ -124,8 +210,8 @@ class _NotificationTemplatesScreenState extends State<NotificationTemplatesScree
             builder: (context, provider, _) {
               return Padding(
                 padding: const EdgeInsets.only(right: 16, top: 8, bottom: 8),
-                child: ElevatedButton.icon(
-                  onPressed: provider.isTemplateLoading ? null : _saveTemplate,
+                  child: ElevatedButton.icon(
+                    onPressed: provider.isTemplateLoading ? null : _saveTemplate,
                   icon: provider.isTemplateLoading 
                     ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                     : const Icon(LucideIcons.save, size: 16),
@@ -140,81 +226,114 @@ class _NotificationTemplatesScreenState extends State<NotificationTemplatesScree
               );
             }
           ),
+          Consumer<NotificationProvider>(
+            builder: (context, provider, _) {
+              final hasCurrentTemplate =
+                  provider.activeTemplate?['id']?.toString().isNotEmpty == true;
+              return Padding(
+                padding: const EdgeInsets.only(right: 16, top: 8, bottom: 8),
+                child: OutlinedButton.icon(
+                  onPressed: (!hasCurrentTemplate || provider.isTemplateLoading)
+                      ? null
+                      : _deleteTemplate,
+                  icon: const Icon(LucideIcons.trash2, size: 16),
+                  label: const Text('DELETE'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.redAccent,
+                    side: const BorderSide(color: Colors.redAccent),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
         ],
       ),
-      body: Row(
-        children: [
-          // Sidebar - Event Types
-          Container(
-            width: 160,
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              border: Border(right: BorderSide(color: Color(0xFFF1F5F9))),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Padding(
-                  padding: EdgeInsets.fromLTRB(16, 24, 16, 12),
-                  child: Text("EVENT TYPES", 
-                    style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: Color(0xFF94A3B8), letterSpacing: 1.5)
+      body: Consumer<NotificationProvider>(
+        builder: (context, provider, _) => Row(
+          children: [
+            // Sidebar - Event Types
+            Container(
+              width: 160,
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                border: Border(right: BorderSide(color: Color(0xFFF1F5F9))),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Padding(
+                    padding: EdgeInsets.fromLTRB(16, 24, 16, 12),
+                    child: Text("EVENT TYPES", 
+                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: Color(0xFF94A3B8), letterSpacing: 1.5)
+                    ),
                   ),
-                ),
-                Expanded(
-                  child: ListView(
-                    padding: const EdgeInsets.symmetric(horizontal: 10),
-                    children: _events.entries.map((e) {
-                      bool active = _activeEvent == e.key;
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 4),
-                        child: InkWell(
-                          onTap: () {
-                            setState(() => _activeEvent = e.key);
-                            _loadTemplate();
-                          },
-                          borderRadius: BorderRadius.circular(12),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
-                            decoration: BoxDecoration(
-                              color: active ? const Color(0xFF10B981) : Colors.transparent,
-                              borderRadius: BorderRadius.circular(12),
-                              boxShadow: active ? [
-                                BoxShadow(color: const Color(0xFF10B981).withOpacity(0.3), blurRadius: 8, offset: const Offset(0, 4))
-                              ] : null,
-                            ),
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  child: Text(e.value, 
-                                    style: TextStyle(
-                                      fontSize: 12, 
-                                      fontWeight: active ? FontWeight.bold : FontWeight.w600, 
-                                      color: active ? Colors.white : const Color(0xFF64748B)
-                                    )
+                  Expanded(
+                    child: ListView(
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                      children: _events.entries.map((e) {
+                        bool active = _activeEvent == e.key;
+                        final hasTemplate = _hasTemplateForEvent(provider, e.key);
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 4),
+                          child: InkWell(
+                            onTap: () {
+                              setState(() => _activeEvent = e.key);
+                              _loadTemplate();
+                            },
+                            borderRadius: BorderRadius.circular(12),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
+                              decoration: BoxDecoration(
+                                color: active ? const Color(0xFF10B981) : Colors.transparent,
+                                borderRadius: BorderRadius.circular(12),
+                                boxShadow: active ? [
+                                  BoxShadow(color: const Color(0xFF10B981).withOpacity(0.3), blurRadius: 8, offset: const Offset(0, 4))
+                                ] : null,
+                              ),
+                              child: Row(
+                                children: [
+                                  if (hasTemplate)
+                                    Container(
+                                      width: 8,
+                                      height: 8,
+                                      margin: const EdgeInsets.only(right: 8),
+                                      decoration: BoxDecoration(
+                                        color: active
+                                            ? Colors.white
+                                            : const Color(0xFF10B981),
+                                        shape: BoxShape.circle,
+                                      ),
+                                    ),
+                                  Expanded(
+                                    child: Text(e.value, 
+                                      style: TextStyle(
+                                        fontSize: 12, 
+                                        fontWeight: active ? FontWeight.bold : FontWeight.w600, 
+                                        color: active ? Colors.white : const Color(0xFF64748B)
+                                      )
+                                    ),
                                   ),
-                                ),
-                                if (active) const Icon(LucideIcons.check, size: 14, color: Colors.white),
-                              ],
+                                  if (active) const Icon(LucideIcons.check, size: 14, color: Colors.white),
+                                ],
+                              ),
                             ),
                           ),
-                        ),
-                      );
-                    }).toList(),
+                        );
+                      }).toList(),
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-          
-          // Main Content
-          Expanded(
-            child: Consumer<NotificationProvider>(
-              builder: (context, provider, _) {
-                if (provider.isTemplateLoading && provider.activeTemplate == null) {
-                  return const Center(child: CircularProgressIndicator(color: Color(0xFF10B981)));
-                }
-
-                return SingleChildScrollView(
+            
+            // Main Content
+            Expanded(
+              child: provider.isTemplateLoading && provider.activeTemplate == null
+                  ? const Center(child: CircularProgressIndicator(color: Color(0xFF10B981)))
+                  : SingleChildScrollView(
                   padding: const EdgeInsets.all(24),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -231,6 +350,17 @@ class _NotificationTemplatesScreenState extends State<NotificationTemplatesScree
                               ),
                               const Text("Design how this notification will look", 
                                 style: TextStyle(fontSize: 12, color: Color(0xFF64748B), fontWeight: FontWeight.w500)
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                provider.activeTemplate == null
+                                    ? 'No saved template for this event/channel yet'
+                                    : 'Saved template is loaded from backend',
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  color: Color(0xFF94A3B8),
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
                             ],
                           ),
@@ -274,118 +404,171 @@ class _NotificationTemplatesScreenState extends State<NotificationTemplatesScree
                       ),
                       const SizedBox(height: 32),
                       
-                      Row(
+                      Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // Editor Section
-                          Expanded(
-                            flex: 2,
-                            child: Column(
+                          if (_activeChannel == 'email') ...[
+                            _buildSectionLabel("EMAIL SUBJECT"),
+                            TextField(
+                              controller: _subjectController,
+                              decoration: _inputDeco("Enter email subject..."),
+                              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF334155)),
+                            ),
+                            const SizedBox(height: 24),
+                          ],
+                          Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFECFDF5),
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: const Color(0xFFD1FAE5)),
+                            ),
+                            child: const Row(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                if (_activeChannel == 'email') ...[
-                                  _buildSectionLabel("EMAIL SUBJECT"),
-                                  TextField(
-                                    controller: _subjectController,
-                                    decoration: _inputDeco("Enter email subject..."),
-                                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF334155)),
+                                Icon(LucideIcons.info, size: 16, color: Color(0xFF059669)),
+                                SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    "Available variables are loaded above the body. Tap any chip to insert it at the current cursor position.",
+                                    style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Color(0xFF065F46)),
                                   ),
-                                  const SizedBox(height: 24),
-                                ],
-                                
-                                _buildSectionLabel(_activeChannel == 'email' ? "EMAIL BODY (HTML SUPPORTED)" : "WHATSAPP MESSAGE"),
-                                TextField(
-                                  controller: _bodyController,
-                                  maxLines: 12,
-                                  decoration: _inputDeco("Enter content here..."),
-                                  style: const TextStyle(fontSize: 13, fontFamily: 'monospace', color: Color(0xFF334155), height: 1.5),
                                 ),
                               ],
                             ),
                           ),
-                          const SizedBox(width: 24),
-                          
-                          // Variables Sidebar
-                          Expanded(
-                            flex: 1,
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.all(16),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFECFDF5),
-                                    borderRadius: BorderRadius.circular(16),
-                                    border: Border.all(color: const Color(0xFFD1FAE5)),
-                                  ),
-                                  child: const Row(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Icon(LucideIcons.info, size: 16, color: Color(0xFF059669)),
-                                      SizedBox(width: 10),
-                                      Expanded(
-                                        child: Text(
-                                          "Click a variable to insert it into your content.",
-                                          style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Color(0xFF065F46)),
+                          const SizedBox(height: 16),
+                          _buildSectionLabel("AVAILABLE VARIABLES"),
+                          SizedBox(
+                            height: 78,
+                            child: ListView.separated(
+                              scrollDirection: Axis.horizontal,
+                              physics: const BouncingScrollPhysics(),
+                              itemCount: _variables.length,
+                              separatorBuilder: (_, __) => const SizedBox(width: 10),
+                              itemBuilder: (context, index) {
+                                final variable = _variables[index];
+                                return _variableChip(
+                                  keyText: variable['key']!,
+                                  label: variable['label']!,
+                                  onTap: () => _insertVariable(variable['key']!),
+                                );
+                              },
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+                          _buildSectionLabel(
+                            _activeChannel == 'email'
+                                ? "EMAIL BODY (HTML SUPPORTED)"
+                                : "WHATSAPP MESSAGE",
+                          ),
+                          TextField(
+                            controller: _bodyController,
+                            maxLines: 12,
+                            decoration: _inputDeco("Enter content here..."),
+                            style: const TextStyle(fontSize: 13, fontFamily: 'monospace', color: Color(0xFF334155), height: 1.5),
+                          ),
+                          const SizedBox(height: 24),
+                          _buildSectionLabel("SAVED TEMPLATES"),
+                          Container(
+                            height: 160,
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(color: const Color(0xFFF1F5F9)),
+                            ),
+                            child: Builder(
+                              builder: (context) {
+                                final templates = _templatesForActiveChannel(provider);
+                                if (templates.isEmpty) {
+                                  return const Center(
+                                    child: Text(
+                                      'No saved templates for this channel',
+                                      textAlign: TextAlign.center,
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        color: Color(0xFF94A3B8),
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  );
+                                }
+
+                                return ListView.separated(
+                                  scrollDirection: Axis.horizontal,
+                                  itemCount: templates.length,
+                                  separatorBuilder: (_, __) => const SizedBox(width: 10),
+                                  itemBuilder: (context, index) {
+                                    final template = templates[index];
+                                    final eventName = template['eventName']?.toString() ?? '';
+                                    final isCurrent =
+                                        eventName == _activeEvent &&
+                                        template['channel'] == _activeChannel;
+                                    return InkWell(
+                                      onTap: () {
+                                        setState(() => _activeEvent = eventName);
+                                        _loadTemplate();
+                                      },
+                                      borderRadius: BorderRadius.circular(12),
+                                      child: Container(
+                                        width: 180,
+                                        padding: const EdgeInsets.all(12),
+                                        decoration: BoxDecoration(
+                                          color: isCurrent
+                                              ? const Color(0xFFECFDF5)
+                                              : const Color(0xFFF8FAFC),
+                                          borderRadius: BorderRadius.circular(12),
+                                          border: Border.all(
+                                            color: isCurrent
+                                                ? const Color(0xFFD1FAE5)
+                                                : const Color(0xFFF1F5F9),
+                                          ),
+                                        ),
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          mainAxisAlignment: MainAxisAlignment.center,
+                                          children: [
+                                            Text(
+                                              _events[eventName] ?? eventName,
+                                              style: TextStyle(
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.w700,
+                                                color: isCurrent
+                                                    ? const Color(0xFF059669)
+                                                    : const Color(0xFF64748B),
+                                              ),
+                                            ),
+                                            const SizedBox(height: 6),
+                                            Text(
+                                              template['subject']?.toString().isNotEmpty == true
+                                                  ? template['subject'].toString()
+                                                  : 'No subject',
+                                              maxLines: 2,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: const TextStyle(
+                                                fontSize: 10,
+                                                color: Color(0xFF94A3B8),
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                          ],
                                         ),
                                       ),
-                                    ],
-                                  ),
-                                ),
-                                const SizedBox(height: 16),
-                                _buildSectionLabel("AVAILABLE VARIABLES"),
-                                Container(
-                                  height: 400,
-                                  padding: const EdgeInsets.all(12),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white,
-                                    borderRadius: BorderRadius.circular(20),
-                                    border: Border.all(color: const Color(0xFFF1F5F9)),
-                                  ),
-                                  child: ListView.separated(
-                                    itemCount: _variables.length,
-                                    separatorBuilder: (_, __) => const SizedBox(height: 8),
-                                    itemBuilder: (context, index) {
-                                      final v = _variables[index];
-                                      return InkWell(
-                                        onTap: () => _insertVariable(v['key']!),
-                                        borderRadius: BorderRadius.circular(12),
-                                        child: Container(
-                                          padding: const EdgeInsets.all(12),
-                                          decoration: BoxDecoration(
-                                            color: const Color(0xFFF8FAFC),
-                                            borderRadius: BorderRadius.circular(12),
-                                            border: Border.all(color: const Color(0xFFF1F5F9)),
-                                          ),
-                                          child: Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
-                                            children: [
-                                              Text(v['key']!, 
-                                                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: Color(0xFF059669))
-                                              ),
-                                              const SizedBox(height: 2),
-                                              Text(v['label']!, 
-                                                style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w500, color: Color(0xFF64748B))
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      );
-                                    },
-                                  ),
-                                ),
-                              ],
+                                    );
+                                  },
+                                );
+                              },
                             ),
                           ),
                         ],
                       ),
                     ],
                   ),
-                );
-              },
+                ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -430,6 +613,60 @@ class _NotificationTemplatesScreenState extends State<NotificationTemplatesScree
       child: Text(text, 
         style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: Color(0xFF94A3B8), letterSpacing: 1.2)
       )
+    );
+  }
+
+  Widget _variableChip({
+    required String keyText,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        width: 180,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFD1FAE5)),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF10B981).withOpacity(0.08),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              keyText,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w900,
+                color: Color(0xFF059669),
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF64748B),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 

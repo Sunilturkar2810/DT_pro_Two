@@ -6,7 +6,7 @@ export const holidayController = {
     // Create a new holiday
     createHoliday: async (request, reply) => {
         try {
-            const { name, date } = request.body;
+            const body = request.body;
             const userId = request.user.id;
             const role = request.user.role?.toUpperCase();
 
@@ -14,23 +14,35 @@ export const holidayController = {
                 return reply.code(403).send({ message: 'Forbidden. Only Admins can add holidays.' });
             }
 
-            if (!name || !date) {
-                return reply.code(400).send({ message: 'Name and date are required' });
+            // Support both single and array of holidays
+            const holidayList = Array.isArray(body) ? body : [body];
+
+            if (holidayList.length === 0) {
+                return reply.code(400).send({ message: 'No holidays provided' });
             }
 
-            const [newHoliday] = await db
+            // Validation check
+            for (const h of holidayList) {
+                if (!h.name || !h.date) {
+                    return reply.code(400).send({ message: 'Holiday name and date are required for all entries' });
+                }
+            }
+
+            const valuesToInsert = holidayList.map(h => ({
+                name: h.name,
+                date: h.date,
+                createdBy: userId,
+            }));
+
+            const result = await db
                 .insert(holidays)
-                .values({
-                    name,
-                    date,
-                    createdBy: userId,
-                })
+                .values(valuesToInsert)
                 .returning();
 
-            reply.code(201).send(newHoliday);
+            reply.code(201).send(result);
         } catch (error) {
             request.log.error(error);
-            reply.code(500).send({ message: 'Failed to create holiday', error: error.message });
+            reply.code(500).send({ message: 'Failed to create holidays', error: error.message });
         }
     },
 

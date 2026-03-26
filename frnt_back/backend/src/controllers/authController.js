@@ -8,7 +8,7 @@ import { eq, or, inArray } from 'drizzle-orm';
 import { hashPassword, comparePassword } from '../utils/auth.js';
 
 export const register = async (request, reply) => {
-    console.log('Register Request by:', request.user);  
+    console.log('Register Request by:', request.user);
     // Role check: ADMIN, SUPERADMIN, MANAGER or User (for testing)
     const performerRole = request.user?.role;
     const allowedRoles = ['ADMIN', 'SUPERADMIN', 'MANAGER'];
@@ -65,6 +65,7 @@ export const register = async (request, reply) => {
             reportingManagerId: reportingManagerId || null,
             taskAccess: taskAccess ?? true,
             leaveAccess: leaveAccess ?? true,
+            status: 'active',
             addedBy: request.user?.id
         }).returning();
 
@@ -138,6 +139,7 @@ export const bulkRegister = async (request, reply) => {
                     reportingManagerId: userData.reportingManagerId || null,
                     taskAccess: userData.taskAccess ?? true,
                     leaveAccess: userData.leaveAccess ?? true,
+                    status: 'active',
                     addedBy: request.user?.id
                 }).returning();
 
@@ -178,7 +180,7 @@ export const login = async (request, reply) => {
         const token = request.server.jwt.sign({
             id: user.userId,
             role: user.role,
-            email: user.workEmail
+            email: user.workEmail,
         });
 
         return reply.send({
@@ -188,7 +190,9 @@ export const login = async (request, reply) => {
                 id: user.userId,
                 firstName: user.firstName,
                 lastName: user.lastName,
-                role: user.role
+                role: user.role,
+                designation: user.designation,
+                department: user.department,
             }
         });
     } catch (error) {
@@ -209,6 +213,7 @@ export const getUsers = async (request, reply) => {
             mobileNumber: users.mobileNumber,
             manager: users.manager,
             reportingManagerId: users.reportingManagerId,
+            status: users.status,
         }).from(users);
         return reply.send(allUsers);
     } catch (error) {
@@ -242,55 +247,30 @@ export const updateUser = async (request, reply) => {
     const {
         firstName,
         lastName,
-        workEmail,
         mobileNumber,
         role,
         designation,
         department,
         reportingManagerId,
         taskAccess,
-        leaveAccess,
-        personalEmail,
-        dateOfBirth,
-        maritalStatus,
-        gender,
-        address,
-        city,
-        state,
-        nationality,
-        emergencyMobileNo,
-        profilePhotoUrl
+        leaveAccess
     } = request.body;
 
     try {
         await db.update(users).set({
-            ...(firstName !== undefined && { firstName }),
-            ...(lastName !== undefined && { lastName }),
-            ...(workEmail !== undefined && { workEmail }),
-            ...(mobileNumber !== undefined && { mobileNumber }),
-            ...(role !== undefined && { role }),
-            ...(designation !== undefined && { designation }),
-            ...(department !== undefined && { department }),
-            ...(reportingManagerId !== undefined && { reportingManagerId }),
-            ...(taskAccess !== undefined && { taskAccess }),
-            ...(leaveAccess !== undefined && { leaveAccess }),
-            ...(personalEmail !== undefined && { personalEmail }),
-            ...(dateOfBirth !== undefined && { dateOfBirth }),
-            ...(maritalStatus !== undefined && { maritalStatus }),
-            ...(gender !== undefined && { gender }),
-            ...(address !== undefined && { address }),
-            ...(city !== undefined && { city }),
-            ...(state !== undefined && { state }),
-            ...(nationality !== undefined && { nationality }),
-            ...(emergencyMobileNo !== undefined && { emergencyMobileNo }),
-            ...(profilePhotoUrl !== undefined && { profilePhotoUrl }),
+            firstName,
+            lastName,
+            mobileNumber,
+            role,
+            designation,
+            department,
+            reportingManagerId,
+            taskAccess,
+            leaveAccess,
             updatedAt: new Date()
         }).where(eq(users.userId, userId));
 
-        const updatedUserArr = await db.select().from(users).where(eq(users.userId, userId));
-        const updatedUser = updatedUserArr[0];
-
-        return reply.send({ message: 'User updated successfully', ...updatedUser });
+        return reply.send({ message: 'User updated successfully' });
     } catch (error) {
         request.log.error(error);
         return reply.code(500).send({ message: 'Internal Server Error' });
@@ -336,6 +316,13 @@ export const updateCredentials = async (request, reply) => {
 };
 
 export const deleteAllTasks = async (request, reply) => {
+    const performer = request.user;
+    const isAdmin = performer && (performer.role === 'ADMIN' || performer.role === 'SUPERADMIN');
+
+    if (!isAdmin) {
+        return reply.code(403).send({ message: 'Forbidden: Only admins can perform a bulk task wipe.' });
+    }
+
     const { userId } = request.params;
     const { confirmEmail } = request.body;
 
@@ -381,8 +368,15 @@ export const deleteAllTasks = async (request, reply) => {
 };
 
 export const deleteUser = async (request, reply) => {
+    const performer = request.user;
+    const isAdmin = performer && (performer.role === 'ADMIN' || performer.role === 'SUPERADMIN');
+
+    if (!isAdmin) {
+        return reply.code(403).send({ message: 'Forbidden: Only admins can delete user accounts.' });
+    }
+
     const { userId } = request.params;
-    const performerId = request.user.id; // Use this to reassign orphaned 'addedBy' fields
+    const performerId = performer.id; // Use this to reassign orphaned 'addedBy' fields
 
     try {
         // 1. Notifications - Delete all notifications involving this user
@@ -458,8 +452,8 @@ export const deleteUser = async (request, reply) => {
             });
         }
 
-        // 11. FINALLY DELETE USER
-        await db.delete(users).where(eq(users.userId, userId));
+        // 11. SOFT DELETE USER (Update status instead of hard delete)
+        await db.update(users).set({ status: 'Delete' }).where(eq(users.userId, userId));
 
         return reply.send({ message: 'User and all associated dependencies handled successfully' });
     } catch (error) {

@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+
 import '../config/api_constants.dart';
 
 class RolesService {
@@ -6,92 +7,71 @@ class RolesService {
 
   RolesService(this._dio);
 
-  // Get all roles with permissions
   Future<List<dynamic>> getAllRoles() async {
-    try {
-      final response = await _dio.get('/roles');
-      return response.data;
-    } catch (e) {
-      rethrow;
+    final response = await _dio.get(ApiConstants.roles);
+    if (response.data is List) {
+      return response.data as List<dynamic>;
     }
+    if (response.data is Map) {
+      final data = response.data as Map;
+      return List<dynamic>.from(data['data'] ?? data['roles'] ?? []);
+    }
+    return <dynamic>[];
   }
 
-  // Get single role with permissions
   Future<Map<String, dynamic>> getRoleWithPermissions(String roleId) async {
-    try {
-      final response = await _dio.get('/roles/$roleId');
-      return response.data;
-    } catch (e) {
-      rethrow;
-    }
+    final roles = await getAllRoles();
+    final matched = roles.cast<dynamic>().firstWhere(
+      (role) => role is Map && role['id']?.toString() == roleId,
+      orElse: () => <String, dynamic>{},
+    );
+    return Map<String, dynamic>.from(matched as Map);
   }
 
-  // Create custom role
   Future<Map<String, dynamic>> createRole({
     required String name,
     required String? description,
   }) async {
-    try {
-      final response = await _dio.post(
-        '/roles',
-        data: {
-          'name': name,
-          'description': description,
-        },
-      );
-      return response.data;
-    } catch (e) {
-      rethrow;
-    }
+    final response = await _dio.post(
+      ApiConstants.roles,
+      data: {
+        'name': name.trim(),
+        'description': description?.trim().isEmpty == true ? null : description?.trim(),
+      },
+    );
+    return Map<String, dynamic>.from(response.data ?? {});
   }
 
-  // Update role
   Future<Map<String, dynamic>> updateRole({
     required String roleId,
     required String name,
     required String? description,
   }) async {
-    try {
-      final response = await _dio.put(
-        '/roles/$roleId',
-        data: {
-          'name': name,
-          'description': description,
-        },
-      );
-      return response.data;
-    } catch (e) {
-      rethrow;
-    }
+    final response = await _dio.put(
+      '${ApiConstants.roles}/$roleId',
+      data: {
+        'name': name.trim(),
+        'description': description?.trim().isEmpty == true ? null : description?.trim(),
+      },
+    );
+    return Map<String, dynamic>.from(response.data ?? {});
   }
 
-  // Delete role
   Future<Map<String, dynamic>> deleteRole(String roleId) async {
-    try {
-      final response = await _dio.delete(
-        '/roles/$roleId',
-      );
-      return response.data;
-    } catch (e) {
-      rethrow;
-    }
+    final response = await _dio.delete('${ApiConstants.roles}/$roleId');
+    return Map<String, dynamic>.from(response.data ?? {});
   }
 
-  // Update role permissions
   Future<Map<String, dynamic>> updateRolePermissions({
     required String roleId,
     required Map<String, dynamic> permissions,
   }) async {
-    try {
-      final response = await _dio.put(
-        '/roles/$roleId',
-        data: {
-          'permissions': permissions,
-        },
-      );
-      return response.data;
-    } catch (e) {
-      rethrow;
-    }
+    final response = await _dio.put(
+      '${ApiConstants.roles}/$roleId',
+      data: {
+        'permissions': permissions,
+      },
+    );
+    return Map<String, dynamic>.from(response.data ?? {});
   }
 }

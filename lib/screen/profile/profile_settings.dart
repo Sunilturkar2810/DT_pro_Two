@@ -1,19 +1,13 @@
 import 'dart:convert';
+import 'package:d_table_delegate_system/provider/auth_provider.dart';
+import 'package:d_table_delegate_system/provider/theme_provider.dart';
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
-import '../../../provider/auth_provider.dart';
-import '../../../provider/theme_provider.dart';
-import '../../../provider/user_provider.dart';
-import '../../../widget/personal_profile_panel.dart';
+import 'package:provider/provider.dart';
 import 'my_profile_screen.dart';
-import '../support/support_screen.dart';
-
 import '../notifications/notifications_screen.dart';
 import '../auth/login/login_screen.dart';
 import 'manage_users.dart';
-import '../home/my_team.dart';
-import '../../../model/user_model.dart';
 
 class ProfileSettingsScreen extends StatefulWidget {
   const ProfileSettingsScreen({Key? key}) : super(key: key);

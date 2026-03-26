@@ -15,7 +15,7 @@ const defaultPermissions = {
     },
     MANAGER: {
         taskTemplate: { create: true, edit: true, view: true, delete: true },
-        task: { create: true, edit: 'My Team + Assigned', delete: 'Assigned', importTask: true, exportTask: 'My Team + Me' },
+        task: { create: true, edit: 'My Team + Assigned', delete: 'None', importTask: true, exportTask: 'My Team + Me' },
         myTeam: { add: false, edit: 'My Team', delete: 'None', view: 'All' },
         holidays: { create: false, edit: false, view: true, delete: false },
         groups: { create: true, edit: true, view: true, delete: false },
@@ -25,7 +25,7 @@ const defaultPermissions = {
     },
     'TEAM MEMBER': {
         taskTemplate: { create: true, edit: true, view: true, delete: true },
-        task: { create: true, edit: 'Assigned', delete: 'Assigned', importTask: false, exportTask: 'None' },
+        task: { create: true, edit: 'Assigned', delete: 'None', importTask: false, exportTask: 'None' },
         myTeam: { add: false, edit: 'None', delete: 'None', view: 'All' },
         holidays: { create: false, edit: false, view: true, delete: false },
         groups: { create: false, edit: false, view: true, delete: false },

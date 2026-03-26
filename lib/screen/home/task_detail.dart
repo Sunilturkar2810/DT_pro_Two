@@ -28,9 +28,11 @@ class TaskDetailScreen extends StatefulWidget {
 
 class _TaskDetailScreenState extends State<TaskDetailScreen> {
   final TextEditingController remarkController = TextEditingController();
+  final FocusNode _remarkFocusNode = FocusNode();
   String selectedStatus = "Pending";
   DateTime? _holdTillDate;
   bool _isDetailLoading = true;
+  bool _isActionLoading = false;
   DelegationModel? _currentTask;
   
   // Audio Player State
@@ -96,6 +98,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
   @override
   void dispose() {
     remarkController.dispose();
+    _remarkFocusNode.dispose();
     _audioPlayer.dispose();
     super.dispose();
   }
@@ -110,6 +113,136 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
     ).then((_) {
       _loadTaskDetail();
     });
+  }
+
+  Future<void> _deleteTask() async {
+    final taskId = _currentTask?.id;
+    if (taskId == null || taskId.isEmpty || _isActionLoading) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Task'),
+        content: const Text('This task will be moved to trash. Do you want to continue?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Delete', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _isActionLoading = true);
+    final success = await context.read<DelegationProvider>().delete(taskId);
+    if (!mounted) return;
+
+    setState(() => _isActionLoading = false);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(success ? 'Task moved to trash' : 'Failed to delete task'),
+        backgroundColor: success ? Colors.green : Colors.red,
+      ),
+    );
+
+    if (success) {
+      Navigator.pop(context, true);
+    }
+  }
+
+  Future<void> _submitRemark() async {
+    final taskId = _currentTask?.id;
+    final userId = context.read<AuthProvider>().currentUser?.id ?? '';
+    final remark = remarkController.text.trim();
+
+    if (taskId == null ||
+        taskId.isEmpty ||
+        userId.isEmpty ||
+        remark.isEmpty ||
+        _isActionLoading) {
+      return;
+    }
+
+    setState(() => _isActionLoading = true);
+    final success = await context.read<DelegationProvider>().postRemark(
+      taskId,
+      remark,
+      userId,
+    );
+    if (!mounted) return;
+
+    setState(() => _isActionLoading = false);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(success ? 'Update added successfully' : 'Failed to submit update'),
+        backgroundColor: success ? Colors.green : Colors.red,
+      ),
+    );
+
+    if (success) {
+      remarkController.clear();
+      await _loadTaskDetail();
+    }
+  }
+
+  Future<void> _changeStatus(String newStatus, {String reason = ''}) async {
+    final taskId = _currentTask?.id;
+    final userId = context.read<AuthProvider>().currentUser?.id ?? '';
+    if (taskId == null || taskId.isEmpty || userId.isEmpty || _isActionLoading) {
+      return;
+    }
+
+    setState(() => _isActionLoading = true);
+    final success = await context.read<DelegationProvider>().updateStatus(
+      taskId,
+      newStatus,
+      reason,
+      userId,
+    );
+    if (!mounted) return;
+
+    setState(() => _isActionLoading = false);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(success ? 'Status updated to $newStatus' : 'Failed to update status'),
+        backgroundColor: success ? Colors.green : Colors.red,
+      ),
+    );
+
+    if (success) {
+      await _loadTaskDetail();
+    }
+  }
+
+  void _focusRemarkBox() {
+    FocusScope.of(context).requestFocus(_remarkFocusNode);
+  }
+
+  void _showReminderInfo(DelegationModel task) {
+    final reminderAt = task.reminderAt;
+    final reminderText = (reminderAt != null && reminderAt.isNotEmpty)
+        ? _formatDate(reminderAt)
+        : 'No reminder is configured for this task.';
+
+    showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Reminder'),
+        content: Text(reminderText),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -158,7 +291,10 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     _statusPill(task.status),
-                    IconButton(icon: const Icon(LucideIcons.trash2, color: Colors.red, size: 20), onPressed: () {}),
+                    IconButton(
+                      icon: const Icon(LucideIcons.trash2, color: Colors.red, size: 20),
+                      onPressed: _isActionLoading ? null : _deleteTask,
+                    ),
                   ],
                 ),
               ],
@@ -249,12 +385,41 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
               spacing: 10,
               runSpacing: 10,
               children: [
-                _quickActionButton("IN PROGRESS", LucideIcons.playCircle, Colors.orange),
-                _quickActionButton("COMPLETE", LucideIcons.checkCircle, Colors.green),
-                _quickActionButton("REMINDERS", LucideIcons.bell, Colors.blue),
-                _quickActionButton("COMMENT", LucideIcons.messageCircle, Colors.indigo),
+                _quickActionButton(
+                  "IN PROGRESS",
+                  LucideIcons.playCircle,
+                  Colors.orange,
+                  onTap: _isActionLoading
+                      ? null
+                      : () => _changeStatus(
+                            "In Progress",
+                            reason: 'Updated from task detail',
+                          ),
+                ),
+                _quickActionButton(
+                  "COMPLETE",
+                  LucideIcons.checkCircle,
+                  Colors.green,
+                  onTap: _isActionLoading
+                      ? null
+                      : () => _changeStatus(
+                            "Completed",
+                            reason: 'Completed from task detail',
+                          ),
+                ),
+                _quickActionButton(
+                  "REMINDERS",
+                  LucideIcons.bell,
+                  Colors.blue,
+                  onTap: () => _showReminderInfo(task),
+                ),
+                _quickActionButton(
+                  "COMMENT",
+                  LucideIcons.messageCircle,
+                  Colors.indigo,
+                  onTap: _focusRemarkBox,
+                ),
                 _quickActionButton("SUB TASK", LucideIcons.layers, Colors.cyan, onTap: _showAssignBottomSheet),
-                _quickActionButton("EDIT", LucideIcons.edit, Colors.purple),
               ],
             ),
             const SizedBox(height: 24),
@@ -264,6 +429,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
             const SizedBox(height: 12),
             TextField(
               controller: remarkController,
+              focusNode: _remarkFocusNode,
               maxLines: 3,
               decoration: InputDecoration(
                 hintText: "Focus on specific details or updates...",
@@ -277,13 +443,25 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: () {},
+                onPressed: _isActionLoading ? null : _submitRemark,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF20E19F),
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 ),
-                child: const Text("SUBMIT UPDATE", style: TextStyle(fontWeight: FontWeight.w900, color: Colors.white)),
+                child: _isActionLoading
+                    ? const SizedBox(
+                        height: 18,
+                        width: 18,
+                        child: CircularProgressIndicator(
+                          color: Colors.white,
+                          strokeWidth: 2,
+                        ),
+                      )
+                    : const Text(
+                        "SUBMIT UPDATE",
+                        style: TextStyle(fontWeight: FontWeight.w900, color: Colors.white),
+                      ),
               ),
             ),
             const SizedBox(height: 24),

@@ -37,9 +37,18 @@ class RolesProvider extends ChangeNotifier {
 
   // ========== GET SINGLE ROLE (Not available via separate endpoint in new backend) ==========
   Future<void> fetchRoleWithPermissions(String roleId) async {
-    // Fetch from cached list
-    _selectedRole = getRoleById(roleId);
+    _isLoading = true;
+    _errorMessage = null;
     notifyListeners();
+
+    try {
+      _selectedRole = await _service.getRoleWithPermissions(roleId);
+    } catch (e) {
+      _errorMessage = e.toString();
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
   }
 
   // ========== CREATE ROLE ==========

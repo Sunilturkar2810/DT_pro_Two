@@ -1,6 +1,6 @@
+import 'package:d_table_delegate_system/provider/group_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../../provider/group_provider.dart';
 import 'group_task_detail.dart';
 
 class GroupTaskScreen extends StatefulWidget {

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../model/category_model.dart';
 import '../services/category_service.dart';
 
@@ -15,7 +16,6 @@ class CategoryProvider extends ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
 
-  // ========== FETCH ALL CATEGORIES ==========
   Future<void> fetchCategories() async {
     _isLoading = true;
     _errorMessage = null;
@@ -26,17 +26,14 @@ class CategoryProvider extends ChangeNotifier {
       _categoryModels = _categories
           .map((item) => CategoryModel.fromJson(item))
           .toList();
-      print("✅ Fetched ${_categories.length} categories");
     } catch (e) {
       _errorMessage = e.toString();
-      print("❌ Fetch Error (Categories): $_errorMessage");
     } finally {
       _isLoading = false;
       notifyListeners();
     }
   }
 
-  // ========== CREATE CATEGORY ==========
   Future<bool> createCategory({
     required String name,
     required String color,
@@ -50,14 +47,11 @@ class CategoryProvider extends ChangeNotifier {
         name: name,
         color: color,
       );
-
       _categories.insert(0, newCategory);
       _categoryModels.insert(0, CategoryModel.fromJson(newCategory));
-      print('✅ Category created: $name');
       return true;
     } catch (e) {
       _errorMessage = e.toString();
-      print('❌ Create category error: $_errorMessage');
       return false;
     } finally {
       _isLoading = false;
@@ -65,7 +59,6 @@ class CategoryProvider extends ChangeNotifier {
     }
   }
 
-  // ========== UPDATE CATEGORY ==========
   Future<bool> updateCategory({
     required String categoryId,
     required String name,
@@ -76,23 +69,7 @@ class CategoryProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final updated = await _service.updateCategory(
-        categoryId: categoryId,
-        name: name,
-        color: color,
-      );
-
-      final index = _categories.indexWhere((cat) => cat['id'] == categoryId);
-      if (index != -1) {
-        _categories[index] = updated;
-        _categoryModels[index] = CategoryModel.fromJson(updated);
-      }
-
-      print('✅ Category updated: $name');
-      return true;
-    } catch (e) {
-      _errorMessage = e.toString();
-      print('❌ Update category error: $_errorMessage');
+      _errorMessage = 'Category editing is not available in the current backend.';
       return false;
     } finally {
       _isLoading = false;
@@ -100,7 +77,6 @@ class CategoryProvider extends ChangeNotifier {
     }
   }
 
-  // ========== DELETE CATEGORY ==========
   Future<bool> deleteCategory(String categoryId) async {
     _isLoading = true;
     _errorMessage = null;
@@ -108,13 +84,11 @@ class CategoryProvider extends ChangeNotifier {
 
     try {
       await _service.deleteCategory(categoryId);
-      _categories.removeWhere((cat) => cat['id'] == categoryId);
+      _categories.removeWhere((cat) => cat['id']?.toString() == categoryId);
       _categoryModels.removeWhere((cat) => cat.id == categoryId);
-      print('✅ Category deleted');
       return true;
     } catch (e) {
       _errorMessage = e.toString();
-      print('❌ Delete category error: $_errorMessage');
       return false;
     } finally {
       _isLoading = false;
@@ -122,19 +96,14 @@ class CategoryProvider extends ChangeNotifier {
     }
   }
 
-  // ========== DELETE ALL TASKS IN CATEGORY ==========
   Future<bool> deleteCategoryTasks(String categoryId) async {
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
 
     try {
-      await _service.deleteCategoryTasks(categoryId);
-      print('✅ All tasks deleted from category');
-      return true;
-    } catch (e) {
-      _errorMessage = e.toString();
-      print('❌ Delete tasks error: $_errorMessage');
+      _errorMessage =
+          'Deleting all tasks from a category is not available in the current backend.';
       return false;
     } finally {
       _isLoading = false;
@@ -142,19 +111,14 @@ class CategoryProvider extends ChangeNotifier {
     }
   }
 
-  // ========== REMOVE CATEGORY LINK ==========
   Future<bool> removeCategoryLink(String categoryId) async {
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
 
     try {
-      await _service.removeCategoryLink(categoryId);
-      print('✅ Category link removed from tasks');
-      return true;
-    } catch (e) {
-      _errorMessage = e.toString();
-      print('❌ Remove link error: $_errorMessage');
+      _errorMessage =
+          'Unlinking categories from tasks is not available in the current backend.';
       return false;
     } finally {
       _isLoading = false;
@@ -162,20 +126,29 @@ class CategoryProvider extends ChangeNotifier {
     }
   }
 
-  // ========== SEARCH CATEGORIES ==========
   Future<List<Map<String, dynamic>>> searchCategories(String query) async {
     try {
-      return await _service.searchCategories(query);
+      final normalizedQuery = query.trim().toLowerCase();
+      if (normalizedQuery.isEmpty) {
+        return List<Map<String, dynamic>>.from(_categories);
+      }
+      return _categories.where((category) {
+        final name = category['name']?.toString().toLowerCase() ?? '';
+        return name.contains(normalizedQuery);
+      }).toList();
     } catch (e) {
       _errorMessage = e.toString();
-      print('❌ Search error: $_errorMessage');
       return [];
     }
   }
 
-  // ========== GET CATEGORY BY ID ==========
   Future<Map<String, dynamic>?> getCategoryById(String categoryId) async {
     try {
+      for (final category in _categories) {
+        if (category['id']?.toString() == categoryId) {
+          return Map<String, dynamic>.from(category);
+        }
+      }
       return await _service.getCategoryById(categoryId);
     } catch (e) {
       _errorMessage = e.toString();
@@ -188,4 +161,3 @@ class CategoryProvider extends ChangeNotifier {
     notifyListeners();
   }
 }
-

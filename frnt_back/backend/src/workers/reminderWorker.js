@@ -1,8 +1,10 @@
 import cron from 'node-cron';
 import { db } from '../db/index.js';
 import { taskReminders, delegations, users } from '../db/schema.js';
-import { eq, and, lte } from 'drizzle-orm';
+import { eq, and, lte, ne } from 'drizzle-orm';
 import { notifyUser } from '../services/notifierService.js';
+
+const assignerAlias = users; // we'll do a sub-query approach
 
 export const initReminderWorker = () => {
     // Run every minute
@@ -28,21 +30,27 @@ export const initReminderWorker = () => {
                 )
             );
 
+            // For each reminder, separately fetch assigner info
             if (pendingReminders.length === 0) {
                 return;
             }
 
             console.log(`[ReminderWorker] Found ${pendingReminders.length} pending reminders.`);
 
-            for (const item of pendingReminders) {
-                const { reminder, delegation, doer } = item;
+            const reminderItems = await Promise.all(pendingReminders.map(async (item) => {
+                const [assignerUser] = await db.select().from(users).where(eq(users.userId, item.delegation.assignerId));
+                return { ...item, assigner: assignerUser || null };
+            }));
+
+            for (const item of reminderItems) {
+                const { reminder, delegation, doer, assigner } = item;
 
                 try {
-                    const eventType = 'reminder'; // We can map this to 'newTask' or custom if needed
-                    const message = `Reminder: Your task "${delegation.taskTitle}" is due ${reminder.triggerType} ${reminder.timeValue} ${reminder.timeUnit}.`;
+                    const message = `Reminder: Task "${delegation.taskTitle}" is due ${reminder.triggerType} ${reminder.timeValue} ${reminder.timeUnit}.`;
                     
-                    await notifyUser(doer.userId, 'reminder', { 
-                        type: reminder.type,
+                    // 1. Notify Doer
+                    await notifyUser(doer.userId, 'reminder', {
+                        reminderChannel: reminder.type,
                         title: 'Task Reminder',
                         message,
                         html: `
@@ -56,27 +64,59 @@ export const initReminderWorker = () => {
                         `,
                         // Variables for templates
                         taskTitle: delegation.taskTitle,
-                        description: delegation.description,
+                        taskDescription: delegation.description,
                         priority: delegation.priority,
                         category: delegation.category,
                         dueDate: delegation.dueDate ? new Date(delegation.dueDate).toLocaleDateString() : 'No due date',
                         status: delegation.status,
                         reminderTrigger: reminder.triggerType,
                         reminderValue: `${reminder.timeValue} ${reminder.timeUnit}`,
-                        // Additional variables requested
-                        voiceNoteUrl: delegation.voiceNoteUrl || 'None',
-                        referenceDocs: delegation.referenceDocs || 'None',
-                        tags: Array.isArray(delegation.tags) ? delegation.tags.map(t => typeof t === 'object' ? t.text : t).join(', ') : 'None',
-                        checklistItems: (delegation.checklistItems && delegation.checklistItems.length > 0) 
-                            ? delegation.checklistItems.map(item => `• ${item.text || item.itemName || 'Checklist Item'}`).join('\n')
-                            : 'No checklist items',
-                        evidenceRequired: delegation.evidenceRequired === true ? 'Yes' : 'No',
-                        evidenceUrl: delegation.evidenceUrl || 'None',
-                        revisionCount: delegation.revisionCount || 0,
-                        inLoopIds: Array.isArray(delegation.inLoopIds) ? delegation.inLoopIds.join(', ') : 'None',
-                        frequency: (delegation.frequency || 'Once'),
-                        fromDate: delegation.createdAt ? new Date(delegation.createdAt).toLocaleDateString() : 'N/A'
+                        taskId: delegation.id,
+                        doerName: `${doer.firstName} ${doer.lastName}`,
+                        assignerName: assigner ? `${assigner.firstName} ${assigner.lastName}` : 'N/A',
+                        voiceNoteUrl: delegation.voiceNoteUrl || 'No audio note',
+                        referenceDocs: Array.isArray(delegation.referenceDocs) ? delegation.referenceDocs.join(', ') : (delegation.referenceDocs || 'No reference documents'),
+                        evidenceUrl: delegation.evidenceUrl || 'No evidence provided'
                     });
+
+                    // 2. Notify In-Loop Members
+                    if (delegation.inLoopIds && Array.isArray(delegation.inLoopIds)) {
+                        for (const loopMemberId of delegation.inLoopIds) {
+                            if (!loopMemberId || loopMemberId === doer.userId || (assigner && loopMemberId === assigner.userId)) continue;
+                            
+                            // Get loop member details (could be optimized with a cache)
+                            const [loopMember] = await db.select().from(users).where(eq(users.userId, loopMemberId));
+                            if (!loopMember) continue;
+
+                            await notifyUser(loopMemberId, 'reminderInLoop', {
+                                reminderChannel: reminder.type,
+                                title: '[In Loop] Task Reminder',
+                                message: `Task Reminder: "${delegation.taskTitle}" is due ${reminder.triggerType} ${reminder.timeValue} ${reminder.timeUnit}. Assigned to: ${doer.firstName} ${doer.lastName}`,
+                                html: `
+                                    <div style="font-family: sans-serif; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
+                                        <h2 style="color: #6366f1;">[In Loop] Task Reminder</h2>
+                                        <p><strong>Task:</strong> ${delegation.taskTitle}</p>
+                                        <p><strong>Assigned To:</strong> ${doer.firstName} ${doer.lastName}</p>
+                                        <p>${message}</p>
+                                    </div>
+                                `,
+                                taskTitle: delegation.taskTitle,
+                                taskDescription: delegation.description,
+                                priority: delegation.priority,
+                                category: delegation.category,
+                                dueDate: delegation.dueDate ? new Date(delegation.dueDate).toLocaleDateString() : 'No due date',
+                                status: delegation.status,
+                                reminderTrigger: reminder.triggerType,
+                                reminderValue: `${reminder.timeValue} ${reminder.timeUnit}`,
+                                taskId: delegation.id,
+                                doerName: `${doer.firstName} ${doer.lastName}`,
+                                assignerName: assigner ? `${assigner.firstName} ${assigner.lastName}` : 'N/A',
+                                voiceNoteUrl: delegation.voiceNoteUrl || 'No audio note',
+                                referenceDocs: Array.isArray(delegation.referenceDocs) ? delegation.referenceDocs.join(', ') : (delegation.referenceDocs || 'No reference documents'),
+                                evidenceUrl: delegation.evidenceUrl || 'No evidence provided'
+                            });
+                        }
+                    }
 
                     // Mark as sent
                     await db.update(taskReminders)

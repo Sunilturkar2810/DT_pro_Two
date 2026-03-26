@@ -91,8 +91,13 @@ class _CreateTeamDialogState extends State<CreateTeamDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final themeBg = Theme.of(context).brightness == Brightness.dark ? const Color(0xFF1E293B) : Colors.white;
-    final themeText = Theme.of(context).brightness == Brightness.dark ? Colors.white : const Color(0xFF1E293B);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final themeBg = isDark ? const Color(0xFF1E293B) : Colors.white;
+    final themeText = isDark ? Colors.white : const Color(0xFF1E293B);
+    final surfaceColor = isDark ? const Color(0xFF243244) : Colors.white;
+    final mutedSurface = isDark ? const Color(0xFF182433) : Colors.grey.shade50;
+    final borderColor = isDark ? const Color(0xFF334155) : Colors.grey.shade200;
+    final hintColor = isDark ? const Color(0xFF94A3B8) : Colors.grey;
     final users = context.read<UserProvider>().users;
 
     return Dialog(
@@ -108,7 +113,7 @@ class _CreateTeamDialogState extends State<CreateTeamDialog> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
               decoration: BoxDecoration(
-                border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
+                border: Border(bottom: BorderSide(color: borderColor)),
               ),
               child: Row(
                 children: [
@@ -123,12 +128,12 @@ class _CreateTeamDialogState extends State<CreateTeamDialog> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text('Create New Team', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: themeText)),
-                        const Text('Define your team structure', style: TextStyle(fontSize: 12, color: Colors.grey, fontStyle: FontStyle.italic)),
+                        Text('Define your team structure', style: TextStyle(fontSize: 12, color: hintColor, fontStyle: FontStyle.italic)),
                       ],
                     ),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.close, color: Colors.grey),
+                    icon: Icon(Icons.close, color: hintColor),
                     onPressed: () => Navigator.pop(context),
                   )
                 ],
@@ -145,7 +150,7 @@ class _CreateTeamDialogState extends State<CreateTeamDialog> {
                     // Team Info
                     Container(
                       padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(16)),
+                      decoration: BoxDecoration(color: mutedSurface, borderRadius: BorderRadius.circular(16)),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -195,13 +200,13 @@ class _CreateTeamDialogState extends State<CreateTeamDialog> {
                         decoration: BoxDecoration(
                           border: Border.all(color: Colors.grey.shade300, style: BorderStyle.solid), // Dart flutter has no dashed easily without package, defaulting solid 
                           borderRadius: BorderRadius.circular(16),
-                          color: Colors.grey.shade50
+                          color: mutedSurface
                         ),
                         child: Column(
                           children: [
-                            Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.grey.shade100, shape: BoxShape.circle), child: const Icon(LucideIcons.users, size: 24, color: Colors.grey)),
+                            Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: surfaceColor, shape: BoxShape.circle), child: Icon(LucideIcons.users, size: 24, color: hintColor)),
                             const SizedBox(height: 12),
-                            const Text('No members added yet.', style: TextStyle(color: Colors.grey, fontSize: 13)),
+                            Text('No members added yet.', style: TextStyle(color: hintColor, fontSize: 13)),
                             TextButton(onPressed: _addMember, child: const Text('Click here to add your first member', style: TextStyle(fontSize: 12, color: Color(0xFF20E19F), fontWeight: FontWeight.bold)))
                           ],
                         ),
@@ -214,9 +219,9 @@ class _CreateTeamDialogState extends State<CreateTeamDialog> {
                           margin: const EdgeInsets.only(bottom: 12),
                           padding: const EdgeInsets.all(16),
                           decoration: BoxDecoration(
-                            border: Border.all(color: Colors.grey.shade200),
+                            border: Border.all(color: borderColor),
                             borderRadius: BorderRadius.circular(12),
-                            color: Colors.grey.shade50
+                            color: mutedSurface
                           ),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -229,7 +234,7 @@ class _CreateTeamDialogState extends State<CreateTeamDialog> {
                                     onTap: () => _removeMember(i),
                                     child: Container(
                                       padding: const EdgeInsets.all(4),
-                                      decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(6)),
+                                      decoration: BoxDecoration(color: isDark ? const Color(0xFF3F1D24) : Colors.red.shade50, borderRadius: BorderRadius.circular(6)),
                                       child: const Icon(LucideIcons.trash2, size: 14, color: Colors.redAccent)
                                     )
                                   )
@@ -278,8 +283,8 @@ class _CreateTeamDialogState extends State<CreateTeamDialog> {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.grey.shade50,
-                border: Border(top: BorderSide(color: Colors.grey.shade200)),
+                color: mutedSurface,
+                border: Border(top: BorderSide(color: borderColor)),
                 borderRadius: const BorderRadius.only(bottomLeft: Radius.circular(20), bottomRight: Radius.circular(20))
               ),
               child: Row(
@@ -312,75 +317,97 @@ class _CreateTeamDialogState extends State<CreateTeamDialog> {
   }
 
   Widget _buildLabel(String text) {
-    return Text(text, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.grey, letterSpacing: 0.5, // uppercase via UI
-    ));
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Text(text, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: isDark ? const Color(0xFFCBD5E1) : Colors.grey, letterSpacing: 0.5));
   }
 
   Widget _buildTextField(TextEditingController controller, String hint, {int maxLines = 1}) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final surfaceColor = isDark ? const Color(0xFF243244) : Colors.white;
+    final borderColor = isDark ? const Color(0xFF334155) : Colors.grey.shade200;
+    final hintColor = isDark ? const Color(0xFF94A3B8) : Colors.grey.shade400;
     return TextField(
       controller: controller,
       maxLines: maxLines,
-      style: const TextStyle(fontSize: 13),
+      style: TextStyle(fontSize: 13, color: isDark ? Colors.white : Colors.black87),
       decoration: InputDecoration(
         hintText: hint,
-        hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 13),
+        hintStyle: TextStyle(color: hintColor, fontSize: 13),
         filled: true,
-        fillColor: Colors.white,
+        fillColor: surfaceColor,
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: Colors.grey.shade300)),
-        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: Colors.grey.shade200)),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: borderColor)),
+        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: borderColor)),
         focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Color(0xFF20E19F))),
       ),
     );
   }
 
   Widget _buildUserDropdown(List<UserModel> users, String current, Function(String?) onChanged) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final surfaceColor = isDark ? const Color(0xFF243244) : Colors.white;
+    final borderColor = isDark ? const Color(0xFF334155) : Colors.grey.shade200;
+    final hintColor = isDark ? const Color(0xFF94A3B8) : Colors.grey;
+    final textColor = isDark ? Colors.white : Colors.black87;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade200)),
+      decoration: BoxDecoration(color: surfaceColor, borderRadius: BorderRadius.circular(8), border: Border.all(color: borderColor)),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
+          dropdownColor: surfaceColor,
           isExpanded: true,
           value: current.isEmpty ? null : current,
-          hint: const Text('Select User', style: TextStyle(fontSize: 13, color: Colors.grey)),
-          items: users.map((u) => DropdownMenuItem(value: u.id, child: Text('${u.firstName} ${u.lastName} (${u.role})', style: const TextStyle(fontSize: 13)))).toList(),
+          hint: Text('Select User', style: TextStyle(fontSize: 13, color: hintColor)),
+          items: users.map((u) => DropdownMenuItem(value: u.id, child: Text('${u.firstName} ${u.lastName} (${u.role})', style: TextStyle(fontSize: 13, color: textColor)))).toList(),
           onChanged: onChanged,
-          icon: const Icon(LucideIcons.chevronDown, size: 16, color: Colors.grey),
+          icon: Icon(LucideIcons.chevronDown, size: 16, color: hintColor),
         ),
       ),
     );
   }
 
   Widget _buildRoleDropdown(String current, Function(String?) onChanged) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final surfaceColor = isDark ? const Color(0xFF243244) : Colors.white;
+    final borderColor = isDark ? const Color(0xFF334155) : Colors.grey.shade200;
+    final hintColor = isDark ? const Color(0xFF94A3B8) : Colors.grey;
+    final textColor = isDark ? Colors.white : Colors.black87;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade200)),
+      decoration: BoxDecoration(color: surfaceColor, borderRadius: BorderRadius.circular(8), border: Border.all(color: borderColor)),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
+          dropdownColor: surfaceColor,
           isExpanded: true,
           value: current.isEmpty ? 'TEAM MEMBER' : current,
-          items: ['TEAM MEMBER', 'MANAGER', 'ADMIN'].map((r) => DropdownMenuItem(value: r, child: Text(r, style: const TextStyle(fontSize: 12)))).toList(),
+          items: ['TEAM MEMBER', 'MANAGER', 'ADMIN'].map((r) => DropdownMenuItem(value: r, child: Text(r, style: TextStyle(fontSize: 12, color: textColor)))).toList(),
           onChanged: onChanged,
-          icon: const Icon(LucideIcons.chevronDown, size: 16, color: Colors.grey),
+          icon: Icon(LucideIcons.chevronDown, size: 16, color: hintColor),
         ),
       ),
     );
   }
 
   Widget _buildManagerDropdown(List<UserModel> users, String current, Function(String?) onChanged) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final surfaceColor = isDark ? const Color(0xFF243244) : Colors.white;
+    final borderColor = isDark ? const Color(0xFF334155) : Colors.grey.shade200;
+    final hintColor = isDark ? const Color(0xFF94A3B8) : Colors.grey;
+    final textColor = isDark ? Colors.white : Colors.black87;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade200)),
+      decoration: BoxDecoration(color: surfaceColor, borderRadius: BorderRadius.circular(8), border: Border.all(color: borderColor)),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
+          dropdownColor: surfaceColor,
           isExpanded: true,
           value: current.isEmpty ? 'Top Level' : current,
           items: [
-            const DropdownMenuItem(value: 'Top Level', child: Text('Top Level', style: TextStyle(fontSize: 12))),
-            ...users.map((u) => DropdownMenuItem(value: u.id, child: Text('${u.firstName} ${u.lastName}', style: const TextStyle(fontSize: 12))))
+            DropdownMenuItem(value: 'Top Level', child: Text('Top Level', style: TextStyle(fontSize: 12, color: textColor))),
+            ...users.map((u) => DropdownMenuItem(value: u.id, child: Text('${u.firstName} ${u.lastName}', style: TextStyle(fontSize: 12, color: textColor))))
           ],
           onChanged: onChanged,
-          icon: const Icon(LucideIcons.chevronDown, size: 16, color: Colors.grey),
+          icon: Icon(LucideIcons.chevronDown, size: 16, color: hintColor),
         ),
       ),
     );

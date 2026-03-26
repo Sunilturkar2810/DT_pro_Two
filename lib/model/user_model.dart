@@ -9,6 +9,10 @@ class UserModel {
   final String? mobileNumber;
   final String? manager;
   final String? profilePhotoUrl;
+  final String? teamId;
+  final String? teamName;
+  final bool? taskAccess;
+  final bool? leaveAccess;
   
   // Remaining fields
   final String? personalEmail;
@@ -34,6 +38,10 @@ class UserModel {
     this.mobileNumber,
     this.manager,
     this.profilePhotoUrl,
+    this.teamId,
+    this.teamName,
+    this.taskAccess,
+    this.leaveAccess,
     this.personalEmail,
     this.emergencyMobileNo,
     this.dateOfBirth,
@@ -60,6 +68,14 @@ class UserModel {
       mobileNumber: json['mobileNumber']?.toString(),
       manager: json['manager'],
       profilePhotoUrl: json['profilePhotoUrl'],
+      teamId: json['teamId']?.toString(),
+      teamName: json['teamName']?.toString(),
+      taskAccess: json['taskAccess'] is bool
+          ? json['taskAccess'] as bool
+          : json['taskAccess']?.toString().toLowerCase() == 'true',
+      leaveAccess: json['leaveAccess'] is bool
+          ? json['leaveAccess'] as bool
+          : json['leaveAccess']?.toString().toLowerCase() == 'true',
       personalEmail: json['personalEmail'],
       emergencyMobileNo: json['emergencyMobileNo']?.toString(),
       dateOfBirth: json['dateOfBirth']?.toString(),
@@ -99,6 +115,10 @@ class UserModel {
       'mobileNumber': mobileNumber,
       'manager': manager,
       'profilePhotoUrl': profilePhotoUrl,
+      'teamId': teamId,
+      'teamName': teamName,
+      'taskAccess': taskAccess,
+      'leaveAccess': leaveAccess,
       'personalEmail': personalEmail,
       'emergencyMobileNo': emergencyMobileNo,
       'dateOfBirth': dateOfBirth,

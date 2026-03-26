@@ -2,8 +2,7 @@ import { db } from '../db/index.js';
 import { notificationPreferences, users, notificationTemplates } from '../db/schema.js';
 import { eq, and } from 'drizzle-orm';
 import { sendEmail } from './emailService.js';
-import { sendWhatsAppMessage } from './whatsappService.js';
-
+import { sendWhatsAppCampaign } from './whatsappService.js';
 /**
  * Helper to replace placeholders like {taskTitle} with actual data
  */
@@ -30,15 +29,20 @@ export const notifyUser = async (userId, eventType, data) => {
         const [prefs] = await db.select().from(notificationPreferences).where(eq(notificationPreferences.userId, userId));
         
         const defaultPrefs = {
-            whatsappNotifications: false,
             emailNotifications: true,
             notificationChannels: {
                 newTask: { admin: true, manager: true, member: true },
+                newTaskInLoop: { admin: true, manager: true, member: true },
                 taskEdit: { admin: true, manager: true, member: true },
+                taskEditInLoop: { admin: true, manager: true, member: true },
                 taskComment: { admin: true, manager: true, member: true },
+                taskCommentInLoop: { admin: true, manager: true, member: true },
                 taskInProgress: { admin: true, manager: true, member: true },
+                taskInProgressInLoop: { admin: true, manager: true, member: true },
                 taskComplete: { admin: true, manager: true, member: true },
-                taskReOpen: { admin: true, manager: true, member: true }
+                taskCompleteInLoop: { admin: true, manager: true, member: true },
+                taskReOpen: { admin: true, manager: true, member: true },
+                taskReOpenInLoop: { admin: true, manager: true, member: true }
             }
         };
 
@@ -55,23 +59,13 @@ export const notifyUser = async (userId, eventType, data) => {
         const getTemplate = (channel) => templates.find(t => t.channel === channel);
 
         // Special handling for reminders and daily reports
-        if (eventType === 'reminder' || eventType === 'dailyPendingReminders') {
-            console.log(`[Notifier] Processing ${eventType} for user ${userId}`);
+        if (eventType === 'reminder' || eventType === 'dailyPendingReminders' || eventType === 'reminderInLoop') {
             const promises = [];
             const emailTemplate = getTemplate('email');
-            const whatsappTemplate = getTemplate('whatsapp');
 
-            let isEmailEnabled = (eventType === 'reminder' || eventType === 'dailyPendingReminders') ? currentPrefs.emailReminders : currentPrefs.emailNotifications;
-            let isWhatsappEnabled = (eventType === 'reminder' || eventType === 'dailyPendingReminders') ? currentPrefs.whatsappReminders : currentPrefs.whatsappNotifications;
-
-            // Override if specific channel is requested in data.type
-            if (data.type) {
-                if (data.type === 'email') { isEmailEnabled = true; isWhatsappEnabled = false; }
-                else if (data.type === 'whatsapp') { isEmailEnabled = false; isWhatsappEnabled = true; }
-                else if (data.type === 'both') { isEmailEnabled = true; isWhatsappEnabled = true; }
-            }
-
-            console.log(`[Notifier] Channels enabled - Email: ${isEmailEnabled}, WhatsApp: ${isWhatsappEnabled}`);
+            const rc = data.reminderChannel ? data.reminderChannel.toLowerCase() : null;
+            let isEmailEnabled = (eventType === 'reminder' || eventType === 'reminderInLoop') ? currentPrefs.emailReminders : currentPrefs.emailNotifications;
+            if (rc) isEmailEnabled = (rc === 'email' || rc === 'both');
 
             if (isEmailEnabled && user.workEmail) {
                 let subject = data.title;
@@ -84,22 +78,49 @@ export const notifyUser = async (userId, eventType, data) => {
                 console.log(`[Notifier] Sending email to ${user.workEmail}`);
                 promises.push(sendEmail(user.workEmail, subject, content, data.attachments || []));
             }
+            
+            let isWhatsappEnabled = true; // By default trigger for all other events
+            if (rc) isWhatsappEnabled = (rc === 'whatsapp' || rc === 'both');
+
+            // Trigger WhatsApp Campaign unconditionally or based on clean setup
             if (isWhatsappEnabled && user.mobileNumber) {
-                let content = data.message;
+                const cleanNumber = user.mobileNumber.replace(/\D/g, '');
+                const whatsappTemplate = getTemplate('whatsapp');
+                let campaignName = process.env.AISENSY_CAMPAIGN_NAME || 'RLD3';
+                let templateParams = [];
+
                 if (whatsappTemplate) {
-                    content = replacePlaceholders(whatsappTemplate.body, data);
-                    console.log(`[Notifier] Using custom WhatsApp template for ${eventType}`);
+                    campaignName = whatsappTemplate.subject?.trim() || campaignName;
+                    const rawBody = replacePlaceholders(whatsappTemplate.body, data);
+                    templateParams = rawBody.split('\n').map(l => l.trim()).filter(l => l !== '');
+                } else {
+                    const campaignMapping = {
+                        reminder: process.env.AISENSY_CAMPAIGN_REMINDER || 'task_reminder_update',
+                        reminderInLoop: process.env.AISENSY_CAMPAIGN_REMINDER_INLOOP || 'task_reminder_inloop_update',
+                        dailyPendingReminders: process.env.AISENSY_CAMPAIGN_DAILY || 'daily_pending_update'
+                    };
+                    campaignName = campaignMapping[eventType] || campaignName;
+                    
+                    templateParams = [
+                        String(data.taskId || 'N/A'),
+                        String(data.taskTitle || 'N/A'),
+                        String(data.category || 'N/A'),
+                        String(data.priority || 'N/A'),
+                        String(data.status || 'Pending'),
+                        String(data.assignerName || 'N/A'),
+                        String(data.doerName || 'N/A'),
+                        (data.taskDescription ? String(data.taskDescription).substring(0, 500) : 'No description provided')
+                    ];
                 }
-                const cleanNumber = user.mobileNumber.replace(/\D/g, ''); 
-                console.log(`[Notifier] Sending WhatsApp to ${cleanNumber}`);
-                promises.push(sendWhatsAppMessage(cleanNumber, content));
+                
+                promises.push(sendWhatsAppCampaign(cleanNumber, user.firstName + ' ' + user.lastName, campaignName, templateParams));
             }
-            const results = await Promise.all(promises);
-            console.log(`[Notifier] Completed ${eventType} notifications for ${userId}. Sent: ${results.length}`);
+            
+            await Promise.all(promises);
             return;
         }
 
-        const userRole = user.role.toLowerCase().replace(' ', '').replace('_', '');
+        const userRole = (user.role || '').toLowerCase().replace(' ', '').replace('_', '');
         let mappedRole = 'member';
         if (userRole.includes('admin')) mappedRole = 'admin';
         if (userRole.includes('manager')) mappedRole = 'manager';
@@ -112,7 +133,6 @@ export const notifyUser = async (userId, eventType, data) => {
         // 2. Send Notifications
         const promises = [];
         const emailTemplate = getTemplate('email');
-        const whatsappTemplate = getTemplate('whatsapp');
 
         // Email
         if (currentPrefs.emailNotifications && user.workEmail) {
@@ -125,16 +145,48 @@ export const notifyUser = async (userId, eventType, data) => {
             promises.push(sendEmail(user.workEmail, subject, content, data.attachments || []));
         }
 
-        // WhatsApp
-        if (currentPrefs.whatsappNotifications && user.mobileNumber) {
-            let content = data.message;
-            if (whatsappTemplate) {
-                content = replacePlaceholders(whatsappTemplate.body, data);
-            }
-            const cleanNumber = user.mobileNumber.replace(/\D/g, ''); 
-            promises.push(sendWhatsAppMessage(cleanNumber, content));
-        }
+        // Trigger WhatsApp Campaign
+        if (user.mobileNumber) {
+            const cleanNumber = user.mobileNumber.replace(/\D/g, '');
+            const whatsappTemplate = getTemplate('whatsapp');
+            let campaignName = process.env.AISENSY_CAMPAIGN_NAME || 'RLD3';
+            let templateParams = [];
 
+            if (whatsappTemplate) {
+                campaignName = whatsappTemplate.subject?.trim() || campaignName;
+                const rawBody = replacePlaceholders(whatsappTemplate.body, data);
+                templateParams = rawBody.split('\n').map(l => l.trim()).filter(l => l !== '');
+            } else {
+                const campaignMapping = {
+                    newTask: process.env.AISENSY_CAMPAIGN_NEW_TASK || 'new_task_update',
+                    newTaskInLoop: process.env.AISENSY_CAMPAIGN_NEW_TASK_INLOOP || 'new_task_inloop_update',
+                    taskEdit: process.env.AISENSY_CAMPAIGN_TASK_EDIT || 'task_edit_update',
+                    taskEditInLoop: process.env.AISENSY_CAMPAIGN_TASK_EDIT_INLOOP || 'task_edit_inloop_update',
+                    taskComment: process.env.AISENSY_CAMPAIGN_TASK_COMMENT || 'task_comment_update',
+                    taskCommentInLoop: process.env.AISENSY_CAMPAIGN_TASK_COMMENT_INLOOP || 'task_comment_inloop_update',
+                    taskInProgress: process.env.AISENSY_CAMPAIGN_TASK_INPROGRESS || 'task_inprogress_update',
+                    taskInProgressInLoop: process.env.AISENSY_CAMPAIGN_TASK_INPROGRESS_INLOOP || 'task_inprogress_inloop_update',
+                    taskComplete: process.env.AISENSY_CAMPAIGN_TASK_COMPLETE || 'task_complete_update',
+                    taskCompleteInLoop: process.env.AISENSY_CAMPAIGN_TASK_COMPLETE_INLOOP || 'task_complete_inloop_update',
+                    taskReOpen: process.env.AISENSY_CAMPAIGN_TASK_REOPEN || 'task_reopen_update',
+                    taskReOpenInLoop: process.env.AISENSY_CAMPAIGN_TASK_REOPEN_INLOOP || 'task_reopen_inloop_update'
+                };
+                campaignName = campaignMapping[eventType] || campaignName;
+                
+                templateParams = [
+                    String(data.taskId || 'N/A'),
+                    String(data.taskTitle || 'N/A'),
+                    String(data.category || 'N/A'),
+                    String(data.priority || 'N/A'),
+                    String(data.status || 'Pending'),
+                    String(data.assignerName || 'N/A'),
+                    String(data.doerName || 'N/A'),
+                    (data.taskDescription ? String(data.taskDescription).substring(0, 500) : 'No description provided')
+                ];
+            }
+            
+            promises.push(sendWhatsAppCampaign(cleanNumber, user.firstName + ' ' + user.lastName, campaignName, templateParams));
+        }
         await Promise.all(promises);
 
     } catch (error) {

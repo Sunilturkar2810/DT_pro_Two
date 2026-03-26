@@ -1,7 +1,7 @@
+import 'package:d_table_delegate_system/provider/group_provider.dart';
+import 'package:d_table_delegate_system/widget/app_dropdown.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../../provider/group_provider.dart';
-import '../../../widget/app_dropdown.dart';
 
 class GroupTaskDetailScreen extends StatefulWidget {
   final String groupId;

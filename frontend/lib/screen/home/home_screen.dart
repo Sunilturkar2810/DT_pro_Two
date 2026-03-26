@@ -12,6 +12,7 @@ import 'package:d_table_delegate_system/widget/custom_search_dropdown.dart';
 import 'package:d_table_delegate_system/widget/custom_multi_dropdown.dart';
 import 'package:d_table_delegate_system/widget/custom_simple_dropdown.dart';
 import 'package:d_table_delegate_system/widget/custom_category_dropdown.dart';
+import 'package:d_table_delegate_system/screen/notifications/notifications_screen.dart';
 import 'package:d_table_delegate_system/widget/assign_task_sheet.dart';
 import 'package:d_table_delegate_system/widget/custom_drawer.dart';
 import 'package:flutter/material.dart';
@@ -116,7 +117,17 @@ class _DynamicDashboardState extends State<DynamicDashboard> {
                 Container(
                   margin: const EdgeInsets.only(right: 15),
                   decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.2), shape: BoxShape.circle),
-                  child: IconButton(icon: const Icon(Icons.notifications_none, color: Colors.black), onPressed: () {}),
+                  child: IconButton(
+                    icon: const Icon(Icons.notifications_none, color: Colors.black),
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const NotificationsScreen(),
+                        ),
+                      );
+                    },
+                  ),
                 ),
               ],
             ),

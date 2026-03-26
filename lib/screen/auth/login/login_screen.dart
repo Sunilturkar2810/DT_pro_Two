@@ -1,7 +1,8 @@
 import 'package:d_table_delegate_system/provider/auth_provider.dart';
-import 'package:d_table_delegate_system/screen/auth/signup/signup_screen.dart';
 import 'package:d_table_delegate_system/screen/auth/forgot_password/forgot_password_screen.dart';
 import 'package:d_table_delegate_system/screen/home/wriper_main.dart';
+import 'package:d_table_delegate_system/services/auth_service.dart';
+import 'package:d_table_delegate_system/services/dio_client.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -15,7 +16,31 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final idController = TextEditingController();
   final passController = TextEditingController();
+  final AuthService _authService = AuthService();
   bool _obscurePassword = true;
+  bool _isCheckingServer = false;
+
+  Future<void> _checkServer() async {
+    if (_isCheckingServer) return;
+
+    setState(() => _isCheckingServer = true);
+    try {
+      final message = await _authService.diagnoseBackendConnection();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: message.toLowerCase().contains('reachable')
+              ? Colors.green
+              : Colors.redAccent,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isCheckingServer = false);
+      }
+    }
+  }
 
   @override
   void dispose() {
@@ -103,6 +128,24 @@ class _LoginScreenState extends State<LoginScreen> {
                       color: Colors.grey[600],
                     ),
                   ),
+                  const SizedBox(height: 12),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF8FAFC),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                    ),
+                    child: Text(
+                      'Server: ${DioClient().currentBaseUrl}',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Color(0xFF475569),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
                   const SizedBox(height: 40),
 
                   // Email Field
@@ -153,81 +196,146 @@ class _LoginScreenState extends State<LoginScreen> {
                   // Login Button
                   Consumer<AuthProvider>(
                     builder: (context, auth, _) {
-                      return SizedBox(
-                        width: double.infinity,
-                        height: 55,
-                        child: ElevatedButton(
-                          onPressed: auth.isLoading
-                              ? null
-                              : () async {
-                            final success = await auth.login(
-                                idController.text.trim(), passController.text);
-                            if (success) {
-                              Navigator.pushReplacement(
-                                context,
-                                MaterialPageRoute(builder: (_) =>  MainWrapper()),
-                              );
-                            } else {
-                              final message = auth.errorMessage ?? 'Login failed';
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text(message), backgroundColor: Colors.redAccent));
-                            }
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: primaryColor,
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(15),
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          SizedBox(
+                            width: double.infinity,
+                            height: 55,
+                            child: ElevatedButton(
+                              onPressed: auth.isLoading
+                                  ? null
+                                  : () async {
+                                      final success = await auth.login(
+                                        idController.text.trim(),
+                                        passController.text,
+                                      );
+                                      if (success) {
+                                        Navigator.pushReplacement(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (_) => MainWrapper(),
+                                          ),
+                                        );
+                                      } else {
+                                        final message =
+                                            auth.errorMessage ?? 'Login failed';
+                                        ScaffoldMessenger.of(context)
+                                            .showSnackBar(
+                                          SnackBar(
+                                            content: Text(message),
+                                            backgroundColor: Colors.redAccent,
+                                          ),
+                                        );
+                                      }
+                                    },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: primaryColor,
+                                foregroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(15),
+                                ),
+                                elevation: 5,
+                                shadowColor: primaryColor.withOpacity(0.4),
+                              ),
+                              child: auth.isLoading
+                                  ? const SizedBox(
+                                      height: 24,
+                                      width: 24,
+                                      child: CircularProgressIndicator(
+                                        color: Colors.white,
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                  : const Text(
+                                      'LOGIN',
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                        letterSpacing: 1.2,
+                                      ),
+                                    ),
                             ),
-                            elevation: 5,
-                            shadowColor: primaryColor.withOpacity(0.4),
                           ),
-                          child: auth.isLoading
-                              ? const SizedBox(
-                            height: 24,
-                            width: 24,
-                            child: CircularProgressIndicator(
-                                color: Colors.white, strokeWidth: 2),
-                          )
-                              : const Text(
-                            'LOGIN',
-                            style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                letterSpacing: 1.2),
+                          const SizedBox(height: 12),
+                          SizedBox(
+                            width: double.infinity,
+                            height: 48,
+                            child: OutlinedButton.icon(
+                              onPressed: (auth.isLoading || _isCheckingServer)
+                                  ? null
+                                  : _checkServer,
+                              icon: _isCheckingServer
+                                  ? const SizedBox(
+                                      width: 16,
+                                      height: 16,
+                                      child: CircularProgressIndicator(strokeWidth: 2),
+                                    )
+                                  : const Icon(Icons.health_and_safety_outlined),
+                              label: Text(
+                                _isCheckingServer
+                                    ? 'Checking Server...'
+                                    : 'Check Server',
+                              ),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: const Color(0xFF0F172A),
+                                side: const BorderSide(color: Color(0xFFE2E8F0)),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(15),
+                                ),
+                              ),
+                            ),
                           ),
-                        ),
+                          if ((auth.errorMessage ?? '').isNotEmpty) ...[
+                            const SizedBox(height: 12),
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(14),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFFFF1F2),
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(color: const Color(0xFFFECDD3)),
+                              ),
+                              child: Text(
+                                auth.errorMessage!,
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: Color(0xFFB91C1C),
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
                       );
                     },
                   ),
 
                   const SizedBox(height: 40),
 
-                  // Sign Up Navigation
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        "Don't have an account? ",
-                        style: TextStyle(color: Colors.grey[600]),
-                      ),
-                      GestureDetector(
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (_) => const SignupScreen()),
-                          );
-                        },
-                        child: Text(
-                          "Sign Up",
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF8FAFC),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                    ),
+                    child: Column(
+                      children: [
+                        Icon(Icons.admin_panel_settings_outlined, color: primaryColor),
+                        const SizedBox(height: 10),
+                        const Text(
+                          'New accounts are created by your admin or manager.',
+                          textAlign: TextAlign.center,
                           style: TextStyle(
-                            color: primaryColor,
-                            fontWeight: FontWeight.bold,
-                            decoration: TextDecoration.underline,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF475569),
                           ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ],
               ),

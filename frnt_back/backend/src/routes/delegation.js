@@ -12,6 +12,9 @@ import {
 } from '../controllers/delegation.controller.js';
 
 export default async function delegationRoutes(fastify, options) {
+    // Authenticate all routes in this plugin
+    fastify.addHook('onRequest', fastify.authenticate);
+
     fastify.post('/', createDelegation);
     fastify.post('/templates', createDelegationTemplate);
     fastify.get('/', getDelegations);

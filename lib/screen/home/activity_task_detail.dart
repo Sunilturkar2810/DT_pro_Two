@@ -93,6 +93,12 @@ class _ActivityTaskDetailScreenState extends State<ActivityTaskDetailScreen> {
     }
   }
 
+  void _showUnavailableMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+
   @override
   void dispose() {
     _audioPlayer.dispose();
@@ -157,7 +163,14 @@ class _ActivityTaskDetailScreenState extends State<ActivityTaskDetailScreen> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     _statusPill(task.status),
-                    IconButton(icon: const Icon(LucideIcons.trash2, color: Colors.red, size: 20), onPressed: () {}),
+                    IconButton(
+                      icon: const Icon(LucideIcons.trash2, color: Colors.red, size: 20),
+                      onPressed: () {
+                        _showUnavailableMessage(
+                          'Delete action is not available from activity detail. Open the task detail screen for task actions.',
+                        );
+                      },
+                    ),
                   ],
                 ),
               ],

@@ -22,6 +22,7 @@ class MyTeamScreen extends StatefulWidget {
 
 class _MyTeamScreenState extends State<MyTeamScreen> {
   final TextEditingController _searchCtrl = TextEditingController();
+  String _selectedTeamId = "All";
   String _selectedRole = "All";
   String _selectedManager = "All";
   String _selectedAccess = "All";
@@ -37,12 +38,15 @@ class _MyTeamScreenState extends State<MyTeamScreen> {
   final Color slate800 = const Color(0xFF1E293B);
 
   List<UserModel> _teamMembers = [];
+  List<UserModel> _allTeamMembers = [];
+  List<Map<String, dynamic>> _teams = [];
   bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
     _fetchTeamMembers();
+    _fetchTeams();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<UserProvider>().fetchUsers();
     });
@@ -53,15 +57,160 @@ class _MyTeamScreenState extends State<MyTeamScreen> {
     setState(() => _isLoading = true);
     try {
       final data = await TeamService().getMyTeamMembers();
+      final members = data.map((e) => UserModel.fromJson(e)).toList();
       if (mounted) {
         setState(() {
-          _teamMembers = data.map((e) => UserModel.fromJson(e)).toList();
+          _allTeamMembers = members;
+          _teamMembers = _selectedTeamId == "All"
+              ? members
+              : members
+                  .where((member) => member.teamId == _selectedTeamId)
+                  .toList();
           _isLoading = false;
         });
       }
     } catch (e) {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  Future<void> _refreshMembersForCurrentTeam() async {
+    await _fetchTeamMembers();
+    if (_selectedTeamId != "All") {
+      await _loadSelectedTeamMembers(_selectedTeamId);
+    }
+  }
+
+  Future<void> _fetchTeams() async {
+    try {
+      final data = await TeamService().getTeams();
+      if (!mounted) return;
+      setState(() {
+        _teams = data
+            .map((item) => Map<String, dynamic>.from(item as Map))
+            .toList();
+      });
+    } catch (_) {
+      // Keep UI functional even if teams list is unavailable.
+    }
+  }
+
+  Future<void> _loadSelectedTeamMembers(String teamId) async {
+    if (!mounted) return;
+    if (teamId == "All") {
+      setState(() {
+        _teamMembers = List<UserModel>.from(_allTeamMembers);
+      });
+      return;
+    }
+
+    setState(() => _isLoading = true);
+    try {
+      final summaries = await TeamService().getTeamMembers(teamId);
+      final selectedTeam = _teams.cast<Map<String, dynamic>?>().firstWhere(
+        (team) => team?['teamId']?.toString() == teamId,
+        orElse: () => null,
+      );
+
+      final mergedMembers = summaries.map((entry) {
+        final summary = Map<String, dynamic>.from(entry as Map);
+        final email = (summary['email'] ?? '').toString().toLowerCase();
+        UserModel? matchedUser;
+
+        for (final user in _allTeamMembers) {
+          if (user.workEmail.toLowerCase() == email) {
+            matchedUser = user;
+            break;
+          }
+        }
+
+        if (matchedUser != null) {
+          return UserModel.fromJson({
+            ...matchedUser.toJson(),
+            'role': summary['role'] ?? matchedUser.role,
+            'manager': summary['reportsTo'] ?? matchedUser.manager,
+            'teamId': teamId,
+            'teamName': selectedTeam?['name']?.toString() ?? matchedUser.teamName,
+          });
+        }
+
+        return UserModel.fromJson({
+          'id': summary['id']?.toString() ?? '',
+          'firstName': summary['userName']?.toString() ?? '',
+          'lastName': summary['userLastName']?.toString() ?? '',
+          'workEmail': summary['email']?.toString() ?? '',
+          'role': summary['role']?.toString() ?? 'TEAM MEMBER',
+          'manager': summary['reportsTo']?.toString(),
+          'teamId': teamId,
+          'teamName': selectedTeam?['name']?.toString(),
+        });
+      }).toList();
+
+      if (!mounted) return;
+      setState(() {
+        _teamMembers = mergedMembers;
+        _isLoading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _teamMembers = _allTeamMembers
+            .where((member) => member.teamId == teamId)
+            .toList();
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _removeMemberFromTeam(UserModel member) async {
+    final teamId = member.teamId;
+    if (teamId == null || teamId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Team information is not available for this member.')),
+      );
+      return;
+    }
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Remove Team Member'),
+        content: Text('Remove ${member.fullName} from ${member.teamName ?? 'this team'}?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Remove'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true || !mounted) return;
+
+    try {
+      await TeamService().removeTeamMember(teamId, member.id);
+      await _refreshMembersForCurrentTeam();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Member removed from team')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to remove member: $e')),
+      );
+    }
+  }
+
+  bool _matchesAccess(UserModel user) {
+    if (_selectedAccess == "All") return true;
+    if (_selectedAccess == "Task App") return user.taskAccess == true;
+    if (_selectedAccess == "Leave App") return user.leaveAccess == true;
+    return true;
   }
 
   @override
@@ -111,8 +260,14 @@ class _MyTeamScreenState extends State<MyTeamScreen> {
             
             final matchesRole = _selectedRole == "All" || u.role == _selectedRole;
             final matchesManager = _selectedManager == "All" || (u.manager != null && u.manager == _selectedManager);
+            final matchesTeam = _selectedTeamId == "All" || u.teamId == _selectedTeamId;
+            final matchesAccess = _matchesAccess(u);
             
-            return matchesSearch && matchesRole && matchesManager;
+            return matchesSearch &&
+                matchesRole &&
+                matchesManager &&
+                matchesTeam &&
+                matchesAccess;
           }).toList();
 
           final uniqueRoles = ["All", ...allMembers.map((m) => m.role).toSet().toList()];
@@ -121,7 +276,7 @@ class _MyTeamScreenState extends State<MyTeamScreen> {
           return Column(
             children: [
               _buildFilterBar(uniqueRoles, uniqueManagers, isDark),
-              _buildStats(allMembers.length, isDark),
+              _buildStats(allMembers, isDark),
               Expanded(
                 child: _buildTable(filteredMembers, isDark),
               ),
@@ -148,7 +303,7 @@ class _MyTeamScreenState extends State<MyTeamScreen> {
                 builder: (ctx) => CreateTeamDialog(
                   onSuccess: () {
                     context.read<UserProvider>().fetchUsers();
-                    _fetchTeamMembers();
+                    _refreshMembersForCurrentTeam();
                   },
                 ),
               );
@@ -161,7 +316,7 @@ class _MyTeamScreenState extends State<MyTeamScreen> {
               builder: (ctx) => CreateMemberDialog(
                 onSuccess: () {
                   context.read<UserProvider>().fetchUsers();
-                  _fetchTeamMembers();
+                  _refreshMembersForCurrentTeam();
                 },
               ),
             );
@@ -174,11 +329,13 @@ class _MyTeamScreenState extends State<MyTeamScreen> {
             onTap: () async {
               final refresh = await Navigator.push(context, MaterialPageRoute(builder: (_) => const AddUserScreen()));
               if (refresh == true) {
-                _fetchTeamMembers();
+                _refreshMembersForCurrentTeam();
               }
             }
           ),
           const SizedBox(width: 12),
+          _buildTeamDropdown(),
+          const SizedBox(width: 8),
           _buildDropdown(roles, _selectedRole, (v) => setState(() => _selectedRole = v!), isDark, "All"),
           const SizedBox(width: 8),
           _buildDropdown(managers, _selectedManager, (v) => setState(() => _selectedManager = v!), isDark, "Reporting Manager"),
@@ -215,6 +372,28 @@ class _MyTeamScreenState extends State<MyTeamScreen> {
     );
   }
 
+  Widget _buildTeamDropdown() {
+    final items = ['All', ..._teams.map((team) => team['teamId'].toString())];
+    return AppDropdown<String>(
+      isCompact: true,
+      value: items.contains(_selectedTeamId) ? _selectedTeamId : items.first,
+      items: items,
+      labelBuilder: (teamId) {
+        if (teamId == 'All') return 'All Teams';
+        final matched = _teams.cast<Map<String, dynamic>?>().firstWhere(
+          (team) => team?['teamId']?.toString() == teamId,
+          orElse: () => null,
+        );
+        return matched?['name']?.toString() ?? 'Team';
+      },
+      onChanged: (value) async {
+        final teamId = value ?? 'All';
+        setState(() => _selectedTeamId = teamId);
+        await _loadSelectedTeamMembers(teamId);
+      },
+    );
+  }
+
   Widget _buildSearchField(bool isDark) {
     return Container(
       width: 200,
@@ -239,7 +418,13 @@ class _MyTeamScreenState extends State<MyTeamScreen> {
     );
   }
 
-  Widget _buildStats(int count, bool isDark) {
+  Widget _buildStats(List<UserModel> members, bool isDark) {
+    final count = members.length;
+    final taskAccessCount =
+        members.where((member) => member.taskAccess == true).length;
+    final leaveAccessCount =
+        members.where((member) => member.leaveAccess == true).length;
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
       child: SingleChildScrollView(
@@ -250,9 +435,9 @@ class _MyTeamScreenState extends State<MyTeamScreen> {
             const SizedBox(width: 16), // Padding for scroll feel
             _statBadge("$count Members", const Color(0xFFB4F5E1), const Color(0xFF2C7A63), isDark),
             const SizedBox(width: 8),
-            _statBadge("$count/$count Task App", const Color(0xFFCFEAFF), const Color(0xFF2B6FB5), isDark),
+            _statBadge("$taskAccessCount/$count Task App", const Color(0xFFCFEAFF), const Color(0xFF2B6FB5), isDark),
             const SizedBox(width: 8),
-            _statBadge("0/0 Leave & Attendance App", const Color(0xFFCFEAFF), const Color(0xFF2B6FB5), isDark),
+            _statBadge("$leaveAccessCount/$count Leave & Attendance App", const Color(0xFFCFEAFF), const Color(0xFF2B6FB5), isDark),
             const SizedBox(width: 16), // Padding for scroll feel
           ],
         ),
@@ -303,6 +488,7 @@ class _MyTeamScreenState extends State<MyTeamScreen> {
   }
 
   Widget _buildListCard(UserModel m, bool isDark) {
+    final canManageMembers = context.read<AuthProvider>().isAdmin;
     return Container(
       margin: const EdgeInsets.only(bottom: 12, left: 16, right: 16),
       padding: const EdgeInsets.all(16),
@@ -384,28 +570,36 @@ class _MyTeamScreenState extends State<MyTeamScreen> {
                       height: 40,
                       child: Text('DELETE USER', style: TextStyle(color: Colors.red, fontSize: 13, fontWeight: FontWeight.w900, fontStyle: FontStyle.italic)),
                     ),
+                    if (canManageMembers && (m.teamId ?? '').isNotEmpty)
+                      const PopupMenuItem(
+                        value: 'remove_from_team',
+                        height: 40,
+                        child: Text('Remove From Team', style: TextStyle(color: Colors.orange, fontSize: 13, fontWeight: FontWeight.bold)),
+                      ),
                   ],
                   onSelected: (val) {
                     if (val == 'edit') {
                       showDialog(context: context, builder: (_) => UpdateMemberDialog(member: m, onSuccess: () {
                         context.read<UserProvider>().fetchUsers();
-                        _fetchTeamMembers();
+                        _refreshMembersForCurrentTeam();
                       }));
                     } else if (val == 'update_cred') {
                       showDialog(context: context, builder: (_) => UpdateCredentialsDialog(member: m, onSuccess: () {
                         context.read<UserProvider>().fetchUsers();
-                        _fetchTeamMembers();
+                        _refreshMembersForCurrentTeam();
                       }));
                     } else if (val == 'delete_tasks') {
                       showDialog(context: context, builder: (_) => DeleteTasksDialog(member: m, onSuccess: () {
                         context.read<UserProvider>().fetchUsers();
-                        _fetchTeamMembers();
+                        _refreshMembersForCurrentTeam();
                       }));
                     } else if (val == 'delete_user') {
                       showDialog(context: context, builder: (_) => DeleteUserDialog(member: m, onSuccess: () {
                         context.read<UserProvider>().fetchUsers();
-                        _fetchTeamMembers();
+                        _refreshMembersForCurrentTeam();
                       }));
+                    } else if (val == 'remove_from_team') {
+                      _removeMemberFromTeam(m);
                     }
                   },
                 ),
@@ -427,7 +621,7 @@ class _MyTeamScreenState extends State<MyTeamScreen> {
           const SizedBox(height: 16),
           Row(
             children: [
-              Expanded(child: _infoBlock("Team Name", "N/A", LucideIcons.users, isDark)),
+              Expanded(child: _infoBlock("Team Name", m.teamName ?? "N/A", LucideIcons.users, isDark)),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,

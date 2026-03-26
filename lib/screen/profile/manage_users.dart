@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:d_table_delegate_system/provider/auth_provider.dart';
 import 'package:provider/provider.dart';
-import '../../../provider/auth_provider.dart';
 import '../../../widget/shimmer_loading.dart';
 
 class ManageUsersScreen extends StatefulWidget {

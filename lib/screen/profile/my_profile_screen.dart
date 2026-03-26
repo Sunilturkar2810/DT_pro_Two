@@ -1,8 +1,8 @@
+import 'package:d_table_delegate_system/model/user_model.dart';
+import 'package:d_table_delegate_system/provider/auth_provider.dart';
+import 'package:d_table_delegate_system/provider/theme_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../../provider/auth_provider.dart';
-import '../../../provider/theme_provider.dart';
-import '../../../model/user_model.dart';
 import '../../../widget/personal_profile_panel.dart';
 
 class MyProfileScreen extends StatefulWidget {

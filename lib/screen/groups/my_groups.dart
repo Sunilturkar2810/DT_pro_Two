@@ -2,10 +2,10 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:d_table_delegate_system/provider/group_provider.dart';
 import 'package:d_table_delegate_system/provider/theme_provider.dart';
 import 'package:d_table_delegate_system/provider/user_provider.dart';
 import 'package:lucide_icons/lucide_icons.dart';
-import '../../../provider/group_provider.dart';
 import 'group_detail.dart';
 
 class MyGroupsScreen extends StatefulWidget {

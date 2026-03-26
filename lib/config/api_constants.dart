@@ -1,6 +1,10 @@
 class ApiConstants {
   // ✅ New Backend Base URL
   static const String baseUrl = "https://erprld.com/api";
+  static const List<String> baseUrls = [
+    "https://erprld.com/api",
+    "https://dt-pro-two.onrender.com/api",
+  ];
 
   // -- Auth ----------------------
   static const String login = '/auth/login';
@@ -8,7 +12,6 @@ class ApiConstants {
   static const String bulkRegister = '/auth/bulk-register'; // ⚠️ Requires ADMIN/MANAGER token
   static const String me = '/auth/me';
   static const String getAllUser = '/auth/users'; // Response: direct array (not {users:[]})
-  static const String getRoles = '/auth/roles';
 
   // Update user: PUT /auth/users/:userId  (use ApiConstants.userById(id))
   // Change credentials: PUT /auth/users/:userId/credentials
@@ -30,6 +33,7 @@ class ApiConstants {
   // -- Groups ---------------------
   static const String groupsList = '/groups/list';   // GET all groups
   static const String groupsCreate = '/groups/create'; // POST create group
+  static const String roles = '/roles';
   // Update group: PATCH /groups/:id/update (use ApiConstants.groupById(id))
 
   // -- Notifications --------------

@@ -1,30 +1,21 @@
-import 'package:dio/dio.dart';
-import '../config/api_constants.dart';
-import 'dio_client.dart';
-
-// ⚠️ NOTE: Tickets feature is NOT available in the new backend (erprld.com/api).
-// This service is stubbed out to prevent compile errors.
-// Future implementation can replace these stubs when the feature is available.
+// Tickets are not available in the current backend.
 class TicketService {
-  final Dio _dio = DioClient().dio;
+  static const String unsupportedMessage =
+      'Support tickets are not available in the current backend.';
 
   Future<List<dynamic>> getMyTickets() async {
-    // Not available in new backend
-    return [];
+    throw UnsupportedError(unsupportedMessage);
   }
 
   Future<Map<String, dynamic>> raiseTicket(Map<String, dynamic> data) async {
-    // Not available in new backend
-    return {'message': 'Tickets not available in current backend'};
+    throw UnsupportedError(unsupportedMessage);
   }
 
-  // Admin / Manager Only
   Future<List<dynamic>> getAllTickets() async {
-    // Not available in new backend
-    return [];
+    throw UnsupportedError(unsupportedMessage);
   }
 
   Future<void> updateTicket(String id, Map<String, dynamic> data) async {
-    // Not available in new backend
+    throw UnsupportedError(unsupportedMessage);
   }
 }
