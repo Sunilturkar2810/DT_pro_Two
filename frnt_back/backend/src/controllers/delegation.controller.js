@@ -1,6 +1,6 @@
 import { db } from '../db/index.js';
-import { delegations, revisionHistory, remarkHistory, checklistMaster, users, taskReminders } from '../db/schema.js';
-import { eq, desc, and, gte, lte, ilike, or, sql, isNull, isNotNull } from 'drizzle-orm';
+import { delegations, revisionHistory, remarkHistory, checklistMaster, users, taskReminders, groupMembers } from '../db/schema.js';
+import { eq, desc, and, gte, lte, ilike, or, sql, isNull, isNotNull, inArray } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import { uploadToS3 } from '../utils/s3.js';
 import { createNotification } from './notification.controller.js';
@@ -61,9 +61,21 @@ const formatAttachmentsForEmail = (voiceNoteUrl, referenceDocs, evidenceUrl) => 
         });
     }
     if (evidenceUrl) {
-        attachments.push({
-            filename: evidenceUrl.split('/').pop() || 'evidence-file',
-            path: evidenceUrl
+        let urls = [];
+        try {
+            const parsed = JSON.parse(evidenceUrl);
+            urls = Array.isArray(parsed) ? parsed : [evidenceUrl];
+        } catch (e) {
+            urls = typeof evidenceUrl === 'string' ? evidenceUrl.split(',').filter(Boolean) : [evidenceUrl];
+        }
+
+        urls.forEach(url => {
+            if (url && typeof url === 'string' && url.trim()) {
+                attachments.push({
+                    filename: url.trim().split('/').pop() || 'evidence-file',
+                    path: url.trim()
+                });
+            }
         });
     }
     return attachments;
@@ -109,7 +121,7 @@ export const createDelegation = async (req, reply) => {
     if (!dueDate) return reply.status(400).send({ success: false, message: 'Due Date is required' });
     if (!category) return reply.status(400).send({ success: false, message: 'Category is required' });
     if (!priority) return reply.status(400).send({ success: false, message: 'Priority is required' });
-    if (!inLoopIds || (Array.isArray(inLoopIds) && inLoopIds.length === 0)) return reply.status(400).send({ success: false, message: 'In Loop is required' });
+    // In Loop is optional
 
 
     try {
@@ -216,14 +228,14 @@ export const createDelegation = async (req, reply) => {
             // Notify via External Channels (Email) based on preferences
             await notifyUser(targetDoerId, 'newTask', {
                 title: 'New Task Delegated',
-                message: `You have been assigned a new task: ${taskTitle}\nDescription: ${description || 'No description'}\nPriority: ${priority}\nDue Date: ${firstInstanceDueDate ? new Date(firstInstanceDueDate).toLocaleDateString() : 'No due date'}`,
+                message: `You have been assigned a new task: ${taskTitle}\nDescription: ${description || 'No description'}\nPriority: ${priority}\nDue Date: ${firstInstanceDueDate ? new Date(firstInstanceDueDate).toLocaleDateString('en-GB') : 'No due date'}`,
                 html: `
                     <div style="font-family: sans-serif; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
                         <h2 style="color: #10b981;">New Task Delegated</h2>
                         <p><strong>Title:</strong> ${taskTitle}</p>
                         <p><strong>Description:</strong> ${description || 'No description'}</p>
                         <p><strong>Priority:</strong> <span style="color: ${priority === 'High' ? '#ef4444' : '#6b7280'};">${priority}</span></p>
-                        <p><strong>Due Date:</strong> ${firstInstanceDueDate ? new Date(firstInstanceDueDate).toLocaleDateString() : 'No due date'}</p>
+                        <p><strong>Due Date:</strong> ${firstInstanceDueDate ? new Date(firstInstanceDueDate).toLocaleDateString('en-GB') : 'No due date'}</p>
                         <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
                         <p style="font-size: 12px; color: #6b7280;">Please log in to the portal to view more details.</p>
                     </div>
@@ -234,18 +246,20 @@ export const createDelegation = async (req, reply) => {
                 taskDescription: description || 'No description',
                 priority,
                 category,
-                dueDate: firstInstanceDueDate ? new Date(firstInstanceDueDate).toLocaleDateString() : 'No due date',
+                dueDate: firstInstanceDueDate ? new Date(firstInstanceDueDate).toLocaleDateString('en-GB') : 'No due date',
                 assignerName: assigner ? `${assigner.firstName} ${assigner.lastName}` : 'Assigner',
                 doerName: doer ? `${doer.firstName} ${doer.lastName}` : 'You',
                 status: status || 'Pending',
                 frequency: isRepeat ? (repeatFrequency || 'Recurring') : 'One-Time',
-                startDate: repeatStartDate ? new Date(repeatStartDate).toLocaleDateString() : (firstInstanceDueDate ? new Date(firstInstanceDueDate).toLocaleDateString() : 'N/A'),
-                endDate: repeatEndDate ? new Date(repeatEndDate).toLocaleDateString() : 'N/A',
+                startDate: repeatStartDate ? new Date(repeatStartDate).toLocaleDateString('en-GB') : (firstInstanceDueDate ? new Date(firstInstanceDueDate).toLocaleDateString('en-GB') : 'N/A'),
+                endDate: repeatEndDate ? new Date(repeatEndDate).toLocaleDateString('en-GB') : 'N/A',
                 attachments: formatAttachmentsForEmail(voiceNoteUrl, referenceDocs, evidenceUrl),
                 taskList: taskListStr,
                 voiceNoteUrl: voiceNoteUrl || 'No audio note',
                 referenceDocs: Array.isArray(referenceDocs) ? referenceDocs.join(', ') : (referenceDocs || 'No reference documents'),
-                evidenceUrl: evidenceUrl || 'No evidence provided'
+                evidenceUrl: evidenceUrl || 'No evidence provided',
+                remark: description || 'No description',
+                reason: description || 'No description'
             });
 
             // Notify in-loop members individually
@@ -269,14 +283,14 @@ export const createDelegation = async (req, reply) => {
                 // Email + WhatsApp via notifier service
                 await notifyUser(loopMemberId, 'newTaskInLoop', {
                     title: 'You Are In Loop: New Task',
-                    message: `You have been added in loop for task: ${taskTitle}\nAssigned To: ${doer ? `${doer.firstName} ${doer.lastName}` : 'Assignee'}\nPriority: ${priority}\nDue Date: ${firstInstanceDueDate ? new Date(firstInstanceDueDate).toLocaleDateString() : 'No due date'}`,
+                    message: `You have been added in loop for task: ${taskTitle}\nAssigned To: ${doer ? `${doer.firstName} ${doer.lastName}` : 'Assignee'}\nPriority: ${priority}\nDue Date: ${firstInstanceDueDate ? new Date(firstInstanceDueDate).toLocaleDateString('en-GB') : 'No due date'}`,
                     html: `
                         <div style="font-family: sans-serif; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
                             <h2 style="color: #6366f1;">You Are In Loop</h2>
                             <p><strong>Task:</strong> ${taskTitle}</p>
                             <p><strong>Assigned To:</strong> ${doer ? `${doer.firstName} ${doer.lastName}` : 'Assignee'}</p>
                             <p><strong>Priority:</strong> ${priority}</p>
-                            <p><strong>Due Date:</strong> ${firstInstanceDueDate ? new Date(firstInstanceDueDate).toLocaleDateString() : 'No due date'}</p>
+                            <p><strong>Due Date:</strong> ${firstInstanceDueDate ? new Date(firstInstanceDueDate).toLocaleDateString('en-GB') : 'No due date'}</p>
                             <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
                             <p style="font-size: 12px; color: #6b7280;">You are copied on this task for visibility. Please log in for details.</p>
                         </div>
@@ -286,16 +300,18 @@ export const createDelegation = async (req, reply) => {
                     taskDescription: description || 'No description',
                     priority,
                     category,
-                    dueDate: firstInstanceDueDate ? new Date(firstInstanceDueDate).toLocaleDateString() : 'No due date',
+                    dueDate: firstInstanceDueDate ? new Date(firstInstanceDueDate).toLocaleDateString('en-GB') : 'No due date',
                     assignerName: assigner ? `${assigner.firstName} ${assigner.lastName}` : 'Assigner',
                     doerName: doer ? `${doer.firstName} ${doer.lastName}` : 'Assignee',
                     status: status || 'Pending',
                     frequency: isRepeat ? (repeatFrequency || 'Recurring') : 'One-Time',
-                    startDate: repeatStartDate ? new Date(repeatStartDate).toLocaleDateString() : (firstInstanceDueDate ? new Date(firstInstanceDueDate).toLocaleDateString() : 'N/A'),
-                    endDate: repeatEndDate ? new Date(repeatEndDate).toLocaleDateString() : 'N/A',
+                    startDate: repeatStartDate ? new Date(repeatStartDate).toLocaleDateString('en-GB') : (firstInstanceDueDate ? new Date(firstInstanceDueDate).toLocaleDateString('en-GB') : 'N/A'),
+                    endDate: repeatEndDate ? new Date(repeatEndDate).toLocaleDateString('en-GB') : 'N/A',
                     voiceNoteUrl: voiceNoteUrl || 'No audio note',
                     referenceDocs: Array.isArray(referenceDocs) ? referenceDocs.join(', ') : (referenceDocs || 'No reference documents'),
-                    evidenceUrl: evidenceUrl || 'No evidence provided'
+                    evidenceUrl: evidenceUrl || 'No evidence provided',
+                    remark: description || 'No description',
+                    reason: description || 'No description'
                 });
             }
 
@@ -434,11 +450,26 @@ export const getDelegations = async (req, reply) => {
         // If not admin, restrict visibility to tasks the user is involved in
         if (!isAdmin && user) {
             const userId = user.id;
-            conditions.push(or(
+            
+            // Get all groups where the user is a member
+            const userGroups = await db.select({ groupId: groupMembers.groupId })
+                .from(groupMembers)
+                .where(eq(groupMembers.userId, userId));
+            
+            const groupIds = (userGroups || []).map(ug => ug.groupId).filter(Boolean);
+
+            const visibilityConditions = [
                 eq(delegations.doerId, userId),
                 eq(delegations.assignerId, userId),
                 sql`${delegations.inLoopIds}::jsonb @> ${JSON.stringify([userId])}::jsonb`
-            ));
+            ];
+
+            // If the user is in groups, allow them to see tasks within those groups
+            if (groupIds.length > 0) {
+                visibilityConditions.push(inArray(delegations.groupId, groupIds));
+            }
+
+            conditions.push(or(...visibilityConditions));
         }
 
         if (groupId) {
@@ -624,6 +655,17 @@ export const updateDelegation = async (req, reply) => {
         );
         const isStatusChanged = updates.status && updates.status !== existingDelegation.status;
 
+        // Evidence mandate check
+        if (updates.status === 'Completed' && (existingDelegation.evidenceRequired || updates.evidenceRequired)) {
+            const hasEvidence = updates.evidenceUrl || existingDelegation.evidenceUrl;
+            if (!hasEvidence || (Array.isArray(hasEvidence) && hasEvidence.length === 0)) {
+                return reply.status(400).send({ 
+                    success: false, 
+                    message: 'Evidence upload is mandatory to mark this task as Completed.' 
+                });
+            }
+        }
+
         let revisionCount = existingDelegation.revisionCount || 0;
 
         if (isDueDateChanged || isStatusChanged) {
@@ -667,6 +709,7 @@ export const updateDelegation = async (req, reply) => {
 
         const [updatedDelegation] = await db.update(delegations)
             .set(filteredUpdates)
+            .where(eq(delegations.id, id))
             .returning();
 
         // Sync reminders if provided in updates
@@ -738,6 +781,12 @@ export const updateDelegation = async (req, reply) => {
             }
         }
 
+        // Fetch doer and assigner names for notification templates
+        const [doer] = await db.select().from(users).where(eq(users.userId, existingDelegation.doerId));
+        const [assigner] = await db.select().from(users).where(eq(users.userId, existingDelegation.assignerId));
+        const doerName = doer ? `${doer.firstName} ${doer.lastName}` : 'Doer';
+        const assignerName = assigner ? `${assigner.firstName} ${assigner.lastName}` : 'Assigner';
+
         await notifyUser(recipientId, eventType, {
             title,
             message: `${message}\nTask: ${existingDelegation.taskTitle}\nUpdated by: ${updaterName}`,
@@ -758,7 +807,7 @@ export const updateDelegation = async (req, reply) => {
             message,
             updatedBy: updaterName,
             priority: existingDelegation.priority,
-            dueDate: existingDelegation.dueDate ? new Date(existingDelegation.dueDate).toLocaleDateString() : 'No due date',
+            dueDate: existingDelegation.dueDate ? new Date(existingDelegation.dueDate).toLocaleDateString('en-GB') : 'No due date',
             status: updates.status || existingDelegation.status,
             attachments: formatAttachmentsForEmail(updatedDelegation.voiceNoteUrl, updatedDelegation.referenceDocs, updatedDelegation.evidenceUrl),
             taskList: (updatedDelegation.checklistItems && updatedDelegation.checklistItems.length > 0)
@@ -766,7 +815,11 @@ export const updateDelegation = async (req, reply) => {
                 : 'No checklist items',
             voiceNoteUrl: updatedDelegation.voiceNoteUrl || 'No audio note',
             referenceDocs: Array.isArray(updatedDelegation.referenceDocs) ? updatedDelegation.referenceDocs.join(', ') : (updatedDelegation.referenceDocs || 'No reference documents'),
-            evidenceUrl: updatedDelegation.evidenceUrl || 'No evidence provided'
+            evidenceUrl: updatedDelegation.evidenceUrl || 'No evidence provided',
+            doerName,
+            assignerName,
+            remark: reason || message,
+            reason: reason || message
         });
 
         // Notify in-loop members about the update
@@ -787,13 +840,17 @@ export const updateDelegation = async (req, reply) => {
                 taskDescription: existingDelegation.description || 'No description',
                 updatedBy: updaterName,
                 priority: existingDelegation.priority,
-                dueDate: existingDelegation.dueDate ? new Date(existingDelegation.dueDate).toLocaleDateString() : 'No due date',
+                dueDate: existingDelegation.dueDate ? new Date(existingDelegation.dueDate).toLocaleDateString('en-GB') : 'No due date',
                 status: updates.status || existingDelegation.status,
                 assignerName: updaterName,
                 doerName: `${loopMember.firstName} ${loopMember.lastName}`,
                 voiceNoteUrl: updatedDelegation.voiceNoteUrl || 'No audio note',
                 referenceDocs: Array.isArray(updatedDelegation.referenceDocs) ? updatedDelegation.referenceDocs.join(', ') : (updatedDelegation.referenceDocs || 'No reference documents'),
-                evidenceUrl: updatedDelegation.evidenceUrl || 'No evidence provided'
+                evidenceUrl: updatedDelegation.evidenceUrl || 'No evidence provided',
+                assignerName,
+                doerName,
+                remark: reason || message,
+                reason: reason || message
             });
         }
 
@@ -849,7 +906,7 @@ export const updateDelegation = async (req, reply) => {
                 message,
                 updatedBy: updaterName,
                 priority: existingDelegation.priority,
-                dueDate: existingDelegation.dueDate ? new Date(existingDelegation.dueDate).toLocaleDateString() : 'No due date',
+                dueDate: existingDelegation.dueDate ? new Date(existingDelegation.dueDate).toLocaleDateString('en-GB') : 'No due date',
                 status: updates.status || existingDelegation.status,
                 attachments: formatAttachmentsForEmail(updatedDelegation.voiceNoteUrl, updatedDelegation.referenceDocs, updatedDelegation.evidenceUrl),
                 taskList: (updatedDelegation.checklistItems && updatedDelegation.checklistItems.length > 0)
@@ -866,7 +923,7 @@ export const updateDelegation = async (req, reply) => {
                 revisionCount: updatedDelegation.revisionCount || 0,
                 inLoopIds: Array.isArray(updatedDelegation.inLoopIds) ? updatedDelegation.inLoopIds.join(', ') : 'None',
                 frequency: (updatedDelegation.frequency || 'Once'),
-                fromDate: updatedDelegation.createdAt ? new Date(updatedDelegation.createdAt).toLocaleDateString() : 'N/A'
+                fromDate: updatedDelegation.createdAt ? new Date(updatedDelegation.createdAt).toLocaleDateString('en-GB') : 'N/A'
             });
         }
 
@@ -1096,6 +1153,11 @@ export const addRemark = async (req, reply) => {
             );
 
             // Notify via External Channels (Email)
+            const [doer] = await db.select().from(users).where(eq(users.userId, delegation.doerId));
+            const [assigner] = await db.select().from(users).where(eq(users.userId, delegation.assignerId));
+            const doerName = doer ? `${doer.firstName} ${doer.lastName}` : 'Doer';
+            const assignerName = assigner ? `${assigner.firstName} ${assigner.lastName}` : 'Assigner';
+
             const commenter = await db.select().from(users).where(eq(users.userId, userId)).limit(1);
             const commenterName = commenter[0] ? `${commenter[0].firstName} ${commenter[0].lastName}` : 'Someone';
 
@@ -1119,11 +1181,14 @@ export const addRemark = async (req, reply) => {
                 commenterName,
                 priority: delegation.priority,
                 category: delegation.category,
-                dueDate: delegation.dueDate ? new Date(delegation.dueDate).toLocaleDateString() : 'No due date',
+                dueDate: delegation.dueDate ? new Date(delegation.dueDate).toLocaleDateString('en-GB') : 'No due date',
                 status: delegation.status,
                 voiceNoteUrl: delegation.voiceNoteUrl || 'No audio note',
                 referenceDocs: Array.isArray(delegation.referenceDocs) ? delegation.referenceDocs.join(', ') : (delegation.referenceDocs || 'No reference documents'),
-                evidenceUrl: delegation.evidenceUrl || 'No evidence provided'
+                evidenceUrl: delegation.evidenceUrl || 'No evidence provided',
+                doerName,
+                assignerName,
+                reason: remark
             });
 
             // Notify in-loop members about the remark
@@ -1145,13 +1210,17 @@ export const addRemark = async (req, reply) => {
                     taskDescription: remark,
                     priority: delegation.priority,
                     category: delegation.category,
-                    dueDate: delegation.dueDate ? new Date(delegation.dueDate).toLocaleDateString() : 'No due date',
+                    dueDate: delegation.dueDate ? new Date(delegation.dueDate).toLocaleDateString('en-GB') : 'No due date',
                     status: delegation.status,
                     assignerName: commenterName,
                     doerName: `${loopMember.firstName} ${loopMember.lastName}`,
                     voiceNoteUrl: delegation.voiceNoteUrl || 'No audio note',
                     referenceDocs: Array.isArray(delegation.referenceDocs) ? delegation.referenceDocs.join(', ') : (delegation.referenceDocs || 'No reference documents'),
-                    evidenceUrl: delegation.evidenceUrl || 'No evidence provided'
+                    evidenceUrl: delegation.evidenceUrl || 'No evidence provided',
+                    doerName,
+                    assignerName,
+                    remark,
+                    reason: remark
                 });
             }
 
@@ -1196,7 +1265,7 @@ export const addRemark = async (req, reply) => {
                     commenterName,
                     priority: delegation.priority,
                     category: delegation.category,
-                    dueDate: delegation.dueDate ? new Date(delegation.dueDate).toLocaleDateString() : 'No due date',
+                    dueDate: delegation.dueDate ? new Date(delegation.dueDate).toLocaleDateString('en-GB') : 'No due date',
                     status: delegation.status
                 });
             }

@@ -47,71 +47,89 @@ jobs:
             FRONTEND_DIR="$PROJECT_DIR/Frontend"
             NGINX_DIR="/var/www/html"
 
-            echo "📂 Moving to project directory..."
-            cd "$PROJECT_DIR"
-
-            echo "⬇️ Fetching latest code..."
-            git fetch origin
-
-            if git show-ref --verify --quiet refs/heads/main; then
-              git checkout main
-            else
-              git checkout -b main origin/main
+            echo "===== Load Node / NVM ====="
+            export NVM_DIR="$HOME/.nvm"
+            if [ -s "$NVM_DIR/nvm.sh" ]; then
+              . "$NVM_DIR/nvm.sh"
             fi
 
-            echo "🔄 Resetting to latest origin/main..."
+            if [ -d "$HOME/.nvm/versions/node" ]; then
+              LATEST_NODE_BIN=$(find "$HOME/.nvm/versions/node" -type d -path "*/bin" | sort | tail -n 1)
+              export PATH="$LATEST_NODE_BIN:$PATH"
+            fi
+
+            export PATH="$(npm config get prefix 2>/dev/null)/bin:$PATH"
+
+            echo "Node: $(which node || true)"
+            echo "Npm: $(which npm || true)"
+            echo "PM2: $(which pm2 || true)"
+            node -v || true
+            npm -v || true
+            pm2 -v || true
+
+            echo "===== Go to project ====="
+            cd "$PROJECT_DIR"
+
+            echo "===== Pull latest code ====="
+            git fetch origin
+            git checkout main || git checkout -b main origin/main
             git reset --hard origin/main
 
-            echo "🟢 Deploying backend..."
+            echo "===== Backend deploy ====="
             if [ -d "$BACKEND_DIR" ]; then
               cd "$BACKEND_DIR"
 
-              echo "📦 Installing backend dependencies..."
-              npm install
+              echo "Installing backend dependencies..."
+              npm ci
 
-              echo "🔁 Restarting backend with PM2..."
-              if command -v pm2 >/dev/null 2>&1; then
-                if pm2 describe kesariya-backend >/dev/null 2>&1; then
-                  pm2 restart kesariya-backend --update-env
-                else
-                  pm2 start src/index.js --name "kesariya-backend"
-                fi
+              echo "Checking backend entry..."
+              ls -l src/index.js
+
+              echo "Starting or restarting PM2 app..."
+              if pm2 describe kesariya-backend >/dev/null 2>&1; then
+                pm2 restart kesariya-backend --update-env
               else
-                echo "📦 Installing PM2..."
-                sudo npm install -g pm2
                 pm2 start src/index.js --name "kesariya-backend"
               fi
 
               pm2 save
-              pm2 status
+              pm2 ls
+              pm2 describe kesariya-backend || true
+              pm2 logs kesariya-backend --lines 30 --nostream || true
+
               cd "$PROJECT_DIR"
             else
-              echo "⚠️ Backend directory not found."
+              echo "Backend directory not found: $BACKEND_DIR"
+              exit 1
             fi
 
-            echo "🧱 Deploying frontend..."
+            echo "===== Frontend deploy ====="
             if [ -d "$FRONTEND_DIR" ]; then
               cd "$FRONTEND_DIR"
 
-              echo "📦 Installing frontend dependencies..."
-              npm install
+              echo "Installing frontend dependencies..."
+              npm ci
 
-              echo "🏗 Building frontend..."
+              echo "Building frontend..."
               npm run build
 
-              echo "📁 Copying dist to nginx root..."
+              echo "Copying dist to nginx..."
               sudo mkdir -p "$NGINX_DIR"
               sudo rm -rf "$NGINX_DIR"/*
               sudo cp -r dist/* "$NGINX_DIR"/
 
-              echo "🔁 Restarting nginx..."
-              sudo systemctl restart nginx
+              echo "Testing nginx config..."
+              sudo nginx -t
+
+              echo "Reloading nginx..."
+              sudo systemctl reload nginx
               sudo systemctl enable nginx
 
               cd "$PROJECT_DIR"
             else
-              echo "⚠️ Frontend directory not found."
+              echo "Frontend directory not found: $FRONTEND_DIR"
+              exit 1
             fi
 
-            echo "✅ Deployment completed successfully."
+            echo "===== Deployment completed successfully ====="
           EOF

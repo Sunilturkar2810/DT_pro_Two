@@ -5,7 +5,6 @@ import 'package:d_table_delegate_system/provider/delegation_provider.dart';
 import 'package:d_table_delegate_system/provider/theme_provider.dart';
 import 'package:d_table_delegate_system/provider/user_provider.dart';
 import 'package:d_table_delegate_system/provider/category_provider.dart';
-import 'package:d_table_delegate_system/provider/tag_provider.dart';
 import 'package:d_table_delegate_system/screen/home/task_detail.dart';
 import 'package:d_table_delegate_system/widget/app_dropdown.dart';
 import 'package:d_table_delegate_system/widget/assign_task_sheet.dart';
@@ -34,6 +33,7 @@ class _MyTaskScreenState extends State<MyTaskScreen>
   String searchQuery = "";
   String selectedDateRange = "All Time";
   String selectedSortBy = "Target Date";
+  bool _sortDescending = true;
   bool parentTasksOnly = false;
   int _viewMode = 0; // 0=list, 1=grid, 2=calendar
   String _activeStatusTab = "All";
@@ -41,15 +41,15 @@ class _MyTaskScreenState extends State<MyTaskScreen>
   // Filter states
   DateTime? _customStartDate;
   DateTime? _customEndDate;
-  String _assignedByFilter = "Anyone";
-  String _priorityFilter = "All Priority";
-  String _categoryFilter = "All Categories";
-  String _tagFilter = "All Tags";
+  String _assignedByFilter = "All";
+  String _priorityFilter = "All";
+  String _categoryFilter = "All";
+  String _tagFilter = "All";
 
   // Status tabs with config
   final List<Map<String, dynamic>> _statusTabs = [
     {"label": "All", "color": Colors.blueGrey, "icon": null, "filled": true},
-    {"label": "OverDue", "color": Colors.red, "icon": null, "filled": true},
+    {"label": "Overdue", "color": Colors.red, "icon": null, "filled": true},
     {"label": "Pending", "color": Colors.orange, "icon": null, "filled": false},
     {"label": "In Progress", "color": Colors.orange, "icon": null, "filled": true},
     {"label": "Completed", "color": const Color(0xFF20E19F), "icon": Icons.check_circle_rounded, "filled": true},
@@ -67,7 +67,6 @@ class _MyTaskScreenState extends State<MyTaskScreen>
       Provider.of<DelegationProvider>(context, listen: false).fetchAll();
       Provider.of<UserProvider>(context, listen: false).fetchUsers();
       Provider.of<CategoryProvider>(context, listen: false).fetchCategories();
-      Provider.of<TagProvider>(context, listen: false).fetchTags();
     });
   }
 
@@ -78,88 +77,128 @@ class _MyTaskScreenState extends State<MyTaskScreen>
   }
 
   List<DelegationModel> _applyFilters(
-      List<DelegationModel> all, String? myId, List<UserModel> users) {
-    // MY TASKS = sirf wo tasks jo MUJHE assign kiye gaye hain
-    return all.where((task) {
+      List<DelegationModel> all, String? myId) {
+    final filtered = all.where((task) {
       if (task.assingDoerId != myId) return false;
 
       bool matchesSearch = searchQuery.isEmpty ||
-          task.delegationName.toLowerCase().contains(searchQuery) ||
-          task.description.toLowerCase().contains(searchQuery);
+          task.delegationName.toLowerCase().contains(searchQuery);
 
       bool matchesStatus =
           _activeStatusTab == "All" || task.status == _activeStatusTab;
 
       // Filter: Assigned By
       bool matchesAssignedBy = true;
-      if (_assignedByFilter != "Anyone") {
-        final assigner = users.firstWhere((u) => u.id == task.delegatorId, orElse: () => UserModel.empty());
-        matchesAssignedBy = assigner.fullName == _assignedByFilter;
+      if (_assignedByFilter != "All") {
+        matchesAssignedBy = task.delegatorId == _assignedByFilter;
       }
 
       // Filter: Priority
       bool matchesPriority = true;
-      if (_priorityFilter != "All Priority") {
+      if (_priorityFilter != "All") {
         matchesPriority = task.priority == _priorityFilter;
       }
 
       // Filter: Category
       bool matchesCategory = true;
-      if (_categoryFilter != "All Categories") {
+      if (_categoryFilter != "All") {
         matchesCategory = task.category == _categoryFilter;
       }
 
       // Filter: Tags
       bool matchesTags = true;
-      if (_tagFilter != "All Tags") {
+      if (_tagFilter != "All") {
         matchesTags = task.tagsList.contains(_tagFilter);
       }
 
-      bool matchesDate = true;
-      final now = DateTime.now();
-      
-      try {
-        final due = DateTime.parse(task.dueDate.split('T')[0]);
-        final today = DateTime(now.year, now.month, now.day);
-        final taskDate = DateTime(due.year, due.month, due.day);
-        
-        if (selectedDateRange == "Today") {
-          matchesDate = taskDate.isAtSameMomentAs(today);
-        } else if (selectedDateRange == "Yesterday") {
-          final yesterday = today.subtract(const Duration(days: 1));
-          matchesDate = taskDate.isAtSameMomentAs(yesterday);
-        } else if (selectedDateRange == "This Week") {
-          final weekStart = today.subtract(Duration(days: today.weekday - 1));
-          final weekEnd = weekStart.add(const Duration(days: 6));
-          matchesDate = taskDate.isAfter(weekStart.subtract(const Duration(days: 1))) &&
-                        taskDate.isBefore(weekEnd.add(const Duration(days: 1)));
-        } else if (selectedDateRange == "Last Week") {
-          final lastWeekStart = today.subtract(Duration(days: today.weekday - 1 + 7));
-          final lastWeekEnd = lastWeekStart.add(const Duration(days: 6));
-          matchesDate = taskDate.isAfter(lastWeekStart.subtract(const Duration(days: 1))) &&
-                        taskDate.isBefore(lastWeekEnd.add(const Duration(days: 1)));
-        } else if (selectedDateRange == "This Month") {
-          matchesDate = taskDate.year == today.year && taskDate.month == today.month;
-        } else if (selectedDateRange == "Last Month") {
-          final lastMonth = today.month == 1 ? 12 : today.month - 1;
-          final lastMonthYear = today.month == 1 ? today.year - 1 : today.year;
-          matchesDate = taskDate.year == lastMonthYear && taskDate.month == lastMonth;
-        } else if (selectedDateRange == "This Year") {
-          matchesDate = taskDate.year == today.year;
-        } else if (selectedDateRange == "Custom") {
-          if (_customStartDate != null && _customEndDate != null) {
-            final start = DateTime(_customStartDate!.year, _customStartDate!.month, _customStartDate!.day);
-            final end = DateTime(_customEndDate!.year, _customEndDate!.month, _customEndDate!.day);
-            matchesDate = (taskDate.isAtSameMomentAs(start) || taskDate.isAfter(start)) &&
-                          (taskDate.isAtSameMomentAs(end) || taskDate.isBefore(end));
-          } else {
-            matchesDate = true;
-          }
-        }
-      } catch (_) {}
+      final taskDate = task.dueDate.isNotEmpty ? task.dueDate : task.createdAt;
+      final matchesDate = _matchesDateRange(taskDate);
 
       return matchesSearch && matchesStatus && matchesDate && matchesAssignedBy && matchesPriority && matchesCategory && matchesTags;
     }).toList();
+
+    filtered.sort(_compareTasksForSort);
+    return filtered;
+  }
+
+  int _compareTasksForSort(DelegationModel a, DelegationModel b) {
+    int result;
+
+    switch (selectedSortBy) {
+      case "Created At":
+        final aValue = DateTime.tryParse(a.createdAt)?.millisecondsSinceEpoch ?? 0;
+        final bValue = DateTime.tryParse(b.createdAt)?.millisecondsSinceEpoch ?? 0;
+        result = aValue.compareTo(bValue);
+        break;
+      case "Title":
+        result = a.delegationName.toLowerCase().compareTo(b.delegationName.toLowerCase());
+        break;
+      case "Category Name":
+        result = a.category.toLowerCase().compareTo(b.category.toLowerCase());
+        break;
+      case "Target Date":
+      default:
+        final aValue = DateTime.tryParse(a.dueDate)?.millisecondsSinceEpoch ?? 0;
+        final bValue = DateTime.tryParse(b.dueDate)?.millisecondsSinceEpoch ?? 0;
+        result = aValue.compareTo(bValue);
+        break;
+    }
+
+    return _sortDescending ? -result : result;
+  }
+
+  bool _matchesDateRange(String? taskDate) {
+    if (selectedDateRange == "All Time") return true;
+    if (taskDate == null || taskDate.isEmpty) return false;
+
+    final d = DateTime.tryParse(taskDate);
+    if (d == null) return false;
+
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+
+    switch (selectedDateRange) {
+      case 'Today':
+        return !d.isBefore(today);
+      case 'Yesterday':
+        final yesterday = today.subtract(const Duration(days: 1));
+        return !d.isBefore(yesterday) && d.isBefore(today);
+      case 'This Week':
+        final start = DateTime(today.year, today.month, today.day)
+            .subtract(Duration(days: today.weekday == 7 ? 6 : today.weekday - 1));
+        return !d.isBefore(start);
+      case 'Last Week':
+        final start = DateTime(today.year, today.month, today.day)
+            .subtract(Duration(days: today.weekday == 7 ? 13 : today.weekday + 6));
+        final end = start.add(const Duration(days: 6));
+        return !d.isBefore(start) && !d.isAfter(end);
+      case 'This Month':
+        return !d.isBefore(DateTime(now.year, now.month, 1));
+      case 'Last Month':
+        final start = DateTime(now.year, now.month - 1, 1);
+        final end = DateTime(now.year, now.month, 0);
+        return !d.isBefore(start) && !d.isAfter(end);
+      case 'This Year':
+        return !d.isBefore(DateTime(now.year, 1, 1));
+      case 'Custom':
+        if (_customStartDate == null || _customEndDate == null) return true;
+        final start = DateTime(
+          _customStartDate!.year,
+          _customStartDate!.month,
+          _customStartDate!.day,
+        );
+        final end = DateTime(
+          _customEndDate!.year,
+          _customEndDate!.month,
+          _customEndDate!.day,
+          23,
+          59,
+          59,
+        );
+        return !d.isBefore(start) && !d.isAfter(end);
+      default:
+        return true;
+    }
   }
 
   @override
@@ -171,7 +210,7 @@ class _MyTaskScreenState extends State<MyTaskScreen>
     final primary = ThemeProvider.primaryGreen;
 
     final myId = auth.currentUser?.id;
-    final filtered = _applyFilters(delegationProv.delegations, myId, userProv.users);
+    final filtered = _applyFilters(delegationProv.delegations, myId);
 
     // Status counts — sirf mujhe assign kiye gaye tasks
     final myTasks = delegationProv.delegations.where((t) => t.assingDoerId == myId).toList();
@@ -184,7 +223,7 @@ class _MyTaskScreenState extends State<MyTaskScreen>
 
     final counts = {
       "All": allCount,
-      "OverDue": overdueCount,
+      "Overdue": overdueCount,
       "Pending": pendingCount,
       "In Progress": inProgressCount,
       "Completed": completedCount,
@@ -214,7 +253,12 @@ class _MyTaskScreenState extends State<MyTaskScreen>
         ],
         body: RefreshIndicator(
           color: primary,
-          onRefresh: () async => await delegationProv.fetchAll(),
+          onRefresh: () async {
+            await delegationProv.fetchAll();
+            await userProv.fetchUsers();
+            await Provider.of<CategoryProvider>(context, listen: false)
+                .fetchCategories();
+          },
           child: ListView(
             padding: const EdgeInsets.only(top: 0),
             children: [
@@ -326,26 +370,20 @@ class _MyTaskScreenState extends State<MyTaskScreen>
   // QUICK STATS — Dashboard Cards
   // ─────────────────────────────────────────────────────────────────
   Widget _buildQuickStats(Map<String, int> counts) {
-    // Mimic the exact 6 cards from the Dashboard web screenshot
-    int inTime = 0; // Optional/Placeholder if not in API
-    int delayed = 0; // Optional/Placeholder if not in API
-
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Row(
         children: [
-          _buildStatCard("OVERDUE", counts['OverDue'] ?? 0, Colors.red),
+          _buildStatCard("TOTAL", counts['All'] ?? 0, Colors.blueGrey),
+          const SizedBox(width: 12),
+          _buildStatCard("OVERDUE", counts['Overdue'] ?? 0, Colors.red),
           const SizedBox(width: 12),
           _buildStatCard("PENDING", counts['Pending'] ?? 0, Colors.orange),
           const SizedBox(width: 12),
           _buildStatCard("IN PROGRESS", counts['In Progress'] ?? 0, Colors.blue),
           const SizedBox(width: 12),
           _buildStatCard("COMPLETED", counts['Completed'] ?? 0, Colors.green),
-          const SizedBox(width: 12),
-          _buildStatCard("IN TIME", inTime, Colors.teal),
-          const SizedBox(width: 12),
-          _buildStatCard("DELAYED", delayed, Colors.redAccent),
         ],
       ),
     );
@@ -497,6 +535,12 @@ class _MyTaskScreenState extends State<MyTaskScreen>
                       searchQuery = "";
                       selectedDateRange = "All Time";
                       _activeStatusTab = "All";
+                      _assignedByFilter = "All";
+                      _priorityFilter = "All";
+                      _categoryFilter = "All";
+                      _tagFilter = "All";
+                      _customStartDate = null;
+                      _customEndDate = null;
                     });
                   },
                   style: ElevatedButton.styleFrom(
@@ -527,6 +571,54 @@ class _MyTaskScreenState extends State<MyTaskScreen>
                     _viewToggleBtn(Icons.view_module_rounded, 1, primary),
                     _viewToggleBtn(Icons.calendar_month_rounded, 2, primary),
                   ],
+                ),
+              ),
+              const SizedBox(width: 8),
+
+              Container(
+                width: 150,
+                height: 40,
+                child: AppDropdown<String>(
+                  isCompact: true,
+                  value: selectedSortBy,
+                  items: const [
+                    "Target Date",
+                    "Created At",
+                    "Title",
+                    "Category Name",
+                  ],
+                  labelBuilder: (v) => v,
+                  accentColor: primary,
+                  onChanged: (v) {
+                    if (v == null) return;
+                    setState(() => selectedSortBy = v);
+                  },
+                ),
+              ),
+              const SizedBox(width: 8),
+
+              SizedBox(
+                width: 40,
+                height: 40,
+                child: ElevatedButton(
+                  onPressed: () {
+                    setState(() => _sortDescending = !_sortDescending);
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    foregroundColor: Colors.blueGrey.shade600,
+                    elevation: 0,
+                    padding: EdgeInsets.zero,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      side: BorderSide(color: Colors.grey.shade300),
+                    ),
+                  ),
+                  child: AnimatedRotation(
+                    turns: _sortDescending ? 0 : 0.5,
+                    duration: const Duration(milliseconds: 180),
+                    child: const Icon(Icons.swap_vert_rounded, size: 18),
+                  ),
                 ),
               ),
             ],
@@ -575,14 +667,12 @@ class _MyTaskScreenState extends State<MyTaskScreen>
             children: tabs.map((tab) {
               final key = tab["key"] as String;
               final color = tab["color"] as Color;
-              // Our internal logic handles "OverDue" for counts/active
-              final internalKey = key == "Overdue" ? "OverDue" : key;
-              final isActive = _activeStatusTab == internalKey;
-              final count = counts[internalKey] ?? 0;
+              final isActive = _activeStatusTab == key;
+              final count = counts[key] ?? 0;
               final isPending = key == 'Pending';
 
               return GestureDetector(
-                onTap: () => setState(() => _activeStatusTab = internalKey),
+                onTap: () => setState(() => _activeStatusTab = key),
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   margin: const EdgeInsets.symmetric(horizontal: 4),
@@ -947,6 +1037,8 @@ class _MyTaskScreenState extends State<MyTaskScreen>
     switch (priority) {
       case "High":
         return Colors.red;
+      case "Urgent":
+        return Colors.redAccent;
       case "Medium":
         return Colors.blue;
       default:
@@ -955,6 +1047,12 @@ class _MyTaskScreenState extends State<MyTaskScreen>
   }
 
   void _showFilterDialog(AppColors appColors, Color primary) {
+    final myId = Provider.of<AuthProvider>(context, listen: false).currentUser?.id;
+    final myTasks = Provider.of<DelegationProvider>(context, listen: false)
+        .delegations
+        .where((task) => task.assingDoerId == myId)
+        .toList();
+
     showDialog(
       context: context,
       builder: (ctx) {
@@ -967,12 +1065,22 @@ class _MyTaskScreenState extends State<MyTaskScreen>
               child: Container(
                 width: 320,
                 padding: const EdgeInsets.all(24),
-                child: Consumer3<UserProvider, CategoryProvider, TagProvider>(
-                  builder: (ctx, userProv, catProv, tagProv, _) {
-                    final users = ["Anyone", ...userProv.users.map((e) => e.fullName)];
-                    final priorities = ["All Priority", "High", "Medium", "Low"];
-                    final categories = ["All Categories", ...catProv.categoryModels.map((e) => e.name)];
-                    final tags = ["All Tags", ...tagProv.tags.map((e) => e.name)];
+                child: Consumer2<UserProvider, CategoryProvider>(
+                  builder: (ctx, userProv, catProv, _) {
+                    final userIds = ["All", ...userProv.users.map((e) => e.id)];
+                    final priorities = ["All", "Urgent", "High", "Medium", "Low"];
+                    final categories = ["All", ...catProv.categoryModels.map((e) => e.name)];
+                    final tagSet = <String>{};
+                    for (final task in myTasks) {
+                      for (final tag in task.tagsList) {
+                        final trimmed = tag.trim();
+                        if (trimmed.isNotEmpty) {
+                          tagSet.add(trimmed);
+                        }
+                      }
+                    }
+                    final sortedTags = tagSet.toList()..sort();
+                    final tags = ["All", ...sortedTags];
 
                     return Column(
                       mainAxisSize: MainAxisSize.min,
@@ -991,16 +1099,16 @@ class _MyTaskScreenState extends State<MyTaskScreen>
                             GestureDetector(
                               onTap: () {
                                 setDialogState(() {
-                                  _assignedByFilter = "Anyone";
-                                  _priorityFilter = "All Priority";
-                                  _categoryFilter = "All Categories";
-                                  _tagFilter = "All Tags";
+                                  _assignedByFilter = "All";
+                                  _priorityFilter = "All";
+                                  _categoryFilter = "All";
+                                  _tagFilter = "All";
                                 });
                                 setState(() {
-                                  _assignedByFilter = "Anyone";
-                                  _priorityFilter = "All Priority";
-                                  _categoryFilter = "All Categories";
-                                  _tagFilter = "All Tags";
+                                  _assignedByFilter = "All";
+                                  _priorityFilter = "All";
+                                  _categoryFilter = "All";
+                                  _tagFilter = "All";
                                 });
                               },
                               child: Text("Clear All",
@@ -1017,8 +1125,17 @@ class _MyTaskScreenState extends State<MyTaskScreen>
                         _buildFilterDropdownLabel("ASSIGNED BY", appColors),
                         _buildFilterDropdown(
                           value: _assignedByFilter,
-                          items: users,
+                          items: userIds,
                           appColors: appColors,
+                          labelBuilder: (value) {
+                            if (value == "All") return "Anyone";
+                            final user = userProv.users.firstWhere(
+                              (u) => u.id == value,
+                              orElse: UserModel.empty,
+                            );
+                            final name = user.fullName.trim();
+                            return name.isEmpty ? value : name;
+                          },
                           onChanged: (val) {
                             setDialogState(() => _assignedByFilter = val!);
                             setState(() => _assignedByFilter = val!);
@@ -1088,6 +1205,7 @@ class _MyTaskScreenState extends State<MyTaskScreen>
     required List<String> items,
     required AppColors appColors,
     required ValueChanged<String?> onChanged,
+    String Function(String)? labelBuilder,
   }) {
     // Make sure 'value' is actually inside 'items' to prevent assertion errors
     final currentValue = items.contains(value) ? value : items.first;
@@ -1110,7 +1228,10 @@ class _MyTaskScreenState extends State<MyTaskScreen>
           items: items.map((item) {
             return DropdownMenuItem(
               value: item,
-              child: Text(item, overflow: TextOverflow.ellipsis),
+              child: Text(
+                labelBuilder?.call(item) ?? item,
+                overflow: TextOverflow.ellipsis,
+              ),
             );
           }).toList(),
           onChanged: onChanged,

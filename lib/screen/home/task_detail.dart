@@ -9,8 +9,6 @@ import 'package:d_table_delegate_system/model/delegate_model.dart';
 import 'package:d_table_delegate_system/provider/auth_provider.dart';
 import 'package:d_table_delegate_system/provider/delegation_provider.dart';
 import 'package:d_table_delegate_system/provider/user_provider.dart';
-import 'package:d_table_delegate_system/widget/app_dropdown.dart';
-import 'package:d_table_delegate_system/widget/assign_task_sheet.dart';
 
 class TaskDetailScreen extends StatefulWidget {
   final dynamic task;
@@ -29,8 +27,6 @@ class TaskDetailScreen extends StatefulWidget {
 class _TaskDetailScreenState extends State<TaskDetailScreen> {
   final TextEditingController remarkController = TextEditingController();
   final FocusNode _remarkFocusNode = FocusNode();
-  String selectedStatus = "Pending";
-  DateTime? _holdTillDate;
   bool _isDetailLoading = true;
   bool _isActionLoading = false;
   DelegationModel? _currentTask;
@@ -38,8 +34,6 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
   // Audio Player State
   final AudioPlayer _audioPlayer = AudioPlayer();
   bool _isPlaying = false;
-  Duration _duration = Duration.zero;
-  Duration _position = Duration.zero;
 
   @override
   void initState() {
@@ -48,19 +42,10 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
     // Handle both DelegationModel and Map inputs
     if (widget.task is DelegationModel) {
       _currentTask = widget.task as DelegationModel;
-      selectedStatus = _currentTask?.status ?? 'Pending';
-    } else if (widget.task is Map) {
-      selectedStatus = widget.task['status'] ?? 'Pending';
     }
 
     _audioPlayer.onPlayerStateChanged.listen((state) {
       if (mounted) setState(() => _isPlaying = state == PlayerState.playing);
-    });
-    _audioPlayer.onDurationChanged.listen((d) {
-      if (mounted) setState(() => _duration = d);
-    });
-    _audioPlayer.onPositionChanged.listen((p) {
-      if (mounted) setState(() => _position = p);
     });
     
     WidgetsBinding.instance.addPostFrameCallback((_) => _loadTaskDetail());
@@ -86,7 +71,6 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
       if (rawResponse != null && mounted) {
         setState(() {
           _currentTask = rawResponse;
-          selectedStatus = rawResponse.status;
           _isDetailLoading = false;
         });
       }
@@ -101,18 +85,6 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
     _remarkFocusNode.dispose();
     _audioPlayer.dispose();
     super.dispose();
-  }
-
-  void _showAssignBottomSheet() {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      useSafeArea: true,
-      builder: (_) => const AssignTaskSheet(),
-    ).then((_) {
-      _loadTaskDetail();
-    });
   }
 
   Future<void> _deleteTask() async {
@@ -245,6 +217,115 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
     );
   }
 
+  bool _isChecklistItemDone(Map<String, dynamic> item) {
+    final completed = item['completed'];
+    final status = item['status']?.toString().toLowerCase();
+    return completed == true || status == 'completed' || status == 'done';
+  }
+
+  String _checklistItemLabel(Map<String, dynamic> item) {
+    return (item['itemName'] ?? item['text'] ?? item['title'] ?? '')
+        .toString()
+        .trim();
+  }
+
+  Future<void> _toggleChecklistItem(
+    DelegationModel task,
+    Map<String, dynamic> item,
+    int index,
+  ) async {
+    final taskId = task.id;
+    if (taskId == null || taskId.isEmpty || _isActionLoading) return;
+
+    final checklistId = item['id']?.toString() ?? index.toString();
+    final newStatus = _isChecklistItemDone(item) ? 'Pending' : 'Completed';
+
+    setState(() => _isActionLoading = true);
+    final success = await context
+        .read<DelegationProvider>()
+        .updateChecklistStatus(taskId, checklistId, newStatus);
+    if (!mounted) return;
+
+    setState(() => _isActionLoading = false);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(success
+            ? 'Checklist updated'
+            : 'Failed to update checklist'),
+        backgroundColor: success ? Colors.green : Colors.red,
+      ),
+    );
+
+    if (success) {
+      await _loadTaskDetail();
+    }
+  }
+
+  String _resolveUserName(String userId) {
+    final users = context.read<UserProvider>().users;
+    for (final user in users) {
+      if (user.id == userId) {
+        final name = user.fullName.trim();
+        return name.isEmpty ? userId : name;
+      }
+    }
+    return userId.isEmpty ? 'Unknown' : userId;
+  }
+
+  Future<void> _openExternalLink(String url) async {
+    final parsed = Uri.tryParse(url);
+    if (parsed == null) return;
+    await launchUrl(parsed, mode: LaunchMode.externalApplication);
+  }
+
+  Future<void> _toggleVoicePlayback(String url) async {
+    try {
+      if (_isPlaying) {
+        await _audioPlayer.pause();
+        return;
+      }
+      await _audioPlayer.play(UrlSource(url));
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Unable to play voice note'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  Color _statusColor(String status) {
+    switch (status) {
+      case 'Completed':
+        return const Color(0xFF10B981);
+      case 'In Progress':
+        return Colors.orange;
+      case 'Overdue':
+        return Colors.redAccent;
+      case 'Pending':
+        return Colors.blueGrey;
+      default:
+        return const Color(0xFF64748B);
+    }
+  }
+
+  Color _priorityColor(String priority) {
+    switch (priority) {
+      case 'Urgent':
+        return Colors.redAccent;
+      case 'High':
+        return Colors.orange;
+      case 'Medium':
+        return Colors.blue;
+      case 'Low':
+        return Colors.green;
+      default:
+        return const Color(0xFF64748B);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     // Show loading if we don't have task data yet (especially when coming from Map)
@@ -262,6 +343,20 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
         body: const Center(child: Text("Task not found or failed to load")),
       );
     }
+
+    final currentUserId = context.read<AuthProvider>().currentUser?.id;
+    final isAssigner = currentUserId != null && currentUserId == task.delegatorId;
+    final isDoer = currentUserId != null && currentUserId == task.assingDoerId;
+    final canAct = isAssigner || isDoer;
+    final completedChecklistCount =
+        task.checklistItems.where(_isChecklistItemDone).length;
+    final completedSubtasksCount =
+        task.subtasks.where((item) => item.status == 'Completed').length;
+    final attachmentUrls = [
+      ...task.referenceDocs,
+      if (task.evidenceUrl != null && task.evidenceUrl!.trim().isNotEmpty)
+        task.evidenceUrl!.trim(),
+    ];
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
@@ -291,10 +386,12 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     _statusPill(task.status),
-                    IconButton(
-                      icon: const Icon(LucideIcons.trash2, color: Colors.red, size: 20),
-                      onPressed: _isActionLoading ? null : _deleteTask,
-                    ),
+                    if (canAct)
+                      IconButton(
+                        icon: const Icon(LucideIcons.trash2,
+                            color: Colors.red, size: 20),
+                        onPressed: _isActionLoading ? null : _deleteTask,
+                      ),
                   ],
                 ),
               ],
@@ -304,127 +401,392 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
               style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: Color(0xFF1E293B))),
             const SizedBox(height: 24),
 
-            // 1. Core Information
             _buildSectionCard(
               title: "CORE INFORMATION",
               icon: LucideIcons.info,
-              child: Wrap(
-                spacing: 32,
-                runSpacing: 20,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _infoTile("CATEGORY", LucideIcons.tag, Colors.indigo, task.category.isEmpty ? "General" : task.category),
-                  _infoTile("PRIORITY", LucideIcons.circle, Colors.blueGrey, task.priority),
-                  _infoTile("DEADLINE", LucideIcons.calendar, Colors.redAccent, _formatDate(task.dueDate)),
-                  _infoTile("EVIDENCE", LucideIcons.shieldCheck, Colors.teal, task.evidenceRequired ? "Required" : "Not Required"),
+                  Wrap(
+                    spacing: 32,
+                    runSpacing: 20,
+                    children: [
+                      _infoTile("CATEGORY", LucideIcons.tag, Colors.indigo,
+                          task.category.isEmpty ? "General" : task.category),
+                      _infoTile("PRIORITY", LucideIcons.circle,
+                          _priorityColor(task.priority), task.priority),
+                      _infoTile(
+                        "DEADLINE",
+                        LucideIcons.calendar,
+                        Colors.redAccent,
+                        task.dueDate.isEmpty ? "Not set" : _formatDate(task.dueDate),
+                      ),
+                      _infoTile(
+                        "EVIDENCE",
+                        LucideIcons.shieldCheck,
+                        Colors.teal,
+                        task.evidenceRequired ? "Required" : "Optional",
+                      ),
+                    ],
+                  ),
+                  if (task.tagsList.isNotEmpty) ...[
+                    const SizedBox(height: 20),
+                    const Divider(color: Color(0xFFF1F5F9), height: 1),
+                    const SizedBox(height: 16),
+                    const Text(
+                      "TASK TAGS",
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w900,
+                        color: Color(0xFF94A3B8),
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: task.tagsList.map((tag) {
+                        return Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF0FDF4),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: const Color(0xFFBBF7D0),
+                            ),
+                          ),
+                          child: Text(
+                            tag,
+                            style: const TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w900,
+                              color: Color(0xFF15803D),
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ],
                 ],
               ),
             ),
             const SizedBox(height: 16),
 
-            // Involved Parties
+            if (task.description.trim().isNotEmpty) ...[
+              _buildSectionCard(
+                title: "DESCRIPTION",
+                icon: LucideIcons.alignLeft,
+                child: Text(
+                  task.description.trim(),
+                  style: const TextStyle(
+                    fontSize: 13,
+                    height: 1.6,
+                    color: Color(0xFF475569),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
+
             _buildInvolvedPartiesCard(task),
             const SizedBox(height: 16),
 
-            // Metadata
             _buildMetadataCard(task),
             const SizedBox(height: 16),
 
-            // 2. Sub Tasks
             _buildSectionCard(
-              title: "SUB TASKS",
-              icon: LucideIcons.layers,
-              trailing: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _countBadge("${task.checklistItems.where((i) => (i['status'] == 'Completed' || i['status'] == 'Done')).length}/${task.checklistItems.length}"),
-                  const SizedBox(width: 8),
-                  _actionIcon(LucideIcons.plus, _showAssignBottomSheet),
-                ],
-              ),
-              child: task.checklistItems.isEmpty 
+              title: "CHECKLIST",
+              icon: LucideIcons.checkSquare,
+              trailing:
+                  _countBadge("$completedChecklistCount/${task.checklistItems.length}"),
+              child: task.checklistItems.isEmpty
                 ? Center(
-                    child: Column(
-                      children: [
-                        const Text("NO SUB TASKS YET", style: TextStyle(color: Color(0xFF94A3B8), fontWeight: FontWeight.w800, fontSize: 12)),
-                        const SizedBox(height: 12),
-                        OutlinedButton.icon(
-                          onPressed: _showAssignBottomSheet,
-                          icon: const Icon(LucideIcons.plus, size: 16),
-                          label: const Text("CREATE SUB TASK"),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: const Color(0xFF3B82F6),
-                            side: const BorderSide(color: Color(0xFF3B82F6)),
-                            textStyle: const TextStyle(fontWeight: FontWeight.w900, fontSize: 11),
-                          ),
-                        ),
-                      ],
+                    child: const Text(
+                      "NO CHECKLIST ITEMS",
+                      style: TextStyle(
+                        color: Color(0xFF94A3B8),
+                        fontWeight: FontWeight.w800,
+                        fontSize: 12,
+                      ),
                     ),
                   )
                 : Column(
-                    children: task.checklistItems.map((item) {
-                      final isDone = item['status'] == 'Completed' || item['status'] == 'Done';
+                    children: List.generate(task.checklistItems.length, (index) {
+                      final item = task.checklistItems[index];
+                      final isDone = _isChecklistItemDone(item);
+                      final label = _checklistItemLabel(item);
                       return Padding(
                         padding: const EdgeInsets.only(bottom: 8.0),
-                        child: Row(
-                          children: [
-                            Icon(isDone ? Icons.check_circle : Icons.circle_outlined, size: 16, color: isDone ? Colors.green : Colors.grey),
-                            const SizedBox(width: 10),
-                            Expanded(child: Text(item['text'] ?? '', style: TextStyle(fontSize: 13, decoration: isDone ? TextDecoration.lineThrough : null))),
-                          ],
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(12),
+                          onTap: isDoer
+                              ? () => _toggleChecklistItem(task, item, index)
+                              : null,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 10),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF8FAFC),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: const Color(0xFFE2E8F0),
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  isDone
+                                      ? Icons.check_circle
+                                      : Icons.circle_outlined,
+                                  size: 18,
+                                  color: isDone ? Colors.green : Colors.grey,
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    label.isEmpty ? "Checklist Item" : label,
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      color: const Color(0xFF334155),
+                                      decoration: isDone
+                                          ? TextDecoration.lineThrough
+                                          : null,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                         ),
                       );
                     }).toList(),
                   ),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 16),
 
-            // 3. Quick Actions
+            _buildSectionCard(
+              title: "SUB TASKS",
+              icon: LucideIcons.layers,
+              trailing: _countBadge(
+                  "$completedSubtasksCount/${task.subtasks.length}"),
+              child: task.subtasks.isEmpty
+                  ? const Center(
+                      child: Text(
+                        "NO SUB TASKS YET",
+                        style: TextStyle(
+                          color: Color(0xFF94A3B8),
+                          fontWeight: FontWeight.w800,
+                          fontSize: 12,
+                        ),
+                      ),
+                    )
+                  : Column(
+                      children: task.subtasks.map((subtask) {
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 10),
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF8FAFC),
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(
+                              color: const Color(0xFFE2E8F0),
+                            ),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      subtask.delegationName,
+                                      style: const TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w800,
+                                        color: Color(0xFF1E293B),
+                                      ),
+                                    ),
+                                  ),
+                                  _statusBadge(
+                                      subtask.status, _statusColor(subtask.status)),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              Wrap(
+                                spacing: 10,
+                                runSpacing: 6,
+                                children: [
+                                  if (subtask.dueDate.isNotEmpty)
+                                    _miniMeta(
+                                        LucideIcons.clock, _formatDate(subtask.dueDate)),
+                                  _miniMeta(
+                                    LucideIcons.user,
+                                    subtask.getAssignedToName(
+                                        context.read<UserProvider>().users),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        );
+                      }).toList(),
+                    ),
+            ),
+            const SizedBox(height: 16),
+
+            if (task.voiceNoteUrl != null ||
+                attachmentUrls.isNotEmpty) ...[
+              _buildSectionCard(
+                title: "ATTACHMENTS",
+                icon: LucideIcons.paperclip,
+                child: Column(
+                  children: [
+                    if (task.voiceNoteUrl != null &&
+                        task.voiceNoteUrl!.trim().isNotEmpty)
+                      Container(
+                        margin: const EdgeInsets.only(bottom: 12),
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF8FAFC),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: const Color(0xFFE2E8F0)),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(LucideIcons.mic,
+                                size: 18, color: Color(0xFF10B981)),
+                            const SizedBox(width: 10),
+                            const Expanded(
+                              child: Text(
+                                "Voice Note",
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w800,
+                                  color: Color(0xFF1E293B),
+                                ),
+                              ),
+                            ),
+                            TextButton(
+                              onPressed: () =>
+                                  _toggleVoicePlayback(task.voiceNoteUrl!.trim()),
+                              child: Text(_isPlaying ? "Pause" : "Play"),
+                            ),
+                            IconButton(
+                              onPressed: () =>
+                                  _openExternalLink(task.voiceNoteUrl!.trim()),
+                              icon: const Icon(Icons.open_in_new_rounded, size: 18),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ...attachmentUrls.map((url) {
+                      final parsed = Uri.tryParse(url);
+                      final last = parsed?.pathSegments.isNotEmpty == true
+                          ? parsed!.pathSegments.last
+                          : url;
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 10),
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF8FAFC),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: const Color(0xFFE2E8F0)),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(LucideIcons.fileText,
+                                size: 18, color: Color(0xFF0F766E)),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                last,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                  color: Color(0xFF334155),
+                                ),
+                              ),
+                            ),
+                            IconButton(
+                              onPressed: () => _openExternalLink(url),
+                              icon: const Icon(Icons.open_in_new_rounded, size: 18),
+                            ),
+                          ],
+                        ),
+                      );
+                    }),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 24),
+            ],
+
+            if (canAct) ...[
             const Text("QUICK ACTIONS", style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: Color(0xFF64748B), letterSpacing: 0.5)),
             const SizedBox(height: 12),
             Wrap(
               spacing: 10,
               runSpacing: 10,
               children: [
-                _quickActionButton(
-                  "IN PROGRESS",
-                  LucideIcons.playCircle,
-                  Colors.orange,
-                  onTap: _isActionLoading
-                      ? null
-                      : () => _changeStatus(
-                            "In Progress",
-                            reason: 'Updated from task detail',
-                          ),
-                ),
-                _quickActionButton(
-                  "COMPLETE",
-                  LucideIcons.checkCircle,
-                  Colors.green,
-                  onTap: _isActionLoading
-                      ? null
-                      : () => _changeStatus(
-                            "Completed",
-                            reason: 'Completed from task detail',
-                          ),
-                ),
-                _quickActionButton(
-                  "REMINDERS",
-                  LucideIcons.bell,
-                  Colors.blue,
-                  onTap: () => _showReminderInfo(task),
-                ),
+                if (isDoer)
+                  _quickActionButton(
+                    "IN PROGRESS",
+                    LucideIcons.playCircle,
+                    Colors.orange,
+                    onTap: _isActionLoading
+                        ? null
+                        : () => _changeStatus(
+                              "In Progress",
+                              reason: 'Updated from task detail',
+                            ),
+                  ),
+                if (isDoer)
+                  _quickActionButton(
+                    "COMPLETE",
+                    LucideIcons.checkCircle,
+                    Colors.green,
+                    onTap: _isActionLoading
+                        ? null
+                        : () => _changeStatus(
+                              "Completed",
+                              reason: 'Completed from task detail',
+                            ),
+                  ),
+                if (isDoer)
+                  _quickActionButton(
+                    "REMINDERS",
+                    LucideIcons.bell,
+                    Colors.blue,
+                    onTap: () => _showReminderInfo(task),
+                  ),
                 _quickActionButton(
                   "COMMENT",
                   LucideIcons.messageCircle,
                   Colors.indigo,
                   onTap: _focusRemarkBox,
                 ),
-                _quickActionButton("SUB TASK", LucideIcons.layers, Colors.cyan, onTap: _showAssignBottomSheet),
+                _quickActionButton(
+                  "SUB TASK",
+                  LucideIcons.layers,
+                  Colors.cyan,
+                  onTap: () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                            'Sub task creation from mobile detail is not wired yet.'),
+                      ),
+                    );
+                  },
+                ),
               ],
             ),
             const SizedBox(height: 24),
 
-            // 4. Quick Remark
             const Text("QUICK REMARK", style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: Color(0xFF64748B), letterSpacing: 0.5)),
             const SizedBox(height: 12),
             TextField(
@@ -465,17 +827,23 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
               ),
             ),
             const SizedBox(height: 24),
+            ],
 
-            // 5. Revision & Remark History
             _buildSectionCard(
               title: "REVISION HISTORY",
               icon: LucideIcons.history,
-              child: task.remarks.isEmpty 
+              child: task.revisionHistory.isEmpty 
                 ? const Center(child: Text("NO REVISIONS YET", style: TextStyle(color: Color(0xFF94A3B8), fontWeight: FontWeight.w800, fontSize: 12)))
                 : Column(
-                    children: task.remarks.map((r) => Padding(
+                    children: task.revisionHistory.map((r) => Padding(
                       padding: const EdgeInsets.only(bottom: 12),
-                      child: _buildHistoryItem(task.status, r.date, r.remark, r.assignedUserId, "OLD: PENDING"),
+                      child: _buildHistoryItem(
+                        r.newStatus.isEmpty ? task.status : r.newStatus,
+                        r.createdAt,
+                        r.reason.isEmpty ? "Update" : r.reason,
+                        _resolveUserName(r.changedBy),
+                        r.oldStatus.isEmpty ? "" : "OLD: ${r.oldStatus}",
+                      ),
                     )).toList(),
                   ),
             ),
@@ -483,7 +851,20 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
             _buildSectionCard(
               title: "REMARK HISTORY",
               icon: LucideIcons.messageSquare,
-              child: const Center(child: Text("NO REMARKS YET", style: TextStyle(color: Color(0xFF94A3B8), fontWeight: FontWeight.w800, fontSize: 12))),
+              child: task.remarks.isEmpty
+                  ? const Center(child: Text("NO REMARKS YET", style: TextStyle(color: Color(0xFF94A3B8), fontWeight: FontWeight.w800, fontSize: 12)))
+                  : Column(
+                      children: task.remarks.map((remark) => Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: _buildHistoryItem(
+                          "Remark",
+                          remark.date,
+                          remark.remark,
+                          _resolveUserName(remark.assignedUserId),
+                          "",
+                        ),
+                      )).toList(),
+                    ),
             ),
             const SizedBox(height: 16),
           ],
@@ -509,6 +890,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
   }
 
   Widget _statusPill(String status) {
+    final color = _statusColor(status);
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 12),
       padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -519,7 +901,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
       ),
       child: Row(
         children: [
-          const Icon(Icons.check_circle, size: 14, color: Color(0xFF10B981)),
+          Icon(Icons.circle, size: 12, color: color),
           const SizedBox(width: 6),
           Text(status.toUpperCase(), style: const TextStyle(color: Color(0xFF1E293B), fontWeight: FontWeight.w900, fontSize: 10)),
         ],
@@ -572,6 +954,32 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
     );
   }
 
+  Widget _miniMeta(IconData icon, String value) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: const Color(0xFF64748B)),
+          const SizedBox(width: 6),
+          Text(
+            value,
+            style: const TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF475569),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _quickActionButton(String label, IconData icon, Color color, {VoidCallback? onTap}) {
     return GestureDetector(
       onTap: onTap,
@@ -595,6 +1003,8 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
   }
 
   Widget _buildHistoryItem(String status, String date, String comment, String user, String oldStatus) {
+    final statusColor =
+        status == 'Remark' ? Colors.indigo : _statusColor(status);
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -608,7 +1018,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              _statusBadge(status, const Color(0xFF10B981)),
+              _statusBadge(status, statusColor),
               Text(date, style: const TextStyle(fontSize: 10, color: Color(0xFF94A3B8), fontWeight: FontWeight.bold)),
             ],
           ),
@@ -619,7 +1029,8 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text("BY: $user", style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: Color(0xFF64748B))),
-              Text(oldStatus, style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: Color(0xFF94A3B8))),
+              if (oldStatus.isNotEmpty)
+                Text(oldStatus, style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: Color(0xFF94A3B8))),
             ],
           ),
         ],
@@ -640,17 +1051,6 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(color: const Color(0xFFF1F5F9), borderRadius: BorderRadius.circular(6)),
       child: Text(text, style: const TextStyle(color: Color(0xFF64748B), fontWeight: FontWeight.w900, fontSize: 10)),
-    );
-  }
-
-  Widget _actionIcon(IconData icon, VoidCallback onTap) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(4),
-        decoration: BoxDecoration(color: const Color(0xFFF1F5F9), borderRadius: BorderRadius.circular(6)),
-        child: Icon(icon, size: 16, color: const Color(0xFF64748B)),
-      ),
     );
   }
 

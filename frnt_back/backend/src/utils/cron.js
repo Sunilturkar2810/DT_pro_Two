@@ -184,7 +184,7 @@ const sendDailyTaskReports = async () => {
             }
 
             console.log(`[Cron] Sending daily report to ${user.workEmail} (${pendingTasks.length} tasks)`);
-            const taskList = pendingTasks.map(t => `- ${t.taskTitle}${t.dueDate ? ` (Due: ${new Date(t.dueDate).toLocaleDateString()})` : ''}`).join('\n');
+            const taskList = pendingTasks.map(t => `- ${t.taskTitle}${t.dueDate ? ` (Due: ${new Date(t.dueDate).toLocaleDateString('en-GB')})` : ''}`).join('\n');
 
             await notifyUser(user.userId, 'dailyPendingReminders', {
                 taskList,

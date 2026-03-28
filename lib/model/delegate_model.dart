@@ -25,6 +25,35 @@ class RemarkModel {
   }
 }
 
+class RevisionModel {
+  final String id;
+  final String oldStatus;
+  final String newStatus;
+  final String reason;
+  final String changedBy;
+  final String createdAt;
+
+  RevisionModel({
+    required this.id,
+    required this.oldStatus,
+    required this.newStatus,
+    required this.reason,
+    required this.changedBy,
+    required this.createdAt,
+  });
+
+  factory RevisionModel.fromJson(Map<String, dynamic> json) {
+    return RevisionModel(
+      id: json['id']?.toString() ?? '',
+      oldStatus: json['oldStatus']?.toString() ?? json['old_status']?.toString() ?? '',
+      newStatus: json['newStatus']?.toString() ?? json['new_status']?.toString() ?? '',
+      reason: json['reason']?.toString() ?? '',
+      changedBy: json['changedBy']?.toString() ?? json['changed_by']?.toString() ?? '',
+      createdAt: json['createdAt']?.toString() ?? json['created_at']?.toString() ?? '',
+    );
+  }
+}
+
 class DelegationModel {
   String? id;
   String delegationName;
@@ -45,6 +74,9 @@ class DelegationModel {
   String? asset;
   List<Map<String, dynamic>> checklistItems;
   List<String> tagsList;
+  String? evidenceUrl;
+  List<RevisionModel> revisionHistory;
+  List<DelegationModel> subtasks;
 
   // Media & references
   String? voiceNoteUrl;       // uploaded voice recording URL
@@ -79,6 +111,9 @@ class DelegationModel {
     this.category = "General",
     this.checklistItems = const [],
     this.tagsList = const [],
+    this.evidenceUrl,
+    this.revisionHistory = const [],
+    this.subtasks = const [],
     this.delegatorName = '',
     this.assigneeName = '',
     this.asset,
@@ -114,9 +149,24 @@ class DelegationModel {
       }
     }
 
-    var checklist = json['checklistItems'] ?? json['checklist_items'] as List? ?? [];
-    List<Map<String, dynamic>> checklistItemsList =
-        (checklist is List) ? checklist.map((i) => i as Map<String, dynamic>).toList() : [];
+    final rawChecklist = json['checklistItems'] ?? json['checklist_items'];
+    List<Map<String, dynamic>> checklistItemsList = [];
+    if (rawChecklist is List) {
+      checklistItemsList = rawChecklist
+          .whereType<Map>()
+          .map((i) => Map<String, dynamic>.from(i))
+          .toList();
+    } else if (rawChecklist is String && rawChecklist.isNotEmpty) {
+      try {
+        final decoded = jsonDecode(rawChecklist);
+        if (decoded is List) {
+          checklistItemsList = decoded
+              .whereType<Map>()
+              .map((i) => Map<String, dynamic>.from(i))
+              .toList();
+        }
+      } catch (_) {}
+    }
 
     // Backend se direct names parse karo
     final delegatorFirst = json['delegatorFirstName'] ?? json['delegator_first_name'] ?? '';
@@ -143,12 +193,50 @@ class DelegationModel {
     if (rawTags is Map) {
       reminderAt = rawTags['reminderAt']?.toString();
     } else if (rawTags is List) {
-      tagsList = rawTags.map((e) => e.toString()).toList();
+      tagsList = rawTags.map((e) {
+        if (e is Map) {
+          final text = e['text']?.toString().trim();
+          if (text != null && text.isNotEmpty) return text;
+        }
+        return e.toString();
+      }).where((e) => e.trim().isNotEmpty).toList();
     } else if (rawTags is String && rawTags.isNotEmpty) {
       try {
-        final parsed = rawTags.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
-        tagsList = parsed;
+        final decoded = jsonDecode(rawTags);
+        if (decoded is List) {
+          tagsList = decoded.map((e) {
+            if (e is Map) {
+              final text = e['text']?.toString().trim();
+              if (text != null && text.isNotEmpty) return text;
+            }
+            return e.toString();
+          }).where((e) => e.trim().isNotEmpty).toList();
+        } else {
+          tagsList = rawTags
+              .split(',')
+              .map((e) => e.trim())
+              .where((e) => e.isNotEmpty)
+              .toList();
+        }
       } catch (_) {}
+    }
+
+    final rawRevisionHistory = json['revision_history'];
+    List<RevisionModel> revisionHistory = [];
+    if (rawRevisionHistory is List) {
+      revisionHistory = rawRevisionHistory
+          .whereType<Map>()
+          .map((e) => RevisionModel.fromJson(Map<String, dynamic>.from(e)))
+          .toList();
+    }
+
+    final rawSubtasks = json['subtasks'];
+    List<DelegationModel> subtasks = [];
+    if (rawSubtasks is List) {
+      subtasks = rawSubtasks
+          .whereType<Map>()
+          .map((e) => DelegationModel.fromJson(Map<String, dynamic>.from(e)))
+          .toList();
     }
 
     return DelegationModel(
@@ -167,6 +255,9 @@ class DelegationModel {
       category: json['category'] ?? 'General',
       checklistItems: checklistItemsList,
       tagsList: tagsList,
+      evidenceUrl: json['evidenceUrl'] ?? json['evidence_url'],
+      revisionHistory: revisionHistory,
+      subtasks: subtasks,
       delegatorName: '$delegatorFirst $delegatorLast'.trim(),
       assigneeName: '$assigneeFirst $assigneeLast'.trim(),
       asset: json['asset'],
@@ -198,6 +289,7 @@ class DelegationModel {
       "category": category,
       "checklistItems": checklistItems,
       "asset": asset,
+      if (evidenceUrl != null) "evidenceUrl": evidenceUrl,
       if (voiceNoteUrl != null) "voiceNoteUrl": voiceNoteUrl,
       if (referenceDocs.isNotEmpty) "referenceDocs": referenceDocs.join(','),
       if (reminderAt != null) "tags": {"reminderAt": reminderAt},

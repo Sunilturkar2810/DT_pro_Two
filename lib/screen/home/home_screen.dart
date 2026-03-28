@@ -38,7 +38,6 @@ class _DynamicDashboardState extends State<DynamicDashboard> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      Provider.of<DelegationProvider>(context, listen: false).fetchAll();
       Provider.of<DashboardProvider>(context, listen: false).fetchDashboardStats();
       // Users & Categories pre-load kar lo taaki assign sheet khulte hi ready ho
       final userProv = Provider.of<UserProvider>(context, listen: false);
@@ -532,8 +531,10 @@ class _DynamicDashboardState extends State<DynamicDashboard> {
               if (dueDateStr != null) {
                 final d = DateTime.tryParse(dueDateStr);
                 if (d != null) {
-                  dueFormat = "${d.day}/${d.month}/${d.year}";
-                  final diff = DateTime.now().difference(d);
+                  final localDue = d.toLocal();
+                  final dueDay = DateTime(localDue.year, localDue.month, localDue.day);
+                  dueFormat = "${localDue.day}/${localDue.month}/${localDue.year}";
+                  final diff = DateTime.now().difference(dueDay);
                   if (diff.inDays > 0) overdueSince = "${diff.inDays} days ago";
                   else if (diff.inHours > 0) overdueSince = "${diff.inHours}h ago";
                   else overdueSince = "${diff.inMinutes}m ago";

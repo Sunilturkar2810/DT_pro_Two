@@ -181,6 +181,8 @@ export const login = async (request, reply) => {
             id: user.userId,
             role: user.role,
             email: user.workEmail,
+            firstName: user.firstName,
+            lastName: user.lastName,
         });
 
         return reply.send({

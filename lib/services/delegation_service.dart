@@ -153,7 +153,9 @@ class DelegationService {
         throw Exception('Checklist item not found');
       }
 
+      final isCompleted = status == 'Completed' || status == 'Done';
       checklistItems[itemIndex]['status'] = status;
+      checklistItems[itemIndex]['completed'] = isCompleted;
 
       await _dio.patch(
         '${ApiConstants.delegations}/$delegationId',
