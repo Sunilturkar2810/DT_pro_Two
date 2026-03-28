@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -5,7 +6,6 @@ import 'package:intl/intl.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:record/record.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:d_table_delegate_system/model/delegate_model.dart';
 import 'package:d_table_delegate_system/model/user_model.dart';
 import 'package:d_table_delegate_system/model/tag_model.dart';
 import 'package:d_table_delegate_system/provider/tag_provider.dart';
@@ -14,11 +14,23 @@ import 'package:d_table_delegate_system/provider/delegation_provider.dart';
 import 'package:d_table_delegate_system/provider/theme_provider.dart';
 import 'package:d_table_delegate_system/provider/user_provider.dart';
 import 'package:d_table_delegate_system/provider/category_provider.dart';
+import 'package:d_table_delegate_system/services/group_service.dart';
 import 'package:d_table_delegate_system/services/local_notification_service.dart';
 import 'package:d_table_delegate_system/widget/app_dropdown.dart';
 
 class AssignTaskSheet extends StatefulWidget {
-  const AssignTaskSheet({super.key});
+  final String? parentTaskId;
+  final String? parentTaskTitle;
+  final String? groupId;
+  final VoidCallback? onSuccess;
+
+  const AssignTaskSheet({
+    super.key,
+    this.parentTaskId,
+    this.parentTaskTitle,
+    this.groupId,
+    this.onSuccess,
+  });
 
   @override
   State<AssignTaskSheet> createState() => _AssignTaskSheetState();
@@ -51,14 +63,17 @@ class _AssignTaskSheetState extends State<AssignTaskSheet>
   String _category = 'General';
   String _status = 'Pending';
   List<UserModel> _selectedInLoop = [];
+  List<UserModel> _groupUsers = [];
   List<String> _checklist = [];
   List<TagModel> _selectedTags = [];
   bool _showChecklist = false;
   bool _requiresEvidence = false;
   String? _errorMessage;
+  bool _isLoadingGroupUsers = false;
 
   // ── Attachments ──
   List<PlatformFile> _attachedFiles = [];
+  List<String> _referenceLinks = [];
 
   // ── Reminder ──
   DateTime? _reminderDateTime;
@@ -75,6 +90,8 @@ class _AssignTaskSheetState extends State<AssignTaskSheet>
   late Animation<double> _fadeAnimation;
 
   static const Color _primary = ThemeProvider.primaryGreen;
+
+  bool get _isSubTaskMode => widget.parentTaskId != null;
 
   @override
   void initState() {
@@ -93,7 +110,14 @@ class _AssignTaskSheetState extends State<AssignTaskSheet>
       final catProv = Provider.of<CategoryProvider>(context, listen: false);
       if (catProv.categories.isEmpty) catProv.fetchCategories();
       final userProv = Provider.of<UserProvider>(context, listen: false);
-      if (userProv.users.isEmpty) userProv.fetchUsers();
+      final groupId = widget.groupId?.trim();
+      if (groupId != null && groupId.isNotEmpty) {
+        _loadGroupUsers(groupId);
+      } else if (userProv.users.isEmpty) {
+        userProv.fetchUsers();
+      }
+      final tagProv = Provider.of<TagProvider>(context, listen: false);
+      if (tagProv.tags.isEmpty) tagProv.fetchTags();
     });
 
     _titleFocus.addListener(() => setState(() {}));
@@ -114,6 +138,28 @@ class _AssignTaskSheetState extends State<AssignTaskSheet>
   }
 
   // ─── Helpers ────────────────────────────────────────────────────────────────
+  
+  Future<void> _loadGroupUsers(String groupId) async {
+    setState(() => _isLoadingGroupUsers = true);
+    try {
+      final rawUsers = await GroupService().getGroupMembers(groupId);
+      if (!mounted) return;
+      setState(() {
+        _groupUsers = rawUsers
+            .whereType<Map>()
+            .map((user) => UserModel.fromJson(Map<String, dynamic>.from(user)))
+            .where((user) => user.id.isNotEmpty)
+            .toList();
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _groupUsers = []);
+    } finally {
+      if (mounted) {
+        setState(() => _isLoadingGroupUsers = false);
+      }
+    }
+  }
   
   void _showLinkDialog() {
     final linkController = TextEditingController();
@@ -164,10 +210,14 @@ class _AssignTaskSheetState extends State<AssignTaskSheet>
                     const SizedBox(width: 8),
                     ElevatedButton.icon(
                       onPressed: () {
-                        if (linkController.text.isNotEmpty) {
+                        final link = linkController.text.trim();
+                        if (link.isNotEmpty) {
                           setState(() {
-                            // You can add your logic to save the link here
+                            if (!_referenceLinks.contains(link)) {
+                              _referenceLinks.add(link);
+                            }
                           });
+                          _showSuccess('Link added');
                         }
                         Navigator.pop(ctx);
                       },
@@ -269,25 +319,109 @@ class _AssignTaskSheetState extends State<AssignTaskSheet>
       _category = 'General';
       _status = 'Pending';
       _checklist = [];
+      _attachedFiles = [];
+      _referenceLinks = [];
+      _selectedTags = [];
+      _requiresEvidence = false;
+      _reminderDateTime = null;
       _repeat = false;
       _repeatFrequency = 'Daily';
       _showChecklist = false;
     });
   }
 
+  String _weekdayName(DateTime date) {
+    const names = [
+      'Sunday',
+      'Monday',
+      'Tuesday',
+      'Wednesday',
+      'Thursday',
+      'Friday',
+      'Saturday',
+    ];
+    return names[date.weekday % 7];
+  }
+
+  String _expandDayLabel(String day) {
+    switch (day.toUpperCase()) {
+      case 'MON':
+        return 'Monday';
+      case 'TUE':
+        return 'Tuesday';
+      case 'WED':
+        return 'Wednesday';
+      case 'THU':
+        return 'Thursday';
+      case 'FRI':
+        return 'Friday';
+      case 'SAT':
+        return 'Saturday';
+      case 'SUN':
+        return 'Sunday';
+      default:
+        return day;
+    }
+  }
+
+  Map<String, dynamic>? _buildReminderPayload(DateTime dueDate) {
+    if (_reminderDateTime == null) return null;
+
+    final reminderDate = _reminderDateTime!;
+    final isBefore = reminderDate.isBefore(dueDate);
+    final diff = isBefore
+        ? dueDate.difference(reminderDate)
+        : reminderDate.difference(dueDate);
+
+    var timeValue = diff.inMinutes.abs();
+    var timeUnit = 'minutes';
+
+    if (timeValue >= 1440 && timeValue % 1440 == 0) {
+      timeValue = timeValue ~/ 1440;
+      timeUnit = 'days';
+    } else if (timeValue >= 60 && timeValue % 60 == 0) {
+      timeValue = timeValue ~/ 60;
+      timeUnit = 'hours';
+    }
+
+    if (timeValue <= 0) timeValue = 1;
+
+    return {
+      'type': 'email',
+      'timeValue': timeValue,
+      'timeUnit': timeUnit,
+      'triggerType': isBefore ? 'before' : 'after',
+    };
+  }
+
   Future<void> _handleAssign() async {
+    final title = _titleController.text.trim();
+    final description = _descController.text.trim();
     print('🚀 _handleAssign TRIGGERED');
-    if (_titleController.text.trim().isEmpty) {
+    if (title.isEmpty) {
       print('❌ ERROR: Title is empty');
       setState(() => _errorMessage = 'Task Title is required');
       _showError('Please enter a task title');
       return;
-    } else {
-      setState(() => _errorMessage = null);
+    }
+    if (description.isEmpty) {
+      setState(() => _errorMessage = 'Task Description is required');
+      _showError('Please enter task description');
+      return;
     }
     if (_selectedDoer == null) {
       print('❌ ERROR: _selectedDoer is null');
       _showError('Please select an assignee');
+      return;
+    }
+    if (_endDate == null) {
+      setState(() => _errorMessage = 'Due Date is required');
+      _showError('Please set a due date');
+      return;
+    }
+    if (_category.trim().isEmpty) {
+      setState(() => _errorMessage = 'Category is required');
+      _showError('Please select a category');
       return;
     }
 
@@ -332,38 +466,83 @@ class _AssignTaskSheetState extends State<AssignTaskSheet>
     }
 
     // ── 3. Build the task ──────────────────────────────────────────────────
-    final task = DelegationModel(
-      delegationName: _titleController.text.trim(),
-      description: _descController.text.trim(),
-      delegatorId: auth.currentUser!.id,
-      assingDoerId: _selectedDoer!.id,
-      priority: _priority,
-      status: _status,
-      startDate: _startDate?.toIso8601String(),
-      dueDate:
-          _endDate?.toIso8601String() ??
-          _startDate?.toIso8601String() ??
-          DateTime.now().toIso8601String(),
-      category: _category,
-      inLoopIds: _selectedInLoop.isNotEmpty 
-          ? _selectedInLoop.map((u) => u.id).toList() 
-          : [auth.currentUser!.id],
-      checklistItems: _checklist
-          .map((t) => {'text': t, 'status': 'Pending'})
-          .toList(),
-      voiceNoteUrl: voiceNoteUrl,
-      referenceDocs: refDocUrls,
-      reminderAt: _reminderDateTime?.toIso8601String(),
-      // Recurrence
-      isRecurring: _repeat,
-      recurringFrequency: _repeat ? _repeatFrequency : null,
-      recurringInterval: (_repeat && _repeatFrequency == 'Custom') ? _customOccurCount : null,
-      recurringType: (_repeat && _repeatFrequency == 'Custom') ? _customOccurType : null,
-      recurringDays: (_repeat && _repeatFrequency == 'Custom') ? _customSelectedDays : [],
-      periodicallyDays: (_repeat && _repeatFrequency == 'Periodically') ? _periodicallyDaysCount : null,
-    );
+    final dueDate = _endDate!;
+    final repeatStartDate = _repeat ? (_startDate ?? dueDate) : null;
+    final allReferenceDocs = <String>[
+      ...refDocUrls,
+      ..._referenceLinks.map((e) => e.trim()).where((e) => e.isNotEmpty),
+    ].toSet().toList();
+    final tagPayload = _selectedTags
+        .map((tag) => {
+              'id': tag.id,
+              'text': tag.name,
+              'color': tag.color,
+            })
+        .toList();
+    final reminderPayload = _buildReminderPayload(dueDate);
 
-    final createdData = await delegationProv.createAndReturn(task);
+    List<String> weeklyDays = [];
+    List<String> selectedDates = [];
+    List<String> customOccurDays = [];
+    List<String> customOccurDates = [];
+    String? occurEveryMode;
+    String? customOccurValue;
+    String? repeatIntervalDays;
+
+    if (_repeat) {
+      if (_repeatFrequency == 'Weekly') {
+        weeklyDays = [_weekdayName(repeatStartDate ?? dueDate)];
+      } else if (_repeatFrequency == 'Monthly' || _repeatFrequency == 'Yearly') {
+        selectedDates = [(repeatStartDate ?? dueDate).day.toString().padLeft(2, '0')];
+      } else if (_repeatFrequency == 'Periodically') {
+        repeatIntervalDays = _periodicallyDaysCount.toString();
+      } else if (_repeatFrequency == 'Custom') {
+        occurEveryMode = _customOccurType == 'Month' ? 'Month' : 'Week';
+        customOccurValue = _customOccurCount.toString();
+        if (occurEveryMode == 'Week') {
+          customOccurDays = _customSelectedDays.map(_expandDayLabel).toList();
+        } else {
+          customOccurDates = [(repeatStartDate ?? dueDate).day.toString()];
+        }
+      }
+    }
+
+    final payload = <String, dynamic>{
+      'taskTitle': title,
+      'description': description,
+      'assignerId': auth.currentUser!.id,
+      'doerId': _selectedDoer!.id,
+      'inLoopIds': _selectedInLoop.map((u) => u.id).toList(),
+      'category': _category,
+      'priority': _priority,
+      'status': _status,
+      'dueDate': dueDate.toIso8601String(),
+      'voiceNoteUrl': voiceNoteUrl,
+      'referenceDocs': allReferenceDocs.isNotEmpty ? allReferenceDocs.join(',') : null,
+      'evidenceRequired': _requiresEvidence,
+      'checklistItems': _checklist
+          .map((text) => {'itemName': text, 'completed': false})
+          .toList(),
+      'tags': tagPayload.isNotEmpty ? jsonEncode(tagPayload) : null,
+      'parentId': widget.parentTaskId,
+      'isRepeat': _repeat,
+      'repeatFrequency': _repeat ? _repeatFrequency : null,
+      'repeatStartDate': repeatStartDate != null
+          ? DateFormat('yyyy-MM-dd').format(repeatStartDate)
+          : null,
+      'repeatEndDate': _repeat ? DateFormat('yyyy-MM-dd').format(dueDate) : null,
+      'repeatIntervalDays': repeatIntervalDays,
+      'weeklyDays': weeklyDays,
+      'selectedDates': selectedDates,
+      'occurEveryMode': occurEveryMode,
+      'customOccurValue': customOccurValue,
+      'customOccurDays': customOccurDays,
+      'customOccurDates': customOccurDates,
+      'groupId': widget.groupId,
+      'reminders': reminderPayload != null ? [reminderPayload] : [],
+    };
+
+    final createdData = await delegationProv.createFromPayloadAndReturn(payload);
     setState(() => _isSubmitting = false);
 
     if (!mounted) return;
@@ -400,10 +579,19 @@ class _AssignTaskSheetState extends State<AssignTaskSheet>
 
       if (_assignMoreTask) {
         _resetForm();
-        _showSuccess('Task assigned! Add another one.');
+        _showSuccess(
+          _isSubTaskMode
+              ? 'Sub task created! Add another one.'
+              : 'Task assigned! Add another one.',
+        );
       } else {
-        Navigator.pop(context);
-        _showSuccess('Task assigned successfully!');
+        widget.onSuccess?.call();
+        Navigator.pop(context, true);
+        _showSuccess(
+          _isSubTaskMode
+              ? 'Sub task created successfully!'
+              : 'Task assigned successfully!',
+        );
       }
     } else {
       _showError(delegationProv.errorMessage ?? 'Something went wrong');
@@ -660,6 +848,96 @@ class _AssignTaskSheetState extends State<AssignTaskSheet>
         ),
       ],
     );
+  }
+
+  Widget _buildSelectedTagsRow() {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: _selectedTags.map((tag) {
+        final color = _hexToColor(tag.color);
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.08),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: color.withOpacity(0.2)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.local_offer_outlined, size: 14, color: color),
+              const SizedBox(width: 6),
+              Text(
+                tag.name,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: color,
+                ),
+              ),
+              const SizedBox(width: 6),
+              GestureDetector(
+                onTap: () => setState(
+                  () => _selectedTags.removeWhere((item) => item.id == tag.id),
+                ),
+                child: Icon(Icons.close, size: 14, color: Colors.grey[500]),
+              ),
+            ],
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _buildReferenceLinksRow() {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: _referenceLinks.map((link) {
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+          decoration: BoxDecoration(
+            color: const Color(0xFFECFDF5),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: const Color(0xFFA7F3D0)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.link, size: 14, color: Color(0xFF10B981)),
+              const SizedBox(width: 6),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 180),
+                child: Text(
+                  link,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF047857),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 6),
+              GestureDetector(
+                onTap: () => setState(() => _referenceLinks.remove(link)),
+                child: Icon(Icons.close, size: 14, color: Colors.grey[500]),
+              ),
+            ],
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  Color _hexToColor(String hex) {
+    final buffer = StringBuffer();
+    if (hex.replaceFirst('#', '').length == 6) {
+      buffer.write('ff');
+    }
+    buffer.write(hex.replaceFirst('#', ''));
+    return Color(int.parse(buffer.toString(), radix: 16));
   }
 
   IconData _fileIcon(String ext) {
@@ -1130,6 +1408,8 @@ class _AssignTaskSheetState extends State<AssignTaskSheet>
                       _buildRepeatSection(),
 
                       const SizedBox(height: 24),
+                      if (_selectedTags.isNotEmpty) _buildSelectedTagsRow(),
+                      if (_referenceLinks.isNotEmpty) _buildReferenceLinksRow(),
                       if (_attachedFiles.isNotEmpty) _buildAttachmentsRow(),
                       if (_reminderDateTime != null) _buildReminderChip(),
                       if (_isRecording || _recordedPath != null)
@@ -1168,24 +1448,37 @@ class _AssignTaskSheetState extends State<AssignTaskSheet>
           const SizedBox(width: 12),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            children: const [
+            children: [
               Text(
-                "Assign New Task",
-                style: TextStyle(
+                _isSubTaskMode ? "Create Sub Task" : "Assign New Task",
+                style: const TextStyle(
                   fontWeight: FontWeight.w800,
                   fontSize: 16,
                   color: Color(0xFF0F172A),
                 ),
               ),
               Text(
-                "NEW DELEGATION",
-                style: TextStyle(
+                _isSubTaskMode ? "NEW SUB TASK" : "NEW DELEGATION",
+                style: const TextStyle(
                   fontWeight: FontWeight.bold,
                   fontSize: 10,
                   color: Color(0xFF10B981),
                   letterSpacing: 1.2,
                 ),
               ),
+              if (_isSubTaskMode &&
+                  widget.parentTaskTitle != null &&
+                  widget.parentTaskTitle!.trim().isNotEmpty)
+                Text(
+                  widget.parentTaskTitle!,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 10,
+                    color: Color(0xFF64748B),
+                  ),
+                ),
             ],
           ),
           const Spacer(),
@@ -1346,8 +1639,13 @@ class _AssignTaskSheetState extends State<AssignTaskSheet>
     final userProv = Provider.of<UserProvider>(context, listen: false);
     final currentUser = authProv.currentUser;
 
-    List<UserModel> allowedUsers = userProv.users;
-    if (currentUser != null && !authProv.isAdmin) {
+    List<UserModel> allowedUsers = widget.groupId != null &&
+            widget.groupId!.trim().isNotEmpty
+        ? _groupUsers
+        : userProv.users;
+    if ((widget.groupId == null || widget.groupId!.trim().isEmpty) &&
+        currentUser != null &&
+        !authProv.isAdmin) {
       if (authProv.currentUser?.role?.toLowerCase() == 'manager') {
         allowedUsers = userProv.users
             .where(
@@ -1364,6 +1662,13 @@ class _AssignTaskSheetState extends State<AssignTaskSheet>
             )
             .toList();
       }
+    }
+
+    if (_isLoadingGroupUsers && allowedUsers.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 12),
+        child: Center(child: CircularProgressIndicator()),
+      );
     }
 
     return SingleChildScrollView(
@@ -1401,7 +1706,9 @@ class _AssignTaskSheetState extends State<AssignTaskSheet>
           _buildWebChip(
             icon: Icons.group_outlined,
             label: "IN LOOP",
-            value: _selectedInLoop.isNotEmpty ? "\ Added" : null,
+            value: _selectedInLoop.isNotEmpty
+                ? "${_selectedInLoop.length} Selected"
+                : null,
             onTap: () => _showUserPicker(allowedUsers, isInLoop: true),
           ),
           _buildWebChip(
@@ -1895,11 +2202,11 @@ class _AssignTaskSheetState extends State<AssignTaskSheet>
                         strokeWidth: 2,
                         color: Colors.white,
                       ),
-                    )
-                  : const Text(
-                      "ASSIGN TASK",
+                      )
+                  : Text(
+                      _isSubTaskMode ? "CREATE SUB TASK" : "ASSIGN TASK",
                       textAlign: TextAlign.center,
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 13,
                         letterSpacing: 0.5,

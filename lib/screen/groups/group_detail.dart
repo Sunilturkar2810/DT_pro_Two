@@ -51,7 +51,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> with SingleTicker
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => const AssignTaskSheet(),
+      builder: (context) => AssignTaskSheet(groupId: widget.groupId),
     ).then((_) {
       // Refresh group details after task is assigned
       if (mounted) {

@@ -56,6 +56,8 @@ class RevisionModel {
 
 class DelegationModel {
   String? id;
+  String? parentId;
+  String? groupId;
   String delegationName;
   String description;
   String delegatorId;
@@ -97,6 +99,8 @@ class DelegationModel {
 
   DelegationModel({
     this.id,
+    this.parentId,
+    this.groupId,
     required this.delegationName,
     required this.description,
     required this.delegatorId,
@@ -241,6 +245,8 @@ class DelegationModel {
 
     return DelegationModel(
       id: json['id']?.toString(),
+      parentId: json['parentId']?.toString() ?? json['parent_id']?.toString(),
+      groupId: json['groupId']?.toString() ?? json['group_id']?.toString(),
       delegationName: json['taskTitle'] ?? json['task_title'] ?? json['delegationName'] ?? json['delegation_name'] ?? '',
       description: json['description'] ?? '',
       delegatorId: json['assignerId'] ?? json['assigner_id'] ?? json['delegatorId'] ?? json['delegator_id'] ?? '',
@@ -277,6 +283,8 @@ class DelegationModel {
   Map<String, dynamic> toJson() {
     return {
       "taskTitle": delegationName,
+      if (parentId != null) "parentId": parentId,
+      if (groupId != null) "groupId": groupId,
       "description": description,
       "assignerId": delegatorId,
       "doerId": assingDoerId,

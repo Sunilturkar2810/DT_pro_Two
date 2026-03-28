@@ -9,6 +9,7 @@ import 'package:d_table_delegate_system/model/delegate_model.dart';
 import 'package:d_table_delegate_system/provider/auth_provider.dart';
 import 'package:d_table_delegate_system/provider/delegation_provider.dart';
 import 'package:d_table_delegate_system/provider/user_provider.dart';
+import 'package:d_table_delegate_system/widget/assign_task_sheet.dart';
 
 class TaskDetailScreen extends StatefulWidget {
   final dynamic task;
@@ -293,6 +294,24 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
           backgroundColor: Colors.red,
         ),
       );
+    }
+  }
+
+  Future<void> _openSubTaskSheet(DelegationModel task) async {
+    final created = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      useSafeArea: true,
+      builder: (_) => AssignTaskSheet(
+        parentTaskId: task.id,
+        parentTaskTitle: task.delegationName,
+        groupId: task.groupId,
+      ),
+    );
+
+    if (created == true && mounted) {
+      await _loadTaskDetail();
     }
   }
 
@@ -774,14 +793,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
                   "SUB TASK",
                   LucideIcons.layers,
                   Colors.cyan,
-                  onTap: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text(
-                            'Sub task creation from mobile detail is not wired yet.'),
-                      ),
-                    );
-                  },
+                  onTap: task.id == null ? null : () => _openSubTaskSheet(task),
                 ),
               ],
             ),

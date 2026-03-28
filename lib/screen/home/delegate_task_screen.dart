@@ -2,7 +2,6 @@ import 'package:d_table_delegate_system/model/delegate_model.dart';
 import 'package:d_table_delegate_system/model/user_model.dart';
 import 'package:d_table_delegate_system/provider/auth_provider.dart';
 import 'package:d_table_delegate_system/provider/delegation_provider.dart';
-import 'package:d_table_delegate_system/provider/theme_provider.dart';
 import 'package:d_table_delegate_system/provider/user_provider.dart';
 import 'package:d_table_delegate_system/provider/category_provider.dart';
 import 'package:d_table_delegate_system/provider/tag_provider.dart';
@@ -10,7 +9,6 @@ import 'package:d_table_delegate_system/screen/home/task_detail.dart';
 import 'package:d_table_delegate_system/widget/assign_task_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:lucide_icons/lucide_icons.dart';
 import 'package:d_table_delegate_system/widget/app_dropdown.dart';
 import 'package:d_table_delegate_system/widget/custom_date_range_picker.dart';
 
@@ -31,10 +29,10 @@ class _DelegateTasksScreenState extends State<DelegateTasksScreen> {
   String _activeStatusTab = "All";
 
   // Filter states
-  String _assignedToFilter = "Anyone";
-  String _priorityFilter = "All Priority";
-  String _categoryFilter = "All Categories";
-  String _tagFilter = "All Tags";
+  String _assignedToFilter = "All";
+  String _priorityFilter = "All";
+  String _categoryFilter = "All";
+  String _tagFilter = "All";
   DateTime? _customStartDate;
   DateTime? _customEndDate;
 
@@ -71,94 +69,128 @@ class _DelegateTasksScreenState extends State<DelegateTasksScreen> {
     super.dispose();
   }
 
-  List<DelegationModel> _applyFilters(List<DelegationModel> all, String? myId, List<UserModel> users) {
-    // Debug print taaki pata chale kitne tasks aa rahe hain
-    print("DEBUG: Total tasks in provider: ${all.length}");
-    print("DEBUG: My User ID: $myId");
+  void _clearFilters() {
+    setState(() {
+      searchController.clear();
+      searchQuery = "";
+      selectedDateRange = "All Time";
+      _activeStatusTab = "All";
+      _assignedToFilter = "All";
+      _priorityFilter = "All";
+      _categoryFilter = "All";
+      _tagFilter = "All";
+      _customStartDate = null;
+      _customEndDate = null;
+    });
+  }
 
+  DateTime? _parseTaskDate(DelegationModel task) {
+    final rawDate = task.dueDate.isNotEmpty ? task.dueDate : task.createdAt;
+    if (rawDate.isEmpty) return null;
+    return DateTime.tryParse(rawDate);
+  }
+
+  bool _matchesDateRange(DateTime? taskDate) {
+    if (taskDate == null) return false;
+
+    final date = DateTime(taskDate.year, taskDate.month, taskDate.day);
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+
+    switch (selectedDateRange) {
+      case "Today":
+        return !date.isBefore(today);
+      case "Yesterday":
+        final yesterday = today.subtract(const Duration(days: 1));
+        return !date.isBefore(yesterday) && date.isBefore(today);
+      case "This Week":
+        final start = DateTime(today.year, today.month, today.day)
+            .subtract(Duration(days: today.weekday == 7 ? 6 : today.weekday - 1));
+        return !date.isBefore(start);
+      case "Last Week":
+        final start = DateTime(today.year, today.month, today.day)
+            .subtract(Duration(days: today.weekday == 7 ? 13 : today.weekday + 6));
+        final end = start.add(const Duration(days: 6));
+        return !date.isBefore(start) && !date.isAfter(end);
+      case "This Month":
+        return !date.isBefore(DateTime(now.year, now.month, 1));
+      case "Last Month":
+        final start = DateTime(now.year, now.month - 1, 1);
+        final end = DateTime(now.year, now.month, 0);
+        return !date.isBefore(start) && !date.isAfter(end);
+      case "This Year":
+        return !date.isBefore(DateTime(now.year, 1, 1));
+      case "Custom":
+        if (_customStartDate == null || _customEndDate == null) return true;
+        final start = DateTime(
+          _customStartDate!.year,
+          _customStartDate!.month,
+          _customStartDate!.day,
+        );
+        final end = DateTime(
+          _customEndDate!.year,
+          _customEndDate!.month,
+          _customEndDate!.day,
+        );
+        return !date.isBefore(start) && !date.isAfter(end);
+      case "All Time":
+      default:
+        return true;
+    }
+  }
+
+  bool _matchesTagFilter(DelegationModel task) {
+    if (_tagFilter == "All") return true;
+    return task.tagsList.any((tag) => tag.trim() == _tagFilter);
+  }
+
+  List<String> _availableTags(List<DelegationModel> tasks, String? myId) {
+    final tags = <String>{};
+    for (final task in tasks) {
+      if (task.delegatorId != myId) continue;
+      for (final tag in task.tagsList) {
+        final normalized = tag.trim();
+        if (normalized.isNotEmpty) tags.add(normalized);
+      }
+    }
+    final sorted = tags.toList()..sort();
+    return sorted;
+  }
+
+  Map<String, int> _buildStatusCounts(List<DelegationModel> tasks) {
+    return {
+      "All": tasks.length,
+      "Overdue": tasks.where((t) => t.status == "Overdue").length,
+      "Pending": tasks.where((t) => t.status == "Pending").length,
+      "In Progress": tasks.where((t) => t.status == "In Progress").length,
+      "Completed": tasks.where((t) => t.status == "Completed").length,
+    };
+  }
+
+  List<DelegationModel> _applyFilters(List<DelegationModel> all, String? myId) {
     return all.where((task) {
-      // ✅ LOGIC: Delegated tasks are those where I am the delegator
-      bool isDelegatedByMe = (task.delegatorId == myId);
-      
-      if (!isDelegatedByMe) return false;
+      if (task.delegatorId != myId) return false;
 
-      bool matchesSearch = searchQuery.isEmpty ||
-          task.delegationName.toLowerCase().contains(searchQuery) ||
-          task.description.toLowerCase().contains(searchQuery);
+      final matchesSearch = searchQuery.isEmpty ||
+          task.delegationName.toLowerCase().contains(searchQuery);
+      final matchesStatus =
+          _activeStatusTab == "All" || task.status == _activeStatusTab;
+      final matchesAssignedTo =
+          _assignedToFilter == "All" || task.assingDoerId == _assignedToFilter;
+      final matchesPriority =
+          _priorityFilter == "All" || task.priority == _priorityFilter;
+      final matchesCategory =
+          _categoryFilter == "All" || task.category == _categoryFilter;
+      final matchesTags = _matchesTagFilter(task);
+      final matchesDate = _matchesDateRange(_parseTaskDate(task));
 
-      bool matchesStatus = _activeStatusTab == "All" || 
-          (_activeStatusTab == "OverDue" && task.status == "Overdue") ||
-          task.status == _activeStatusTab;
-
-      // Filter: Assigned To
-      bool matchesAssignedTo = true;
-      if (_assignedToFilter != "Anyone") {
-        final doer = users.firstWhere((u) => u.id == task.assingDoerId, orElse: () => UserModel.empty());
-        matchesAssignedTo = doer.fullName == _assignedToFilter;
-      }
-
-      // Filter: Priority
-      bool matchesPriority = true;
-      if (_priorityFilter != "All Priority") {
-        matchesPriority = task.priority == _priorityFilter;
-      }
-
-      // Filter: Category
-      bool matchesCategory = true;
-      if (_categoryFilter != "All Categories") {
-        matchesCategory = task.category == _categoryFilter;
-      }
-
-      // Filter: Tags
-      bool matchesTags = true;
-      if (_tagFilter != "All Tags") {
-        matchesTags = task.tagsList.contains(_tagFilter);
-      }
-
-      // Filter: Date Range
-      bool matchesDate = true;
-      final now = DateTime.now();
-      try {
-        final due = DateTime.parse(task.dueDate.split('T')[0]);
-        final today = DateTime(now.year, now.month, now.day);
-        final taskDate = DateTime(due.year, due.month, due.day);
-        
-        if (selectedDateRange == "Today") {
-          matchesDate = taskDate.isAtSameMomentAs(today);
-        } else if (selectedDateRange == "Yesterday") {
-          final yesterday = today.subtract(const Duration(days: 1));
-          matchesDate = taskDate.isAtSameMomentAs(yesterday);
-        } else if (selectedDateRange == "This Week") {
-          final weekStart = today.subtract(Duration(days: today.weekday - 1));
-          final weekEnd = weekStart.add(const Duration(days: 6));
-          matchesDate = taskDate.isAfter(weekStart.subtract(const Duration(days: 1))) &&
-                        taskDate.isBefore(weekEnd.add(const Duration(days: 1)));
-        } else if (selectedDateRange == "Last Week") {
-          final lastWeekStart = today.subtract(Duration(days: today.weekday - 1 + 7));
-          final lastWeekEnd = lastWeekStart.add(const Duration(days: 6));
-          matchesDate = taskDate.isAfter(lastWeekStart.subtract(const Duration(days: 1))) &&
-                        taskDate.isBefore(lastWeekEnd.add(const Duration(days: 1)));
-        } else if (selectedDateRange == "This Month") {
-          matchesDate = taskDate.year == today.year && taskDate.month == today.month;
-        } else if (selectedDateRange == "Last Month") {
-          final lastMonth = today.month == 1 ? 12 : today.month - 1;
-          final lastMonthYear = today.month == 1 ? today.year - 1 : today.year;
-          matchesDate = taskDate.year == lastMonthYear && taskDate.month == lastMonth;
-        } else if (selectedDateRange == "This Year") {
-          matchesDate = taskDate.year == today.year;
-        } else if (selectedDateRange == "Custom") {
-          if (_customStartDate != null && _customEndDate != null) {
-            final start = DateTime(_customStartDate!.year, _customStartDate!.month, _customStartDate!.day);
-            final end = DateTime(_customEndDate!.year, _customEndDate!.month, _customEndDate!.day);
-            matchesDate = (taskDate.isAtSameMomentAs(start) || taskDate.isAfter(start)) &&
-                          (taskDate.isAtSameMomentAs(end) || taskDate.isBefore(end));
-          } else {
-            matchesDate = true;
-          }
-        }
-      } catch (_) {}
-
-      return matchesSearch && matchesStatus && matchesAssignedTo && matchesPriority && matchesCategory && matchesTags && matchesDate;
+      return matchesSearch &&
+          matchesStatus &&
+          matchesAssignedTo &&
+          matchesPriority &&
+          matchesCategory &&
+          matchesTags &&
+          matchesDate;
     }).toList();
   }
 
@@ -167,21 +199,18 @@ class _DelegateTasksScreenState extends State<DelegateTasksScreen> {
     final auth = Provider.of<AuthProvider>(context);
     final delegationProv = Provider.of<DelegationProvider>(context);
     final userProv = Provider.of<UserProvider>(context);
-    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     final myId = auth.currentUser?.id;
-    final filtered = _applyFilters(delegationProv.delegations, myId, userProv.users);
-
-    // Status counts based on delegated tasks
-    final delegatedByMe = delegationProv.delegations.where((t) => t.delegatorId == myId).toList();
-    
-    final counts = {
-      "All": delegatedByMe.length,
-      "OverDue": delegatedByMe.where((t) => t.status == "Overdue").length,
-      "Pending": delegatedByMe.where((t) => t.status == "Pending").length,
-      "In Progress": delegatedByMe.where((t) => t.status == "In Progress").length,
-      "Completed": delegatedByMe.where((t) => t.status == "Completed").length,
-    };
+    final filtered = _applyFilters(delegationProv.delegations, myId);
+    final delegatedByMe =
+        delegationProv.delegations.where((t) => t.delegatorId == myId).toList();
+    final counts = _buildStatusCounts(delegatedByMe);
+    final activeFilterCount = [
+      _priorityFilter != 'All',
+      _categoryFilter != 'All',
+      _assignedToFilter != 'All',
+      _tagFilter != 'All',
+    ].where((item) => item).length;
 
     return Scaffold(
       backgroundColor: const Color(0xFFE6F9F1),
@@ -207,36 +236,27 @@ class _DelegateTasksScreenState extends State<DelegateTasksScreen> {
         ],
         body: RefreshIndicator(
           color: primaryColor,
-          onRefresh: () async => await delegationProv.fetchAll(),
+          onRefresh: () async {
+            await delegationProv.fetchAll();
+            await userProv.fetchUsers();
+            await context.read<CategoryProvider>().fetchCategories();
+            await context.read<TagProvider>().fetchTags();
+          },
           child: ListView(
             padding: const EdgeInsets.only(top: 0),
             children: [
               _buildHeader(primaryColor),
               _buildQuickStats(counts),
-              _buildToolbar(primaryColor),
+              _buildToolbar(primaryColor, activeFilterCount),
               _buildStatusTabs(counts),
+              _buildActiveFilterChips(userProv.users),
 
               // ── Task List / Empty ────────────────────────────────────
               delegationProv.isLoading
                   ? Center(child: CircularProgressIndicator(color: primaryColor))
                   : filtered.isEmpty
                   ? _buildEmptyState()
-                  : ListView.builder(
-                      padding: const EdgeInsets.only(
-                        top: 12,
-                        bottom: 80,
-                        left: 0,
-                        right: 0,
-                      ),
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      itemCount: filtered.length,
-                      itemBuilder: (ctx, i) => _buildTaskCard(
-                        filtered[i],
-                        userProv.users,
-                        primaryColor,
-                      ),
-                    ),
+                  : _buildTaskResults(filtered, userProv.users, primaryColor),
             ],
           ),
         ),
@@ -314,25 +334,18 @@ class _DelegateTasksScreenState extends State<DelegateTasksScreen> {
   }
 
   Widget _buildQuickStats(Map<String, int> counts) {
-    int inTime = 0; // Optional/Placeholder if not in API
-    int delayed = 0; // Optional/Placeholder if not in API
-
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Row(
         children: [
-          _buildStatCard("OVERDUE", counts['OverDue'] ?? 0, Colors.red),
+          _buildStatCard("OVERDUE", counts['Overdue'] ?? 0, Colors.red),
           const SizedBox(width: 12),
           _buildStatCard("PENDING", counts['Pending'] ?? 0, Colors.orange),
           const SizedBox(width: 12),
           _buildStatCard("IN PROGRESS", counts['In Progress'] ?? 0, Colors.blue),
           const SizedBox(width: 12),
           _buildStatCard("COMPLETED", counts['Completed'] ?? 0, Colors.green),
-          const SizedBox(width: 12),
-          _buildStatCard("IN TIME", inTime, Colors.teal),
-          const SizedBox(width: 12),
-          _buildStatCard("DELAYED", delayed, Colors.redAccent),
         ],
       ),
     );
@@ -376,7 +389,7 @@ class _DelegateTasksScreenState extends State<DelegateTasksScreen> {
     );
   }
 
-  Widget _buildToolbar(Color primary) {
+  Widget _buildToolbar(Color primary, int activeFilterCount) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 6),
       child: SingleChildScrollView(
@@ -422,7 +435,7 @@ class _DelegateTasksScreenState extends State<DelegateTasksScreen> {
               SizedBox(
                 height: 40,
                 child: ElevatedButton.icon(
-                  onPressed: () => _showFilterDialog(false),
+                  onPressed: _showFilterDialog,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: primary,
                     foregroundColor: Colors.white,
@@ -431,8 +444,39 @@ class _DelegateTasksScreenState extends State<DelegateTasksScreen> {
                     padding: const EdgeInsets.symmetric(horizontal: 14),
                   ),
                   icon: const Icon(Icons.filter_alt_outlined, size: 16, color: Colors.white),
-                  label: const Text("Filter",
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.white)),
+                  label: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text(
+                        "Filter",
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                          color: Colors.white,
+                        ),
+                      ),
+                      if (activeFilterCount > 0) ...[
+                        const SizedBox(width: 6),
+                        Container(
+                          width: 18,
+                          height: 18,
+                          alignment: Alignment.center,
+                          decoration: const BoxDecoration(
+                            color: Colors.white,
+                            shape: BoxShape.circle,
+                          ),
+                          child: Text(
+                            activeFilterCount.toString(),
+                            style: TextStyle(
+                              color: primary,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
                 ),
               ),
               const SizedBox(width: 8),
@@ -468,14 +512,7 @@ class _DelegateTasksScreenState extends State<DelegateTasksScreen> {
                 width: 40,
                 height: 40,
                 child: ElevatedButton(
-                  onPressed: () {
-                    setState(() {
-                      searchController.clear();
-                      searchQuery = "";
-                      selectedDateRange = "All Time";
-                      _activeStatusTab = "All";
-                    });
-                  },
+                  onPressed: _clearFilters,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: primary,
                     foregroundColor: Colors.white,
@@ -547,13 +584,12 @@ class _DelegateTasksScreenState extends State<DelegateTasksScreen> {
             children: tabs.map((tab) {
               final key = tab["key"] as String;
               final color = tab["color"] as Color;
-              final internalKey = key == "Overdue" ? "OverDue" : key;
-              final isActive = _activeStatusTab == internalKey;
-              final count = counts[internalKey] ?? 0;
+              final isActive = _activeStatusTab == key;
+              final count = counts[key] ?? 0;
               final isPending = key == 'Pending';
 
               return GestureDetector(
-                onTap: () => setState(() => _activeStatusTab = internalKey),
+                onTap: () => setState(() => _activeStatusTab = key),
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   margin: const EdgeInsets.symmetric(horizontal: 4),
@@ -597,6 +633,164 @@ class _DelegateTasksScreenState extends State<DelegateTasksScreen> {
     );
   }
 
+  Widget _buildActiveFilterChips(List<UserModel> users) {
+    final chips = <Widget>[];
+
+    if (_priorityFilter != 'All') {
+      chips.add(_buildFilterChip('Priority: $_priorityFilter', () {
+        setState(() => _priorityFilter = 'All');
+      }));
+    }
+    if (_categoryFilter != 'All') {
+      chips.add(_buildFilterChip('Category: $_categoryFilter', () {
+        setState(() => _categoryFilter = 'All');
+      }));
+    }
+    if (_assignedToFilter != 'All') {
+      final selectedUser = users.firstWhere(
+        (u) => u.id == _assignedToFilter,
+        orElse: UserModel.empty,
+      );
+      final name = selectedUser.fullName.trim().isNotEmpty
+          ? selectedUser.fullName
+          : _assignedToFilter;
+      chips.add(_buildFilterChip('Assigned To: $name', () {
+        setState(() => _assignedToFilter = 'All');
+      }));
+    }
+    if (_tagFilter != 'All') {
+      chips.add(_buildFilterChip('Tag: $_tagFilter', () {
+        setState(() => _tagFilter = 'All');
+      }));
+    }
+
+    if (chips.isEmpty) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: chips,
+      ),
+    );
+  }
+
+  Widget _buildFilterChip(String label, VoidCallback onRemove) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: primaryColor.withOpacity(0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              color: primaryColor,
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(width: 6),
+          GestureDetector(
+            onTap: onRemove,
+            child: Icon(Icons.close, size: 14, color: primaryColor),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTaskResults(
+    List<DelegationModel> tasks,
+    List<UserModel> users,
+    Color primary,
+  ) {
+    switch (_viewMode) {
+      case 1:
+        final crossAxisCount = MediaQuery.of(context).size.width > 900 ? 2 : 1;
+        return GridView.builder(
+          padding: const EdgeInsets.only(top: 12, bottom: 80, left: 12, right: 12),
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: crossAxisCount,
+            mainAxisSpacing: 8,
+            crossAxisSpacing: 8,
+            childAspectRatio: crossAxisCount == 1 ? 2.6 : 2.1,
+          ),
+          itemCount: tasks.length,
+          itemBuilder: (ctx, i) => _buildTaskCard(tasks[i], users, primary),
+        );
+      case 2:
+        return _buildCalendarSections(tasks, users, primary);
+      case 0:
+      default:
+        return ListView.builder(
+          padding: const EdgeInsets.only(top: 12, bottom: 80, left: 0, right: 0),
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: tasks.length,
+          itemBuilder: (ctx, i) => _buildTaskCard(tasks[i], users, primary),
+        );
+    }
+  }
+
+  Widget _buildCalendarSections(
+    List<DelegationModel> tasks,
+    List<UserModel> users,
+    Color primary,
+  ) {
+    final grouped = <String, List<DelegationModel>>{};
+    for (final task in tasks) {
+      final date = _parseTaskDate(task);
+      final key = date == null
+          ? 'No Date'
+          : '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+      grouped.putIfAbsent(key, () => []).add(task);
+    }
+
+    final keys = grouped.keys.toList()
+      ..sort((a, b) {
+        if (a == 'No Date') return 1;
+        if (b == 'No Date') return -1;
+        return a.compareTo(b);
+      });
+
+    return ListView.builder(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 80),
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: keys.length,
+      itemBuilder: (context, index) {
+        final key = keys[index];
+        final dayTasks = grouped[key] ?? <DelegationModel>[];
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(left: 4, right: 4, bottom: 8, top: 8),
+              child: Text(
+                key,
+                style: TextStyle(
+                  color: slate800,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.3,
+                ),
+              ),
+            ),
+            ...dayTasks.map((task) => _buildTaskCard(task, users, primary)),
+          ],
+        );
+      },
+    );
+  }
+
   Widget _buildTaskCard(DelegationModel task, List<UserModel> users, Color primary) {
     final String assignedToName = task.getAssignedToName(users);
     final String initial = assignedToName.isNotEmpty ? assignedToName[0].toUpperCase() : "U";
@@ -604,7 +798,11 @@ class _DelegateTasksScreenState extends State<DelegateTasksScreen> {
     final String timeAgo = _getTimeAgo(task.createdAt);
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 8, left: 20, right: 20),
+      margin: EdgeInsets.only(
+        bottom: 8,
+        left: _viewMode == 1 ? 0 : 20,
+        right: _viewMode == 1 ? 0 : 20,
+      ),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(18),
@@ -784,7 +982,11 @@ class _DelegateTasksScreenState extends State<DelegateTasksScreen> {
     );
   }
 
-  void _showFilterDialog(bool isDark) {
+  void _showFilterDialog() {
+    final delegatedTasks = context.read<DelegationProvider>().delegations;
+    final currentUserId = context.read<AuthProvider>().currentUser?.id;
+    final tagOptions = _availableTags(delegatedTasks, currentUserId);
+
     showDialog(
       context: context,
       builder: (ctx) {
@@ -798,18 +1000,22 @@ class _DelegateTasksScreenState extends State<DelegateTasksScreen> {
             child: Container(
               width: 320,
               padding: const EdgeInsets.all(24),
-              child: Consumer3<UserProvider, CategoryProvider, TagProvider>(
-                builder: (ctx, userProv, catProv, tagProv, _) {
-                  final users = [
-                    "Anyone",
-                    ...userProv.users.map((e) => e.fullName)
+              child: Consumer2<UserProvider, CategoryProvider>(
+                builder: (ctx, userProv, catProv, _) {
+                  final assignedToItems = [
+                    "All",
+                    ...userProv.users.map((e) => e.id),
                   ];
-                  final priorities = ["All Priority", "High", "Medium", "Low"];
+                  final assignedToLabels = <String, String>{
+                    "All": "All Members",
+                    for (final user in userProv.users) user.id: user.fullName.trim(),
+                  };
+                  final priorities = ["All", "Urgent", "High", "Medium", "Low"];
                   final categories = [
-                    "All Categories",
+                    "All",
                     ...catProv.categoryModels.map((e) => e.name)
                   ];
-                  final tags = ["All Tags", ...tagProv.tags.map((e) => e.name)];
+                  final tags = ["All", ...tagOptions];
 
                   return Column(
                     mainAxisSize: MainAxisSize.min,
@@ -827,18 +1033,8 @@ class _DelegateTasksScreenState extends State<DelegateTasksScreen> {
                                   letterSpacing: 1.2)),
                           GestureDetector(
                             onTap: () {
-                              setDialogState(() {
-                                _assignedToFilter = "Anyone";
-                                _priorityFilter = "All Priority";
-                                _categoryFilter = "All Categories";
-                                _tagFilter = "All Tags";
-                              });
-                              setState(() {
-                                _assignedToFilter = "Anyone";
-                                _priorityFilter = "All Priority";
-                                _categoryFilter = "All Categories";
-                                _tagFilter = "All Tags";
-                              });
+                              Navigator.pop(ctx);
+                              _clearFilters();
                             },
                             child: const Text("Clear All",
                                 style: TextStyle(
@@ -854,7 +1050,8 @@ class _DelegateTasksScreenState extends State<DelegateTasksScreen> {
                       _buildFilterDropdownLabel("ASSIGNED TO"),
                       _buildFilterDropdown(
                         value: _assignedToFilter,
-                        items: users,
+                        items: assignedToItems,
+                        labels: assignedToLabels,
                         onChanged: (val) {
                           setDialogState(() => _assignedToFilter = val!);
                           setState(() => _assignedToFilter = val!);
@@ -924,6 +1121,7 @@ class _DelegateTasksScreenState extends State<DelegateTasksScreen> {
     required String value,
     required List<String> items,
     required ValueChanged<String?> onChanged,
+    Map<String, String>? labels,
   }) {
     final currentValue = items.contains(value) ? value : items.first;
 
@@ -948,7 +1146,10 @@ class _DelegateTasksScreenState extends State<DelegateTasksScreen> {
           items: items.map((item) {
             return DropdownMenuItem(
               value: item,
-              child: Text(item, overflow: TextOverflow.ellipsis),
+              child: Text(
+                labels?[item] ?? item,
+                overflow: TextOverflow.ellipsis,
+              ),
             );
           }).toList(),
           onChanged: onChanged,
@@ -977,9 +1178,15 @@ class _DelegateTasksScreenState extends State<DelegateTasksScreen> {
 
   Color _getPriorityColor(String priority) {
     switch (priority) {
-      case "High": return Colors.red;
-      case "Medium": return Colors.blue;
-      default: return Colors.green;
+      case "Urgent":
+        return Colors.red;
+      case "High":
+        return Colors.orange;
+      case "Medium":
+        return Colors.blue;
+      case "Low":
+      default:
+        return Colors.green;
     }
   }
 

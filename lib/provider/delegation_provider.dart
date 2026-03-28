@@ -113,6 +113,27 @@ class DelegationProvider extends ChangeNotifier {
     }
   }
 
+  Future<Map<String, dynamic>?> createFromPayloadAndReturn(
+    Map<String, dynamic> payload,
+  ) async {
+    _isLoading = true;
+    notifyListeners();
+    try {
+      print("Sending Raw Payload: $payload");
+      final response = await _service.createDelegation(payload);
+      final createdData = response['data'] as Map<String, dynamic>?;
+      await fetchAll();
+      return createdData;
+    } catch (e) {
+      _errorMessage = e.toString();
+      print("❌ Raw Create Error: $_errorMessage");
+      return null;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
 
 
 
