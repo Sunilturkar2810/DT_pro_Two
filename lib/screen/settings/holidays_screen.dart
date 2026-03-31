@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+
+import '../../provider/auth_provider.dart';
 import '../../provider/holiday_provider.dart';
-import '../../provider/theme_provider.dart';
 
 class HolidaysScreen extends StatefulWidget {
   const HolidaysScreen({super.key});
@@ -12,6 +13,9 @@ class HolidaysScreen extends StatefulWidget {
 }
 
 class _HolidaysScreenState extends State<HolidaysScreen> {
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+
   @override
   void initState() {
     super.initState();
@@ -20,281 +24,832 @@ class _HolidaysScreenState extends State<HolidaysScreen> {
     });
   }
 
-  void _showAddHolidayDialog() {
-    final TextEditingController nameController = TextEditingController();
-    DateTime? selectedDate;
-    bool isAdding = false;
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
-    showDialog(
-      context: context,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setState) {
-            return Dialog(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
+  @override
+  Widget build(BuildContext context) {
+    final isAdmin = context.watch<AuthProvider>().isAdmin;
+
+    return Scaffold(
+      backgroundColor: const Color(0xFFF8F9FD),
+      appBar: AppBar(
+        title: const Text(
+          'HOLIDAYS',
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+            fontSize: 18,
+            letterSpacing: 1.2,
+          ),
+        ),
+        backgroundColor: const Color(0xFF20E19F),
+        elevation: 0,
+        centerTitle: true,
+        iconTheme: const IconThemeData(color: Colors.white),
+      ),
+      floatingActionButton: isAdmin
+          ? FloatingActionButton.extended(
+              onPressed: _showAddHolidayDialog,
+              backgroundColor: const Color(0xFF10B981),
+              icon: const Icon(Icons.add, color: Colors.white),
+              label: const Text(
+                'Add Holiday',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
-              child: Container(
-                width: MediaQuery.of(context).size.width * 0.9,
-                constraints: const BoxConstraints(maxWidth: 400),
-                padding: const EdgeInsets.all(24.0),
+            )
+          : null,
+      body: Consumer<HolidayProvider>(
+        builder: (context, provider, child) {
+          final filteredHolidays = provider.holidays.where((holiday) {
+            final name = (holiday['name'] ?? '').toString().toLowerCase();
+            final formattedDate = _holidayDateLabel(holiday).toLowerCase();
+            final query = _searchQuery.trim().toLowerCase();
+            return query.isEmpty ||
+                name.contains(query) ||
+                formattedDate.contains(query);
+          }).toList();
+
+          return Column(
+            children: [
+              _buildTopStats(provider.holidays),
+              _buildToolbar(filteredHolidays.length, isAdmin),
+              if (provider.error != null && provider.holidays.isNotEmpty)
+                _buildErrorBanner(provider.error!),
+              Expanded(
+                child: RefreshIndicator(
+                  color: const Color(0xFF10B981),
+                  onRefresh: () =>
+                      context.read<HolidayProvider>().fetchHolidays(),
+                  child: provider.isLoading && provider.holidays.isEmpty
+                      ? _buildLoadingState()
+                      : filteredHolidays.isEmpty
+                      ? _buildEmptyState(
+                          isSearchMode: _searchQuery.trim().isNotEmpty,
+                          isAdmin: isAdmin,
+                        )
+                      : _buildHolidayList(filteredHolidays, isAdmin),
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildTopStats(List<dynamic> holidays) {
+    final upcoming = _upcomingHolidays(holidays);
+    final nextHoliday = upcoming.isNotEmpty
+        ? (upcoming.first['name'] ?? 'Upcoming').toString()
+        : 'None';
+    final currentYear = DateTime.now().year;
+    final currentYearCount = holidays.where((holiday) {
+      final date = _parseHolidayDate(holiday['date']);
+      return date?.year == currentYear;
+    }).length;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
+        child: Row(
+          children: [
+            _statCard(
+              'Total Holidays',
+              holidays.length.toString(),
+              const Color(0xFF10B981),
+            ),
+            const SizedBox(width: 12),
+            _statCard('Next Holiday', nextHoliday, Colors.blue),
+            const SizedBox(width: 12),
+            _statCard(
+              'This Year',
+              currentYearCount.toString(),
+              const Color(0xFFF59E0B),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _statCard(String title, String value, Color color) {
+    return SizedBox(
+      width: 132,
+      height: 118,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(14, 14, 14, 10),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(26),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.06),
+              blurRadius: 14,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  width: 12,
+                  height: 12,
+                  decoration: BoxDecoration(
+                    color: color,
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: color.withOpacity(0.28),
+                        blurRadius: 8,
+                        offset: const Offset(0, 3),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    title.toUpperCase(),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 10,
+                      letterSpacing: 0.9,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.grey.shade600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const Spacer(),
+            Expanded(
+              flex: 2,
+              child: Center(
+                child: Text(
+                  value,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: value.length > 10 ? 18 : 26,
+                    fontWeight: FontWeight.w900,
+                    color: const Color(0xFF111827),
+                    height: 1.05,
+                  ),
+                ),
+              ),
+            ),
+            Container(
+              height: 6,
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: color,
+                borderRadius: BorderRadius.circular(999),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildToolbar(int filteredCount, bool isAdmin) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+      child: Column(
+        children: [
+          TextField(
+            controller: _searchController,
+            onChanged: (value) => setState(() => _searchQuery = value),
+            decoration: InputDecoration(
+              hintText: 'Search holidays...',
+              prefixIcon: const Icon(Icons.search, size: 20),
+              filled: true,
+              fillColor: Colors.white,
+              contentPadding: const EdgeInsets.symmetric(vertical: 12),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: BorderSide.none,
+              ),
+            ),
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                child: RichText(
+                  text: TextSpan(
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w900,
+                      color: Color(0xFF1E293B),
+                    ),
+                    children: [
+                      const TextSpan(text: 'Holiday List '),
+                      TextSpan(
+                        text: '($filteredCount)',
+                        style: const TextStyle(color: Color(0xFF10B981)),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              if (isAdmin)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFD1FAE5),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: const Text(
+                    'ADMIN',
+                    style: TextStyle(
+                      color: Color(0xFF047857),
+                      fontWeight: FontWeight.bold,
+                      fontSize: 11,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildErrorBanner(String message) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFEF2F2),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: const Color(0xFFFECACA)),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.error_outline, color: Color(0xFFDC2626)),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                message,
+                style: const TextStyle(
+                  color: Color(0xFF991B1B),
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLoadingState() {
+    return const Center(
+      child: CircularProgressIndicator(color: Color(0xFF10B981)),
+    );
+  }
+
+  Widget _buildHolidayList(List<dynamic> holidays, bool isAdmin) {
+    return ListView.builder(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 100),
+      itemCount: holidays.length,
+      itemBuilder: (context, index) {
+        final holiday = holidays[index];
+        final date = _parseHolidayDate(holiday['date']);
+        final isUpcoming =
+            date != null &&
+            !date.isBefore(
+              DateTime(
+                DateTime.now().year,
+                DateTime.now().month,
+                DateTime.now().day,
+              ),
+            );
+
+        return Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: const Color(0xFFE2E8F0)),
+          ),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF10B981).withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: const Icon(
+                  Icons.event_rounded,
+                  color: Color(0xFF10B981),
+                  size: 22,
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
                 child: Column(
-                  mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text(
-                          "Add New Holiday",
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF333333),
-                          ),
-                        ),
-                        IconButton(
-                          onPressed: () => Navigator.pop(context),
-                          icon: const Icon(Icons.close, color: Colors.grey),
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(),
-                        )
-                      ],
+                    Text(
+                      (holiday['name'] ?? '').toString(),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF0F172A),
+                      ),
                     ),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 6),
+                    Text(
+                      _holidayDateLabel(holiday),
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey.shade700,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
                     Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFF3F4F6),
-                        borderRadius: BorderRadius.circular(6),
+                        color: isUpcoming
+                            ? const Color(0xFFD1FAE5)
+                            : const Color(0xFFF1F5F9),
+                        borderRadius: BorderRadius.circular(999),
                       ),
-                      child: TextField(
-                        controller: nameController,
-                        decoration: const InputDecoration(
-                          border: InputBorder.none,
-                          contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                          hintText: 'Holiday Name',
-                          hintStyle: TextStyle(color: Colors.grey, fontSize: 14),
+                      child: Text(
+                        isUpcoming ? 'Upcoming' : 'Past',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          color: isUpcoming
+                              ? const Color(0xFF047857)
+                              : const Color(0xFF475569),
                         ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    GestureDetector(
-                      onTap: () async {
-                        DateTime? pickedDate = await showDatePicker(
-                          context: context,
-                          initialDate: DateTime.now(),
-                          firstDate: DateTime(2000),
-                          lastDate: DateTime(2100),
-                        );
-                        if (pickedDate != null) {
-                          setState(() {
-                            selectedDate = pickedDate;
-                          });
-                        }
-                      },
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFF3F4F6),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.calendar_today_outlined, color: Color(0xFF20E19F), size: 20),
-                            const SizedBox(width: 10),
-                            Text(
-                              selectedDate == null 
-                                  ? 'Select Date' 
-                                  : DateFormat('MMM dd, yyyy').format(selectedDate!),
-                              style: TextStyle(
-                                color: selectedDate == null ? Colors.grey : Colors.black87, 
-                                fontSize: 14,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                    SizedBox(
-                      width: double.infinity,
-                      height: 45,
-                      child: ElevatedButton(
-                        onPressed: isAdding ? null : () async {
-                          if (nameController.text.isNotEmpty && selectedDate != null) {
-                            setState(() { isAdding = true; });
-                            
-                            final success = await context.read<HolidayProvider>().addHoliday(
-                              nameController.text,
-                              selectedDate!.toIso8601String().split('T')[0],
-                            );
-                            
-                            if (context.mounted) {
-                              setState(() { isAdding = false; });
-                              if (success) {
-                                Navigator.pop(context);
-                              } else {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text(context.read<HolidayProvider>().error ?? 'Failed to add holiday'), backgroundColor: Colors.redAccent),
-                                );
-                              }
-                            }
-                          }
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF20E19F),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-                        ),
-                        child: isAdding 
-                            ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                            : const Text("Add Holiday", style: TextStyle(color: Colors.white)),
                       ),
                     ),
                   ],
                 ),
               ),
-            );
-          }
+              if (isAdmin)
+                IconButton(
+                  onPressed: () => _confirmDelete(
+                    holiday['id'].toString(),
+                    (holiday['name'] ?? 'this holiday').toString(),
+                  ),
+                  icon: const Icon(
+                    Icons.delete_outline_rounded,
+                    color: Colors.redAccent,
+                  ),
+                ),
+            ],
+          ),
         );
       },
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final primary = ThemeProvider.primaryGreen;
-
-    return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FD),
-      body: NestedScrollView(
-        headerSliverBuilder: (context, innerBoxIsScrolled) => [
-          SliverAppBar(
-            backgroundColor: primary,
-            expandedHeight: 120,
-            pinned: true,
-            elevation: 0,
-            leading: IconButton(
-              icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.black, size: 20),
-              onPressed: () => Navigator.pop(context),
+  Widget _buildEmptyState({required bool isSearchMode, required bool isAdmin}) {
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      children: [
+        const SizedBox(height: 120),
+        Column(
+          children: [
+            Icon(
+              Icons.event_busy_outlined,
+              size: 64,
+              color: Colors.grey.shade300,
             ),
-            flexibleSpace: FlexibleSpaceBar(
-              centerTitle: true,
-              title: const Text(
-                "HOLIDAYS",
-                style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 16, letterSpacing: 1.2),
+            const SizedBox(height: 16),
+            Text(
+              isSearchMode ? 'No Holidays Found' : 'Empty List',
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF334155),
               ),
-              background: Container(color: primary),
             ),
+            const SizedBox(height: 6),
+            Text(
+              isSearchMode
+                  ? 'Try a different holiday name or date.'
+                  : isAdmin
+                  ? 'Add one or more holidays to get started.'
+                  : 'No holidays have been added yet.',
+              style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  List<dynamic> _upcomingHolidays(List<dynamic> holidays) {
+    final today = DateTime(
+      DateTime.now().year,
+      DateTime.now().month,
+      DateTime.now().day,
+    );
+    final upcoming = holidays.where((holiday) {
+      final date = _parseHolidayDate(holiday['date']);
+      return date != null && !date.isBefore(today);
+    }).toList();
+
+    upcoming.sort((a, b) {
+      final first = _parseHolidayDate(a['date']) ?? DateTime(2100);
+      final second = _parseHolidayDate(b['date']) ?? DateTime(2100);
+      return first.compareTo(second);
+    });
+    return upcoming;
+  }
+
+  DateTime? _parseHolidayDate(dynamic value) {
+    if (value == null) return null;
+    return DateTime.tryParse(value.toString());
+  }
+
+  String _holidayDateLabel(dynamic holiday) {
+    final date = _parseHolidayDate(holiday['date']);
+    if (date == null) return 'No date';
+    return DateFormat('dd MMM yyyy').format(date.toLocal());
+  }
+
+  Future<void> _showAddHolidayDialog() async {
+    final added = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const _AddHolidayDialog(),
+    );
+
+    if (!mounted || added != true) return;
+    _showSnack('Holidays added successfully', false);
+  }
+
+  void _confirmDelete(String id, String name) {
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Delete Holiday'),
+        content: Text('Are you sure you want to delete "$name"?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(dialogContext);
+              final provider = context.read<HolidayProvider>();
+              final success = await provider.deleteHoliday(id);
+              if (!mounted) return;
+              _showSnack(
+                success
+                    ? 'Holiday deleted successfully'
+                    : (provider.error ?? 'Failed to delete holiday'),
+                !success,
+              );
+            },
+            child: const Text('Delete', style: TextStyle(color: Colors.red)),
           ),
         ],
-        body: Padding(
-          padding: const EdgeInsets.all(16.0),
+      ),
+    );
+  }
+
+  void _showSnack(String message, bool isError) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: isError ? Colors.red : Colors.green,
+      ),
+    );
+  }
+}
+
+class _AddHolidayDialog extends StatefulWidget {
+  const _AddHolidayDialog();
+
+  @override
+  State<_AddHolidayDialog> createState() => _AddHolidayDialogState();
+}
+
+class _AddHolidayDialogState extends State<_AddHolidayDialog> {
+  final List<_HolidayDraft> _entries = [_HolidayDraft()];
+  bool _isSubmitting = false;
+
+  @override
+  void dispose() {
+    for (final entry in _entries) {
+      entry.dispose();
+    }
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxWidth: 460,
+          maxHeight: MediaQuery.of(context).size.height * 0.8,
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
             children: [
-              ElevatedButton(
-                onPressed: _showAddHolidayDialog,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF0F986A),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                ),
-                child: const Icon(Icons.add, color: Colors.white),
+              Row(
+                children: [
+                  const Expanded(
+                    child: Text(
+                      'Add New Holiday',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: _isSubmitting
+                        ? null
+                        : () => Navigator.pop(context, false),
+                    icon: const Icon(Icons.close),
+                  ),
+                ],
               ),
-              const SizedBox(height: 20),
-              Container(
-                decoration: const BoxDecoration(
-                  color: Color(0xFF1CB983),
-                  borderRadius: BorderRadius.only(topLeft: Radius.circular(4), topRight: Radius.circular(4)),
-                ),
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                child: const Row(
+              const SizedBox(height: 8),
+              Expanded(
+                child: ListView(
                   children: [
-                    Expanded(flex: 2, child: Text("Holiday", style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600))),
-                    Expanded(flex: 2, child: Center(child: Text("Date", style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)))),
-                    Expanded(flex: 1, child: Center(child: Text("Action", style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)))),
+                    ..._entries.asMap().entries.map((entry) {
+                      final index = entry.key;
+                      final draft = entry.value;
+                      return _buildEntryCard(index, draft);
+                    }),
+                    const SizedBox(height: 12),
+                    OutlinedButton.icon(
+                      onPressed: _isSubmitting ? null : _addEntry,
+                      icon: const Icon(Icons.add),
+                      label: const Text('Add More Holiday'),
+                      style: OutlinedButton.styleFrom(
+                        minimumSize: const Size.fromHeight(48),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                    ),
                   ],
                 ),
               ),
-              Expanded(
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    border: Border.all(color: Colors.grey.withOpacity(0.2)),
-                    borderRadius: const BorderRadius.only(bottomLeft: Radius.circular(4), bottomRight: Radius.circular(4)),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextButton(
+                      onPressed: _isSubmitting
+                          ? null
+                          : () => Navigator.pop(context, false),
+                      child: const Text('Cancel'),
+                    ),
                   ),
-                  child: Consumer<HolidayProvider>(
-                    builder: (context, provider, child) {
-                      if (provider.isLoading) return const Center(child: CircularProgressIndicator());
-                      if (provider.holidays.isEmpty) return const Center(child: Text("No Holidays Found"));
-                      return ListView.separated(
-                        itemCount: provider.holidays.length,
-                        separatorBuilder: (context, index) => Divider(height: 1, color: Colors.grey.withOpacity(0.2)),
-                        itemBuilder: (context, index) {
-                          final holiday = provider.holidays[index];
-                          return Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                            child: Row(
-                              children: [
-                                Expanded(flex: 2, child: Text(holiday['name'] ?? '', style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 14))),
-                                Expanded(flex: 2, child: Center(child: Text(holiday['date']?.split('T')[0] ?? '', style: TextStyle(color: Colors.grey[700], fontSize: 14)))),
-                                Expanded(flex: 1, child: Center(
-                                  child: IconButton(
-                                    icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 20),
-                                    onPressed: () async {
-                                      // Log to see if button is clicked
-                                      print("Attempting to delete holiday ID: ${holiday['id']}");
-                                      
-                                      bool? confirm = await showDialog<bool>(
-                                        context: context,
-                                        builder: (context) => AlertDialog(
-                                          title: const Text('Delete Holiday'),
-                                          content: const Text('Are you sure you want to delete this holiday?'),
-                                          actions: [
-                                            TextButton(
-                                              onPressed: () => Navigator.pop(context, false),
-                                              child: const Text('Cancel'),
-                                            ),
-                                            const SizedBox(width: 8),
-                                            ElevatedButton(
-                                              onPressed: () => Navigator.pop(context, true),
-                                              style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
-                                              child: const Text('Delete', style: TextStyle(color: Colors.white)),
-                                            ),
-                                          ],
-                                        ),
-                                      );
-
-                                      if (confirm == true && context.mounted) {
-                                        final success = await provider.deleteHoliday(holiday['id'].toString());
-                                        if (context.mounted) {
-                                          if (success) {
-                                            ScaffoldMessenger.of(context).showSnackBar(
-                                              const SnackBar(content: Text('Holiday deleted successfully'), backgroundColor: Colors.green),
-                                            );
-                                          } else {
-                                            ScaffoldMessenger.of(context).showSnackBar(
-                                              SnackBar(content: Text(provider.error ?? 'Failed to delete holiday'), backgroundColor: Colors.redAccent),
-                                            );
-                                          }
-                                        }
-                                      }
-                                    },
-                                  ),
-                                )),
-                              ],
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: _isSubmitting ? null : _submit,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF10B981),
+                        minimumSize: const Size.fromHeight(48),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                      child: _isSubmitting
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Text(
+                              'Add Holidays',
+                              style: TextStyle(fontWeight: FontWeight.bold),
                             ),
-                          );
-                        },
-                      );
-                    },
+                    ),
                   ),
-                ),
+                ],
               ),
             ],
           ),
         ),
       ),
     );
+  }
+
+  Widget _buildEntryCard(int index, _HolidayDraft draft) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(
+                'Holiday ${index + 1}',
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF0F172A),
+                ),
+              ),
+              const Spacer(),
+              if (_entries.length > 1)
+                IconButton(
+                  onPressed: _isSubmitting ? null : () => _removeEntry(index),
+                  icon: const Icon(Icons.delete_outline_rounded),
+                  color: Colors.redAccent,
+                ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          TextField(
+            controller: draft.nameController,
+            textInputAction: TextInputAction.next,
+            decoration: InputDecoration(
+              hintText: 'Holiday Name',
+              filled: true,
+              fillColor: Colors.white,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide.none,
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          InkWell(
+            onTap: _isSubmitting ? null : () => _pickDate(index),
+            borderRadius: BorderRadius.circular(14),
+            child: Ink(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.calendar_today_outlined,
+                    color: Color(0xFF10B981),
+                    size: 18,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      draft.selectedDate == null
+                          ? 'Select Date'
+                          : DateFormat(
+                              'dd MMM yyyy',
+                            ).format(draft.selectedDate!),
+                      style: TextStyle(
+                        color: draft.selectedDate == null
+                            ? Colors.grey
+                            : const Color(0xFF0F172A),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  const Icon(Icons.keyboard_arrow_down_rounded),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _addEntry() {
+    setState(() {
+      _entries.add(_HolidayDraft());
+    });
+  }
+
+  void _removeEntry(int index) {
+    if (_entries.length == 1) return;
+    setState(() {
+      final removed = _entries.removeAt(index);
+      removed.dispose();
+    });
+  }
+
+  Future<void> _pickDate(int index) async {
+    final current = _entries[index].selectedDate ?? DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: current,
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2100),
+    );
+
+    if (!mounted || picked == null) return;
+    setState(() {
+      _entries[index].selectedDate = picked;
+    });
+  }
+
+  Future<void> _submit() async {
+    final payload = _entries
+        .where(
+          (entry) =>
+              entry.nameController.text.trim().isNotEmpty &&
+              entry.selectedDate != null,
+        )
+        .map(
+          (entry) => {
+            'name': entry.nameController.text.trim(),
+            'date': DateFormat('yyyy-MM-dd').format(entry.selectedDate!),
+          },
+        )
+        .toList();
+
+    if (payload.isEmpty) {
+      _showSnack('Please add at least one valid holiday', true);
+      return;
+    }
+
+    setState(() {
+      _isSubmitting = true;
+    });
+
+    final provider = context.read<HolidayProvider>();
+    final success = await provider.addHolidays(payload);
+    if (!mounted) return;
+
+    if (success) {
+      Navigator.pop(context, true);
+      return;
+    }
+
+    setState(() {
+      _isSubmitting = false;
+    });
+    _showSnack(provider.error ?? 'Failed to add holidays', true);
+  }
+
+  void _showSnack(String message, bool isError) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: isError ? Colors.red : Colors.green,
+      ),
+    );
+  }
+}
+
+class _HolidayDraft {
+  _HolidayDraft() : nameController = TextEditingController();
+
+  final TextEditingController nameController;
+  DateTime? selectedDate;
+
+  void dispose() {
+    nameController.dispose();
   }
 }
