@@ -12,6 +12,7 @@ import '../../model/group_model.dart';
 import '../../widget/custom_date_range_picker.dart';
 import '../../widget/app_dropdown.dart';
 import '../../widget/assign_task_sheet.dart';
+import '../home/task_detail.dart';
 
 class GroupDetailScreen extends StatefulWidget {
   final String groupId;
@@ -858,30 +859,46 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> with SingleTicker
     if (status == 'Hold') statusColor = const Color(0xFFEAB308);
     if (status == 'Need Revision' || status == 'Revision') statusColor = const Color(0xFF3B82F6);
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white, 
-        borderRadius: BorderRadius.circular(12), 
-        border: Border.all(color: const Color(0xFFE2E8F0), width: 1.5),
-      ),
-      child: Row(
-        children: [
-          Icon(LucideIcons.clipboardList, size: 20, color: statusColor),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(task['taskTitle'] ?? "Untitled", style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13, color: Color(0xFF1E293B))),
-                const SizedBox(height: 2),
-                Text(task['description'] ?? "No description", maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11, color: Colors.grey)),
-              ],
-            ),
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => TaskDetailScreen(task: task, allowEdit: true),
           ),
-          _statusBadge(status, statusColor),
-        ],
+        ).then((_) {
+          if (mounted) {
+            context.read<GroupProvider>().fetchGroupDetails(widget.groupId);
+          }
+        });
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white, 
+          borderRadius: BorderRadius.circular(12), 
+          border: Border.all(color: const Color(0xFFE2E8F0), width: 1.5),
+        ),
+        child: Row(
+          children: [
+            Icon(LucideIcons.clipboardList, size: 20, color: statusColor),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(task['taskTitle'] ?? "Untitled", style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13, color: Color(0xFF1E293B))),
+                  const SizedBox(height: 2),
+                  Text(task['description'] ?? "No description", maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                ],
+              ),
+            ),
+            _statusBadge(status, statusColor),
+            const SizedBox(width: 8),
+            const Icon(Icons.chevron_right, color: Colors.grey, size: 20),
+          ],
+        ),
       ),
     );
   }

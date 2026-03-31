@@ -64,7 +64,7 @@ class _AssignTaskSheetState extends State<AssignTaskSheet>
   DateTime? _startDate;
   DateTime? _endDate;
   String _priority = 'High';
-  String _category = 'General';
+  String _category = '';
   String _status = 'Pending';
   List<UserModel> _selectedInLoop = [];
   List<UserModel> _groupUsers = [];
@@ -195,7 +195,7 @@ class _AssignTaskSheetState extends State<AssignTaskSheet>
       _repeatFrequency = _repeat ? (template.frequency ?? 'Daily') : 'Daily';
       _category = template.category?.trim().isNotEmpty == true
           ? template.category!.trim()
-          : 'General';
+          : '';
       _checklist = checklist;
       _showChecklist = checklist.isNotEmpty;
     });
@@ -325,7 +325,36 @@ class _AssignTaskSheetState extends State<AssignTaskSheet>
         child: child!,
       ),
     );
-    if (picked != null) {
+    if (picked == null) return;
+
+    if (!isStart && mounted) {
+      final existingTime = _endDate != null
+          ? TimeOfDay(hour: _endDate!.hour, minute: _endDate!.minute)
+          : const TimeOfDay(hour: 17, minute: 0);
+      final pickedTime = await showTimePicker(
+        context: context,
+        initialTime: existingTime,
+        builder: (ctx, child) => Theme(
+          data: Theme.of(ctx).copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: _primary,
+              onPrimary: Colors.white,
+            ),
+          ),
+          child: child!,
+        ),
+      );
+      if (!mounted) return;
+      setState(() {
+        _endDate = DateTime(
+          picked.year,
+          picked.month,
+          picked.day,
+          pickedTime?.hour ?? 17,
+          pickedTime?.minute ?? 0,
+        );
+      });
+    } else {
       setState(() {
         if (isStart) {
           _startDate = picked;
@@ -356,7 +385,7 @@ class _AssignTaskSheetState extends State<AssignTaskSheet>
       _startDate = null;
       _endDate = null;
       _priority = 'High';
-      _category = 'General';
+      _category = '';
       _status = 'Pending';
       _checklist = [];
       _attachedFiles = [];
@@ -1483,14 +1512,21 @@ class _AssignTaskSheetState extends State<AssignTaskSheet>
                 ),
               ),
             Expanded(
-              child: SingleChildScrollView(
-                physics: const BouncingScrollPhysics(),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 16,
-                ),
-                child: Form(
-                  key: _formKey,
+              child: GestureDetector(
+                onTap: () {
+                  _titleFocus.unfocus();
+                  _descFocus.unfocus();
+                  FocusManager.instance.primaryFocus?.unfocus();
+                },
+                behavior: HitTestBehavior.translucent,
+                child: SingleChildScrollView(
+                  physics: const BouncingScrollPhysics(),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 16,
+                  ),
+                  child: Form(
+                    key: _formKey,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -1555,6 +1591,7 @@ class _AssignTaskSheetState extends State<AssignTaskSheet>
                     ],
                   ),
                 ),
+              ),
               ),
             ),
             _buildWebFooter(),
@@ -1822,7 +1859,7 @@ class _AssignTaskSheetState extends State<AssignTaskSheet>
             icon: Icons.calendar_today_outlined,
             label: "DUE DATE",
             value: _endDate != null
-                ? DateFormat('MMM dd').format(_endDate!)
+                ? DateFormat('MMM dd, hh:mm a').format(_endDate!)
                 : null,
             onTap: () => _pickDate(false),
           ),
@@ -1836,7 +1873,7 @@ class _AssignTaskSheetState extends State<AssignTaskSheet>
           _buildWebChip(
             icon: Icons.check_box_outlined,
             label: "CATEGORY",
-            value: _category,
+            value: _category.isNotEmpty ? _category : null,
             onTap: () => _showCategoryPicker(),
           ),
           _buildWebChip(
@@ -1871,7 +1908,12 @@ class _AssignTaskSheetState extends State<AssignTaskSheet>
     bool hasValue = value != null && value.isNotEmpty;
 
     return GestureDetector(
-      onTap: onTap,
+      onTap: () {
+        _titleFocus.unfocus();
+        _descFocus.unfocus();
+        FocusManager.instance.primaryFocus?.unfocus();
+        onTap?.call();
+      },
       child: Container(
         margin: const EdgeInsets.only(right: 8),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -2411,12 +2453,15 @@ class _AssignTaskSheetState extends State<AssignTaskSheet>
           children: [
             Icon(icon, size: 18, color: Colors.blueGrey[300]),
             const SizedBox(width: 12),
-            Text(
-              title,
-              style: const TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 14,
-                color: Color(0xFF1E293B),
+            Expanded(
+              child: Text(
+                title,
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                  color: Color(0xFF1E293B),
+                ),
+                overflow: TextOverflow.ellipsis,
               ),
             ),
           ],
@@ -2554,8 +2599,11 @@ class _AssignTaskSheetState extends State<AssignTaskSheet>
                     ),
 
                     const SizedBox(height: 48),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
+                    Wrap(
+                      alignment: WrapAlignment.end,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      spacing: 8,
+                      runSpacing: 8,
                       children: [
                         TextButton(
                           onPressed: () => Navigator.pop(ctx),
@@ -2568,7 +2616,6 @@ class _AssignTaskSheetState extends State<AssignTaskSheet>
                             ),
                           ),
                         ),
-                        const SizedBox(width: 8),
                         OutlinedButton.icon(
                           onPressed: _showCreateTagDialog,
                           style: OutlinedButton.styleFrom(
@@ -2598,7 +2645,6 @@ class _AssignTaskSheetState extends State<AssignTaskSheet>
                             ),
                           ),
                         ),
-                        const SizedBox(width: 8),
                         ElevatedButton.icon(
                           onPressed: () => Navigator.pop(ctx),
                           style: ElevatedButton.styleFrom(
