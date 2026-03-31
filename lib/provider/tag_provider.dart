@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
-import '../services/tag_service.dart';
+
 import '../model/tag_model.dart';
-import 'auth_provider.dart';
+import '../services/tag_service.dart';
 
 class TagProvider extends ChangeNotifier {
   final TagService _service = TagService();
-  
+
   List<TagModel> _tags = [];
   bool _isLoading = false;
   String? _errorMessage;
@@ -29,31 +29,30 @@ class TagProvider extends ChangeNotifier {
     }
   }
 
-  Future<bool> createTag({required String name, required String color, required AuthProvider auth}) async {
+  Future<bool> createTag({
+    required String name,
+    required String color,
+    String? createdBy,
+  }) async {
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
 
     try {
-      final user = auth.currentUser;
-      final userId = user?.id; // Needed for 'createdBy'
-      
-      final newTagData = {
+      final newTag = await _service.createTag({
         'name': name.trim(),
         'color': color,
-        'createdBy': userId,
-      };
-
-      await _service.createTag(newTagData);
-      
-      // Refresh list after success
-      await fetchTags();
+        if (createdBy != null && createdBy.trim().isNotEmpty)
+          'createdBy': createdBy.trim(),
+      });
+      _tags.insert(0, newTag);
       return true;
     } catch (e) {
       _errorMessage = e.toString();
+      return false;
+    } finally {
       _isLoading = false;
       notifyListeners();
-      return false;
     }
   }
 
@@ -64,10 +63,10 @@ class TagProvider extends ChangeNotifier {
 
     try {
       await _service.deleteTag(id);
-      
+
       // Remove from list locally for instant UI update
       _tags.removeWhere((tag) => tag.id == id);
-      
+
       return true;
     } catch (e) {
       _errorMessage = e.toString();

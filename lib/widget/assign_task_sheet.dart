@@ -2770,7 +2770,7 @@ class _AssignTaskSheetState extends State<AssignTaskSheet>
                           final success = await tagProv.createTag(
                             name: nameController.text.trim(),
                             color: selectedColor,
-                            auth: auth,
+                            createdBy: auth.currentUser?.id,
                           );
                           
                           if (success) {
