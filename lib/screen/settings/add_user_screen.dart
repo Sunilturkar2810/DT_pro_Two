@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../services/auth_service.dart';
 import '../../provider/auth_provider.dart';
+import '../../utils/phone_number_helper.dart';
 
 class AddUserScreen extends StatefulWidget {
   const AddUserScreen({super.key});
@@ -69,6 +70,18 @@ class _AddUserScreenState extends State<AddUserScreen> {
         const SnackBar(
             content: Text('Please fill First Name, Work Email, and Password for all.'),
             backgroundColor: Colors.orange),
+      );
+      return;
+    }
+    final invalidPhoneUser = _usersInput.any(
+      (user) => !isValidIndianPhone(user['mobileNumber']?.toString()),
+    );
+    if (invalidPhoneUser) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('If entered, mobile number must be exactly 10 digits'),
+          backgroundColor: Colors.orange,
+        ),
       );
       return;
     }
@@ -301,12 +314,35 @@ class _AddUserScreenState extends State<AddUserScreen> {
         SizedBox(
           height: 40,
           child: TextFormField(
-            initialValue: value,
+            initialValue:
+                keyboard == TextInputType.phone ? extractIndianPhoneDigits(value) : value,
             onChanged: onChanged,
             keyboardType: keyboard,
+            inputFormatters:
+                keyboard == TextInputType.phone ? indianPhoneInputFormatters() : null,
             obscureText: obscureText,
             style: const TextStyle(fontSize: 13),
-            decoration: InputDecoration(
+            decoration: keyboard == TextInputType.phone
+                ? buildIndianPhoneDecoration(
+                    context,
+                    decoration: InputDecoration(
+                      contentPadding:
+                          const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: Colors.grey.shade300),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: Colors.grey.shade300),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: const BorderSide(color: Color(0xFF20E19F)),
+                      ),
+                    ),
+                  )
+                : InputDecoration(
               contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: Colors.grey.shade300)),
               enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: Colors.grey.shade300)),

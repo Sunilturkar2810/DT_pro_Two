@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
+import '../../model/task_template_model.dart';
 import '../../provider/task_template_provider.dart';
 import '../../provider/category_provider.dart';
-import '../../provider/auth_provider.dart';
+import '../../provider/user_provider.dart';
 import '../../widget/task_template_sheet.dart';
 import '../../widget/app_dropdown.dart';
+import '../../widget/assign_task_sheet.dart';
 
 class TaskTemplatesScreen extends StatefulWidget {
   const TaskTemplatesScreen({Key? key}) : super(key: key);
@@ -26,6 +28,7 @@ class _TaskTemplatesScreenState extends State<TaskTemplatesScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<TaskTemplateProvider>().fetchTemplates();
       context.read<CategoryProvider>().fetchCategories();
+      context.read<UserProvider>().fetchUsers();
     });
   }
 
@@ -49,10 +52,37 @@ class _TaskTemplatesScreenState extends State<TaskTemplatesScreen> {
     }
   }
 
-  void _showUnavailableMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
+  Future<void> _openAssignFromTemplate(TaskTemplateModel template) async {
+    final result = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(context).viewInsets.bottom,
+        ),
+        child: FractionallySizedBox(
+          heightFactor: 0.94,
+          child: AssignTaskSheet(
+            templateData: template,
+            onSuccess: () {
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Task assigned from template!'),
+                    backgroundColor: Colors.green,
+                  ),
+                );
+              }
+            },
+          ),
+        ),
+      ),
     );
+
+    if (result == true && mounted) {
+      context.read<TaskTemplateProvider>().fetchTemplates(skipLoadingChange: true);
+    }
   }
 
   Widget _buildActiveChip(String label, VoidCallback onClear) {
@@ -376,11 +406,7 @@ class _TaskTemplatesScreenState extends State<TaskTemplatesScreen> {
                                             tooltip: 'Assign from Template',
                                             constraints: const BoxConstraints(),
                                             padding: const EdgeInsets.symmetric(horizontal: 4),
-                                            onPressed: () {
-                                              _showUnavailableMessage(
-                                                'Direct assignment from task templates is not available in this screen yet.',
-                                              );
-                                            },
+                                            onPressed: () => _openAssignFromTemplate(template),
                                           ),
                                           IconButton(
                                             icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 20),

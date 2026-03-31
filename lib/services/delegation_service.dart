@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:dio/dio.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:hive/hive.dart';
 
 import '../config/api_constants.dart';
@@ -91,9 +92,30 @@ class DelegationService {
     throw UnsupportedError('Remark deletion is not supported by the current backend.');
   }
 
-  Future<String> uploadFile(File file, {String folder = 'general'}) async {
+  Future<String> uploadFile(dynamic file, {String folder = 'general'}) async {
     try {
-      final fileName = file.path.split('/').last.split('\\').last;
+      late final String fileName;
+      late final MultipartFile multipartFile;
+
+      if (file is File) {
+        fileName = file.path.split('/').last.split('\\').last;
+        multipartFile = await MultipartFile.fromFile(
+          file.path,
+          filename: fileName,
+        );
+      } else if (file is PlatformFile) {
+        if (file.bytes == null || file.bytes!.isEmpty) {
+          throw Exception('Selected file data is unavailable for upload.');
+        }
+        fileName = file.name.trim().isNotEmpty ? file.name.trim() : 'upload';
+        multipartFile = MultipartFile.fromBytes(
+          file.bytes!,
+          filename: fileName,
+        );
+      } else {
+        throw ArgumentError('Unsupported file type for upload.');
+      }
+
       final uploadDio = Dio(
         BaseOptions(
           baseUrl: ApiConstants.baseUrl,
@@ -108,7 +130,7 @@ class DelegationService {
           : <String, String>{};
 
       final formData = FormData.fromMap({
-        'file': await MultipartFile.fromFile(file.path, filename: fileName),
+        'file': multipartFile,
       });
 
       final response = await uploadDio.post(

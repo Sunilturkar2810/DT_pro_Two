@@ -92,7 +92,7 @@ export const notifyUser = async (userId, eventType, data) => {
                 if (whatsappTemplate) {
                     campaignName = whatsappTemplate.subject?.trim() || campaignName;
                     const rawBody = replacePlaceholders(whatsappTemplate.body, data);
-                    templateParams = rawBody.split('\n').map(l => l.trim()).filter(l => l !== '');
+                    templateParams = rawBody.trim().split('\n').map(l => l.trim() || ' ');
                 } else {
                     const campaignMapping = {
                         reminder: process.env.AISENSY_CAMPAIGN_REMINDER || 'task_reminder_update',
@@ -155,7 +155,7 @@ export const notifyUser = async (userId, eventType, data) => {
             if (whatsappTemplate) {
                 campaignName = whatsappTemplate.subject?.trim() || campaignName;
                 const rawBody = replacePlaceholders(whatsappTemplate.body, data);
-                templateParams = rawBody.split('\n').map(l => l.trim()).filter(l => l !== '');
+                templateParams = rawBody.trim().split('\n').map(l => l.trim() || ' ');
             } else {
                 const campaignMapping = {
                     newTask: process.env.AISENSY_CAMPAIGN_NEW_TASK || 'new_task_update',

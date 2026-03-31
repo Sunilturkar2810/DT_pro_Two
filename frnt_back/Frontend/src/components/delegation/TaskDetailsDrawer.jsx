@@ -6,7 +6,7 @@ import {
     Paperclip, Mic, ShieldCheck, Trash2, Tag,
     Bell, BellOff, CheckSquare, Check, Layers, Plus, Pencil, ChevronDown,
     MessageCircle, History, Users, Download, Image as ImageIcon,
-    FileText, Maximize2, Pause, Volume2
+    FileText, Maximize2, Pause, Volume2, ExternalLink
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import delegationService from '../../services/delegationService';
@@ -71,7 +71,7 @@ const TaskDetailsDrawer = ({ isOpen, onClose, taskId, onSuccess }) => {
         }
     };
 
-    const handleQuickAction = async (action) => {
+    const handleQuickAction = (action) => {
         if (action === 'Completed') {
             let parsedChecklist = [];
             try {
@@ -84,44 +84,8 @@ const TaskDetailsDrawer = ({ isOpen, onClose, taskId, onSuccess }) => {
                 toast.error('Please complete all checklist items before marking the task as Completed.');
                 return;
             }
-
-            if (task.evidenceRequired) {
-                setShowCompleteModal(true);
-                return;
-            }
         }
-
-        try {
-            setSubmitting(true);
-            setError(null);
-
-            const storedUser = JSON.parse(localStorage.getItem('user'));
-            const userId = storedUser?.user?.id || storedUser?.id;
-
-            await delegationService.updateDelegation(taskId, {
-                status: action,
-                changedBy: userId
-            });
-
-            if (remark.trim()) {
-                await delegationService.addRemark(taskId, {
-                    userId: userId,
-                    remark: remark.trim()
-                });
-                setRemark('');
-            }
-
-            toast.success(`Task marked as ${action}`);
-            await fetchTaskDetails();
-            if (onSuccess) onSuccess();
-
-        } catch (err) {
-            console.error(`Failed to update task to ${action}:`, err);
-            setError('Failed to update task');
-            toast.error('Failed to update task');
-        } finally {
-            setSubmitting(false);
-        }
+        setStatus(action);
     };
 
     const handleToggleChecklistItem = async (index) => {
@@ -160,8 +124,9 @@ const TaskDetailsDrawer = ({ isOpen, onClose, taskId, onSuccess }) => {
         }
     };
 
-    const handleAddRemarkOnly = async () => {
-        if (!remark.trim()) return;
+    const handleSubmitUpdate = async () => {
+        const statusChanged = status !== task.status;
+        if (!remark.trim() && !statusChanged) return;
 
         try {
             setSubmitting(true);
@@ -170,17 +135,49 @@ const TaskDetailsDrawer = ({ isOpen, onClose, taskId, onSuccess }) => {
             const storedUser = JSON.parse(localStorage.getItem('user'));
             const userId = storedUser?.user?.id || storedUser?.id;
 
-            await delegationService.addRemark(taskId, {
-                userId,
-                remark: remark.trim()
-            });
+            // 1. If status changed, handle according to type
+            if (statusChanged) {
+                if (status === 'Completed' && task.evidenceRequired) {
+                    // Remarks will be lost if we don't handle them or modal doesn't.
+                    // For now, let's submit remark then show modal.
+                    if (remark.trim()) {
+                        await delegationService.addRemark(taskId, {
+                            userId,
+                            remark: remark.trim()
+                        });
+                        setRemark('');
+                    }
+                    setShowCompleteModal(true);
+                    setSubmitting(false);
+                    return;
+                }
 
-            setRemark('');
+                await delegationService.updateDelegation(taskId, {
+                    status: status,
+                    changedBy: userId,
+                    reason: remark.trim() || `Status updated to ${status}`
+                });
+            }
+
+            // 2. Add remark if not already consumed by status update reason
+            // (Note: updateDelegation in backend often creates a revision record from 'reason', 
+            // but addRemark adds to the remarks history specifically)
+            if (remark.trim()) {
+                await delegationService.addRemark(taskId, {
+                    userId,
+                    remark: remark.trim()
+                });
+                setRemark('');
+            }
+
+            toast.success('Update submitted successfully');
             await fetchTaskDetails();
+            if (onSuccess) onSuccess();
 
         } catch (err) {
-            console.error('Failed to add remark:', err);
-            setError('Failed to add remark');
+            console.error('Failed to submit update:', err);
+            setError('Failed to submit update');
+            toast.error('Failed to update task');
         } finally {
             setSubmitting(false);
         }
@@ -626,15 +623,23 @@ const TaskDetailsDrawer = ({ isOpen, onClose, taskId, onSuccess }) => {
                                                 <>
                                                     <button
                                                         onClick={() => handleQuickAction('In Progress')}
-                                                        disabled={submitting || task?.status === 'In Progress'}
-                                                        className="flex items-center gap-2 px-3.5 py-2 rounded-xl border border-orange-100 dark:border-orange-900/30 transition-all font-black text-[10px] uppercase tracking-widest bg-white dark:bg-slate-900 text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-900/20 disabled:opacity-50 shadow-sm active:scale-95"
+                                                        disabled={submitting || task?.status === 'Completed'}
+                                                        className={`flex items-center gap-2 px-3.5 py-2 rounded-xl border transition-all font-black text-[10px] uppercase tracking-widest shadow-sm active:scale-95 ${
+                                                            status === 'In Progress' 
+                                                            ? 'bg-orange-500 text-white border-orange-500 shadow-orange-500/20' 
+                                                            : 'bg-white dark:bg-slate-900 text-orange-600 border-orange-100 dark:border-orange-900/30 hover:bg-orange-50 dark:hover:bg-orange-900/20'
+                                                        } disabled:opacity-50`}
                                                     >
                                                         <PlayCircle size={14} /> In Progress
                                                     </button>
                                                     <button
                                                         onClick={() => handleQuickAction('Completed')}
-                                                        disabled={submitting || task?.status === 'Completed'}
-                                                        className="flex items-center gap-2 px-3.5 py-2 rounded-xl border border-emerald-100 dark:border-emerald-900/30 transition-all font-black text-[10px] uppercase tracking-widest bg-white dark:bg-slate-900 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 disabled:opacity-50 shadow-sm active:scale-95"
+                                                        disabled={submitting}
+                                                        className={`flex items-center gap-2 px-3.5 py-2 rounded-xl border transition-all font-black text-[10px] uppercase tracking-widest shadow-sm active:scale-95 ${
+                                                            status === 'Completed' 
+                                                            ? 'bg-emerald-500 text-white border-emerald-500 shadow-emerald-500/20' 
+                                                            : 'bg-white dark:bg-slate-900 text-emerald-600 border-emerald-100 dark:border-emerald-900/30 hover:bg-emerald-50 dark:hover:bg-emerald-900/20'
+                                                        } disabled:opacity-50`}
                                                     >
                                                         <CheckCircle2 size={14} /> Complete
                                                     </button>
@@ -682,11 +687,15 @@ const TaskDetailsDrawer = ({ isOpen, onClose, taskId, onSuccess }) => {
                                                 />
                                                 <div className="flex justify-end mt-2">
                                                     <button
-                                                        onClick={handleAddRemarkOnly}
-                                                        disabled={submitting || !remark.trim()}
-                                                        className="py-2 px-6 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-emerald-500/10 transition-all bg-emerald-500 hover:bg-emerald-600 text-white disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
+                                                        onClick={handleSubmitUpdate}
+                                                        disabled={submitting || (!remark.trim() && status === task.status)}
+                                                        className={`py-2 px-6 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg transition-all active:scale-95 ${
+                                                            (remark.trim() || status !== task.status)
+                                                            ? 'bg-emerald-500 hover:bg-emerald-600 text-white shadow-emerald-500/20'
+                                                            : 'bg-slate-100 dark:bg-slate-800 text-slate-400 cursor-not-allowed'
+                                                        }`}
                                                     >
-                                                        SUBMIT UPDATE
+                                                        {submitting ? 'SUBMITTING...' : 'SUBMIT UPDATE'}
                                                     </button>
                                                 </div>
                                             </div>

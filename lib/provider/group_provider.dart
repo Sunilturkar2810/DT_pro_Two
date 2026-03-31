@@ -66,7 +66,22 @@ class GroupProvider extends ChangeNotifier {
 
     try {
       final rawData = await _service.getMyGroups();
-      _myGroups = rawData.map((json) => GroupModel.fromJson(json)).toList();
+      final groups = rawData.map((json) => GroupModel.fromJson(json)).toList();
+      final enrichedGroups = <GroupModel>[];
+      for (final group in groups) {
+        try {
+          final members = await _service.getGroupMembers(group.id);
+          enrichedGroups.add(
+            group.copyWith(
+              memberCount: members.length,
+              members: members,
+            ),
+          );
+        } catch (_) {
+          enrichedGroups.add(group);
+        }
+      }
+      _myGroups = enrichedGroups;
     } catch (e) {
       _errorMessage = e.toString();
     } finally {
@@ -107,11 +122,14 @@ class GroupProvider extends ChangeNotifier {
     _errorMessage = null;
     notifyListeners();
     try {
-      // 1. Get Group Info
       final data = await _service.getGroupById(id);
-      _selectedGroup = GroupModel.fromJson(data);
+      _groupMembers = await _service.getGroupMembers(id);
+      _selectedGroup = GroupModel.fromJson({
+        ...data,
+        'members': _groupMembers,
+        'memberCount': _groupMembers.length,
+      });
 
-      // 2. Get Group Tasks with Filters matching backend delegation controller
       final queryParams = {
         'groupId': id,
         'search': _searchQuery.isNotEmpty ? _searchQuery : null,
@@ -158,14 +176,47 @@ class GroupProvider extends ChangeNotifier {
       }
 
       _groupTasks = await _service.getGroupTasksFiltered(queryParams);
-
-      // 3. Get Group Members
-      _groupMembers = await _service.getGroupMembers(id);
     } catch (e) {
       _errorMessage = e.toString();
     } finally {
       _isLoading = false;
       notifyListeners();
+    }
+  }
+
+  Future<bool> updateGroup(
+    String id, {
+    required String name,
+    required String description,
+    required List<String> memberIds,
+    File? image,
+    String? existingImageUrl,
+  }) async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      String? photoUrl = existingImageUrl;
+      if (image != null) {
+        photoUrl = await _delegationService.uploadFile(image, folder: 'groups');
+      }
+
+      await _service.updateGroup(id, {
+        'name': name,
+        'description': description,
+        'members': memberIds,
+        'imageUrl': photoUrl,
+      });
+
+      await fetchGroupDetails(id);
+      await fetchMyGroups();
+      return true;
+    } catch (e) {
+      _errorMessage = e.toString();
+      _isLoading = false;
+      notifyListeners();
+      return false;
     }
   }
 

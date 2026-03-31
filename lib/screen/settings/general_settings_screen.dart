@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../provider/auth_provider.dart';
 import '../../model/user_model.dart';
+import '../../utils/phone_number_helper.dart';
 
 class GeneralSettingsScreen extends StatefulWidget {
   const GeneralSettingsScreen({Key? key}) : super(key: key);
@@ -33,7 +34,9 @@ class _GeneralSettingsScreenState extends State<GeneralSettingsScreen> {
     _firstNameController = TextEditingController(text: user?.firstName ?? '');
     _lastNameController = TextEditingController(text: user?.lastName ?? '');
     _workEmailController = TextEditingController(text: user?.workEmail ?? '');
-    _mobileNumberController = TextEditingController(text: user?.mobileNumber ?? '');
+    _mobileNumberController = TextEditingController(
+      text: extractIndianPhoneDigits(user?.mobileNumber),
+    );
   }
 
   @override
@@ -47,6 +50,17 @@ class _GeneralSettingsScreenState extends State<GeneralSettingsScreen> {
 
   Future<void> _handleSave() async {
     if (!_formKey.currentState!.validate()) return;
+    final mobileError =
+        indianPhoneValidationMessage(_mobileNumberController.text.trim());
+    if (mobileError != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(mobileError),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
     
     setState(() => _isSaving = true);
     final authProvider = context.read<AuthProvider>();
@@ -396,7 +410,12 @@ class _GeneralSettingsScreenState extends State<GeneralSettingsScreen> {
                   const SizedBox(height: 16),
                   _buildTextField("WORK EMAIL", _workEmailController, icon: Icons.mail_outline),
                   const SizedBox(height: 16),
-                  _buildTextField("MOBILE NUMBER", _mobileNumberController, icon: Icons.phone_outlined),
+                  _buildTextField(
+                    "MOBILE NUMBER",
+                    _mobileNumberController,
+                    icon: Icons.phone_outlined,
+                    isPhone: true,
+                  ),
                   const SizedBox(height: 24),
                   
                   // Task Access Toggle
@@ -469,7 +488,12 @@ class _GeneralSettingsScreenState extends State<GeneralSettingsScreen> {
     );
   }
 
-  Widget _buildTextField(String label, TextEditingController controller, {IconData? icon}) {
+  Widget _buildTextField(
+    String label,
+    TextEditingController controller, {
+    IconData? icon,
+    bool isPhone = false,
+  }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -485,8 +509,25 @@ class _GeneralSettingsScreenState extends State<GeneralSettingsScreen> {
         const SizedBox(height: 4),
         TextFormField(
           controller: controller,
+          keyboardType: isPhone ? TextInputType.phone : TextInputType.text,
+          inputFormatters: isPhone ? indianPhoneInputFormatters() : null,
           style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF1E293B)),
-          decoration: InputDecoration(
+          decoration: isPhone
+              ? buildIndianPhoneDecoration(
+                  context,
+                  decoration: InputDecoration(
+                    suffixIcon: icon != null ? Icon(icon, size: 18, color: const Color(0xFFCBD5E1)) : null,
+                    contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                    isDense: true,
+                    enabledBorder: const UnderlineInputBorder(
+                      borderSide: BorderSide(color: Color(0xFFE2E8F0), width: 2),
+                    ),
+                    focusedBorder: const UnderlineInputBorder(
+                      borderSide: BorderSide(color: Color(0xFFFB923C), width: 2),
+                    ),
+                  ),
+                )
+              : InputDecoration(
             suffixIcon: icon != null ? Icon(icon, size: 18, color: const Color(0xFFCBD5E1)) : null,
             contentPadding: const EdgeInsets.symmetric(vertical: 8),
             isDense: true,
@@ -729,7 +770,7 @@ class _GeneralSettingsScreenState extends State<GeneralSettingsScreen> {
                 const SizedBox(height: 20),
                 _buildPersonalItem(
                   "Birthday & Gender",
-                  "${user?.dateOfBirth != null ? DateFormat('dd/MM/yyyy').format(DateTime.tryParse(user!.dateOfBirth!) ?? DateTime.now()) : 'Unknown'} • ${user?.gender ?? 'Unknown'}",
+                  "${user?.dateOfBirth != null ? DateFormat('dd/MM/yyyy').format(DateTime.tryParse(user!.dateOfBirth!) ?? DateTime.now()) : 'Unknown'} ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢ ${user?.gender ?? 'Unknown'}",
                   dotColor: const Color(0xFFEC4899),
                   badgeText: "PRIVATE",
                   badgeColor: const Color(0xFFEC4899),

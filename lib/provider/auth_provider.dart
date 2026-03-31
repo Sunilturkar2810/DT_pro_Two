@@ -5,6 +5,7 @@ import 'package:d_table_delegate_system/model/user_model.dart';
 import 'package:d_table_delegate_system/services/auth_service.dart';
 import 'package:flutter/material.dart';
 import 'package:hive/hive.dart';
+import '../utils/phone_number_helper.dart';
 
 
 
@@ -107,7 +108,7 @@ class AuthProvider extends ChangeNotifier {
         "lastName": lastName,
         "workEmail": workEmail,
         "password": password,
-        "mobileNumber": mobileNumber,
+        "mobileNumber": normalizeIndianPhone(mobileNumber),
         "role": role,
         "designation": designation,
         "department": department,
@@ -176,10 +177,23 @@ class AuthProvider extends ChangeNotifier {
       final userId = _currentUser?.id ?? Hive.box('settingsBox').get('auth_user_id') ?? '';
       if (userId.isEmpty) throw 'User ID not found — please login again';
 
-      final updatedData = await _authService.updateProfile(userId, updates);
+      final normalizedUpdates = Map<String, dynamic>.from(updates);
+      if (normalizedUpdates.containsKey('mobileNumber')) {
+        normalizedUpdates['mobileNumber'] =
+            normalizeIndianPhone(normalizedUpdates['mobileNumber']?.toString());
+      }
+
+      final updatedData = await _authService.updateProfile(
+        userId,
+        normalizedUpdates,
+      );
 
       // Merge updated data with existing user (backend may return partial)
-      final merged = {...(_currentUser?.toJson() ?? {}), ...updatedData};
+      final merged = {
+        ...(_currentUser?.toJson() ?? {}),
+        ...normalizedUpdates,
+        ...updatedData,
+      };
       _currentUser = UserModel.fromJson(merged);
 
       final box = Hive.box('settingsBox');
@@ -276,12 +290,18 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      await _authService.updateUser(memberId, updates);
+      final normalizedUpdates = Map<String, dynamic>.from(updates);
+      if (normalizedUpdates.containsKey('mobileNumber')) {
+        normalizedUpdates['mobileNumber'] =
+            normalizeIndianPhone(normalizedUpdates['mobileNumber']?.toString());
+      }
+
+      await _authService.updateUser(memberId, normalizedUpdates);
       print("✅ TEAM MEMBER UPDATED SUCCESSFULLY!");
       // Refresh users list
       final idx = _allUsers.indexWhere((u) => u.id == memberId);
       if (idx != -1) {
-        final updated = {..._allUsers[idx].toJson(), ...updates};
+        final updated = {..._allUsers[idx].toJson(), ...normalizedUpdates};
         _allUsers[idx] = UserModel.fromJson(updated);
         notifyListeners();
       }

@@ -443,9 +443,15 @@ class _DynamicDashboardState extends State<DynamicDashboard> {
 
   Widget _buildSubTabs(DashboardProvider provider) {
     final ac = Theme.of(context).extension<AppColors>()!;
+    final userRole =
+        context.read<AuthProvider>().currentUser?.role.toUpperCase() ?? '';
+    final canViewEmployeesTab = userRole == 'ADMIN' ||
+        userRole == 'SUPERADMIN' ||
+        userRole == 'MANAGER';
 
     final List<Map<String, dynamic>> tabs = [
-      {"icon": Icons.people_outline, "label": "Employees"},
+      if (canViewEmployeesTab)
+        {"icon": Icons.people_outline, "label": "Employees"},
       {"icon": Icons.folder_open_outlined, "label": "Groups"},
       {"icon": Icons.check_circle_outline, "label": "My Report"},
       {"icon": Icons.share_outlined, "label": "Delegated"},

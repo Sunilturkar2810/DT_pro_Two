@@ -67,6 +67,79 @@ class _InLoopTasksScreenState extends State<InLoopTasksScreen>
     super.dispose();
   }
 
+  DateTime? _parseTaskDate(DelegationModel task) {
+    final rawDate = task.dueDate.isNotEmpty ? task.dueDate : task.createdAt;
+    if (rawDate.isEmpty) return null;
+    return DateTime.tryParse(rawDate);
+  }
+
+  bool _matchesDateRange(DateTime? taskDate) {
+    if (selectedDateRange == "All Time") return true;
+    if (taskDate == null) return false;
+
+    final date = DateTime(taskDate.year, taskDate.month, taskDate.day);
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+
+    switch (selectedDateRange) {
+      case "Today":
+        return !date.isBefore(today);
+      case "Yesterday":
+        final yesterday = today.subtract(const Duration(days: 1));
+        return !date.isBefore(yesterday) && date.isBefore(today);
+      case "This Week":
+        final start = DateTime(today.year, today.month, today.day).subtract(
+          Duration(days: today.weekday == 7 ? 6 : today.weekday - 1),
+        );
+        return !date.isBefore(start);
+      case "Last Week":
+        final start = DateTime(today.year, today.month, today.day).subtract(
+          Duration(days: today.weekday == 7 ? 13 : today.weekday + 6),
+        );
+        final end = start.add(const Duration(days: 6));
+        return !date.isBefore(start) && !date.isAfter(end);
+      case "This Month":
+        return !date.isBefore(DateTime(now.year, now.month, 1));
+      case "Last Month":
+        final start = DateTime(now.year, now.month - 1, 1);
+        final end = DateTime(now.year, now.month, 0);
+        return !date.isBefore(start) && !date.isAfter(end);
+      case "This Year":
+        return !date.isBefore(DateTime(now.year, 1, 1));
+      case "Custom":
+        if (_customStartDate == null || _customEndDate == null) return true;
+        final start = DateTime(
+          _customStartDate!.year,
+          _customStartDate!.month,
+          _customStartDate!.day,
+        );
+        final end = DateTime(
+          _customEndDate!.year,
+          _customEndDate!.month,
+          _customEndDate!.day,
+          23,
+          59,
+          59,
+        );
+        return !date.isBefore(start) && !date.isAfter(end);
+      default:
+        return true;
+    }
+  }
+
+  List<String> _availableTags(List<DelegationModel> tasks, String? myId) {
+    final tags = <String>{};
+    for (final task in tasks) {
+      if (!task.inLoopIds.contains(myId)) continue;
+      for (final tag in task.tagsList) {
+        final normalized = tag.trim();
+        if (normalized.isNotEmpty) tags.add(normalized);
+      }
+    }
+    final sorted = tags.toList()..sort();
+    return sorted;
+  }
+
   List<DelegationModel> _applyFilters(
       List<DelegationModel> all, String? myId, List<UserModel> users) {
     // IN LOOP TASKS = sirf wo tasks jisme main inLoopIds me hoon
@@ -77,11 +150,8 @@ class _InLoopTasksScreenState extends State<InLoopTasksScreen>
           task.delegationName.toLowerCase().contains(searchQuery) ||
           task.description.toLowerCase().contains(searchQuery);
 
-      String statusKey = task.status;
-      if (statusKey == "Overdue") statusKey = "OverDue"; // Handle model inconsistency
-
       bool matchesStatus =
-          _activeStatusTab == "All" || statusKey == _activeStatusTab;
+          _activeStatusTab == "All" || task.status == _activeStatusTab;
 
       // Filter: Assigned By
       bool matchesAssignedBy = true;
@@ -108,48 +178,7 @@ class _InLoopTasksScreenState extends State<InLoopTasksScreen>
         matchesTags = task.tagsList.contains(_tagFilter);
       }
 
-      bool matchesDate = true;
-      final now = DateTime.now();
-      
-      try {
-        final due = DateTime.parse(task.dueDate.split('T')[0]);
-        final today = DateTime(now.year, now.month, now.day);
-        final taskDate = DateTime(due.year, due.month, due.day);
-        
-        if (selectedDateRange == "Today") {
-          matchesDate = taskDate.isAtSameMomentAs(today);
-        } else if (selectedDateRange == "Yesterday") {
-          final yesterday = today.subtract(const Duration(days: 1));
-          matchesDate = taskDate.isAtSameMomentAs(yesterday);
-        } else if (selectedDateRange == "This Week") {
-          final weekStart = today.subtract(Duration(days: today.weekday - 1));
-          final weekEnd = weekStart.add(const Duration(days: 6));
-          matchesDate = taskDate.isAfter(weekStart.subtract(const Duration(days: 1))) &&
-                        taskDate.isBefore(weekEnd.add(const Duration(days: 1)));
-        } else if (selectedDateRange == "Last Week") {
-          final lastWeekStart = today.subtract(Duration(days: today.weekday - 1 + 7));
-          final lastWeekEnd = lastWeekStart.add(const Duration(days: 6));
-          matchesDate = taskDate.isAfter(lastWeekStart.subtract(const Duration(days: 1))) &&
-                        taskDate.isBefore(lastWeekEnd.add(const Duration(days: 1)));
-        } else if (selectedDateRange == "This Month") {
-          matchesDate = taskDate.year == today.year && taskDate.month == today.month;
-        } else if (selectedDateRange == "Last Month") {
-          final lastMonth = today.month == 1 ? 12 : today.month - 1;
-          final lastMonthYear = today.month == 1 ? today.year - 1 : today.year;
-          matchesDate = taskDate.year == lastMonthYear && taskDate.month == lastMonth;
-        } else if (selectedDateRange == "This Year") {
-          matchesDate = taskDate.year == today.year;
-        } else if (selectedDateRange == "Custom") {
-          if (_customStartDate != null && _customEndDate != null) {
-            final start = DateTime(_customStartDate!.year, _customStartDate!.month, _customStartDate!.day);
-            final end = DateTime(_customEndDate!.year, _customEndDate!.month, _customEndDate!.day);
-            matchesDate = (taskDate.isAtSameMomentAs(start) || taskDate.isAfter(start)) &&
-                          (taskDate.isAtSameMomentAs(end) || taskDate.isBefore(end));
-          } else {
-            matchesDate = true;
-          }
-        }
-      } catch (_) {}
+      final matchesDate = _matchesDateRange(_parseTaskDate(task));
 
       return matchesSearch && matchesStatus && matchesDate && matchesAssignedBy && matchesPriority && matchesCategory && matchesTags;
     }).toList();
@@ -169,7 +198,7 @@ class _InLoopTasksScreenState extends State<InLoopTasksScreen>
     // Status counts — sirf in-loop tasks
     final inLoopTasks = delegationProv.delegations.where((t) => t.inLoopIds.contains(myId)).toList();
 
-    int overdueCount = inLoopTasks.where((t) => t.status == "Overdue" || t.status == "OverDue").length;
+    int overdueCount = inLoopTasks.where((t) => t.status == "Overdue").length;
     int pendingCount = inLoopTasks.where((t) => t.status == "Pending").length;
     int inProgressCount = inLoopTasks.where((t) => t.status == "In Progress").length;
     int completedCount = inLoopTasks.where((t) => t.status == "Completed").length;
@@ -177,7 +206,7 @@ class _InLoopTasksScreenState extends State<InLoopTasksScreen>
 
     final counts = {
       "All": allCount,
-      "OverDue": overdueCount,
+      "Overdue": overdueCount,
       "Pending": pendingCount,
       "In Progress": inProgressCount,
       "Completed": completedCount,
@@ -207,7 +236,12 @@ class _InLoopTasksScreenState extends State<InLoopTasksScreen>
         ],
         body: RefreshIndicator(
           color: primary,
-          onRefresh: () async => await delegationProv.fetchAll(),
+          onRefresh: () async {
+            await delegationProv.fetchAll();
+            await userProv.fetchUsers();
+            await context.read<CategoryProvider>().fetchCategories();
+            await context.read<TagProvider>().fetchTags();
+          },
           child: ListView(
             padding: const EdgeInsets.only(top: 0),
             children: [
@@ -265,7 +299,7 @@ class _InLoopTasksScreenState extends State<InLoopTasksScreen>
                 )
               ],
             ),
-            child: const Icon(Icons.loop_rounded, color: Colors.white, size: 24),
+            child: const Icon(Icons.notifications_active_rounded, color: Colors.white, size: 24),
           ),
           const SizedBox(width: 12),
           Flexible(
@@ -283,7 +317,7 @@ class _InLoopTasksScreenState extends State<InLoopTasksScreen>
                   overflow: TextOverflow.ellipsis,
                 ),
                 Text(
-                  "Tasks you are copied on",
+                  "Tasks you are copied on for followup",
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.bold,
@@ -300,25 +334,20 @@ class _InLoopTasksScreenState extends State<InLoopTasksScreen>
   }
 
   Widget _buildQuickStats(Map<String, int> counts) {
-    int inTime = 0; // Optional/Placeholder if not in API
-    int delayed = 0; // Optional/Placeholder if not in API
-
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Row(
         children: [
-          _buildStatCard("OVERDUE", counts['OverDue'] ?? 0, Colors.red),
+          _buildStatCard("TOTAL", counts['All'] ?? 0, Colors.blueGrey),
+          const SizedBox(width: 12),
+          _buildStatCard("OVERDUE", counts['Overdue'] ?? 0, Colors.red),
           const SizedBox(width: 12),
           _buildStatCard("PENDING", counts['Pending'] ?? 0, Colors.orange),
           const SizedBox(width: 12),
           _buildStatCard("IN PROGRESS", counts['In Progress'] ?? 0, Colors.blue),
           const SizedBox(width: 12),
           _buildStatCard("COMPLETED", counts['Completed'] ?? 0, Colors.green),
-          const SizedBox(width: 12),
-          _buildStatCard("IN TIME", inTime, Colors.teal),
-          const SizedBox(width: 12),
-          _buildStatCard("DELAYED", delayed, Colors.redAccent),
         ],
       ),
     );
@@ -439,7 +468,7 @@ class _InLoopTasksScreenState extends State<InLoopTasksScreen>
                         controller: searchController,
                         style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
                         decoration: const InputDecoration(
-                          hintText: "Search tasks...",
+                          hintText: "Search in loop tasks...",
                           hintStyle: TextStyle(color: Colors.grey, fontSize: 13),
                           border: InputBorder.none,
                           isDense: true,
@@ -460,6 +489,12 @@ class _InLoopTasksScreenState extends State<InLoopTasksScreen>
                       searchQuery = "";
                       selectedDateRange = "All Time";
                       _activeStatusTab = "All";
+                      _customStartDate = null;
+                      _customEndDate = null;
+                      _assignedByFilter = "Anyone";
+                      _priorityFilter = "All Priority";
+                      _categoryFilter = "All Categories";
+                      _tagFilter = "All Tags";
                     });
                   },
                   style: ElevatedButton.styleFrom(
@@ -536,14 +571,12 @@ class _InLoopTasksScreenState extends State<InLoopTasksScreen>
             children: tabs.map((tab) {
               final key = tab["key"] as String;
               final color = tab["color"] as Color;
-              // Our internal logic handles "OverDue" for counts/active
-              final internalKey = key == "Overdue" ? "OverDue" : key;
-              final isActive = _activeStatusTab == internalKey;
-              final count = counts[internalKey] ?? 0;
+              final isActive = _activeStatusTab == key;
+              final count = counts[key] ?? 0;
               final isPending = key == 'Pending';
 
               return GestureDetector(
-                onTap: () => setState(() => _activeStatusTab = internalKey),
+                onTap: () => setState(() => _activeStatusTab = key),
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   margin: const EdgeInsets.symmetric(horizontal: 4),
@@ -695,7 +728,7 @@ class _InLoopTasksScreenState extends State<InLoopTasksScreen>
                 runSpacing: 4,
                 children: [
                   _statusBadge(task.status, statusColor),
-                  _dateTag(task.dueDate, appColors),
+                  if (task.dueDate.isNotEmpty) _dateTag(task.dueDate, appColors),
                   _priorityTag(task.priority),
                   if (timeAgo.isNotEmpty)
                     Text(
@@ -716,7 +749,6 @@ class _InLoopTasksScreenState extends State<InLoopTasksScreen>
   }
 
   Widget _statusBadge(String status, Color color) {
-    if (status == "OverDue") status = "Overdue";
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
@@ -791,7 +823,6 @@ class _InLoopTasksScreenState extends State<InLoopTasksScreen>
         return const Color(0xFF10B981);
       case 'In Progress':
         return Colors.orangeAccent;
-      case 'OverDue':
       case 'Overdue':
         return Colors.redAccent;
       case 'Pending':
@@ -841,7 +872,7 @@ class _InLoopTasksScreenState extends State<InLoopTasksScreen>
         ),
         const SizedBox(height: 8),
         Text(
-          "You are not copied on any matching tasks.",
+          "You are not subscribed to any matching tasks.",
           style: TextStyle(
             fontSize: 13,
             fontWeight: FontWeight.bold,
@@ -858,7 +889,11 @@ class _InLoopTasksScreenState extends State<InLoopTasksScreen>
   // ─────────────────────────────────────────────────────────────────
   void _showFilterDialog(AppColors appColors, Color primary, List<UserModel> users) {
     final categoryModels = context.read<CategoryProvider>().categoryModels;
-    final tags = context.read<TagProvider>().tags;
+    final myId = context.read<AuthProvider>().currentUser?.id;
+    final tagOptions = _availableTags(
+      context.read<DelegationProvider>().delegations,
+      myId,
+    );
 
     showDialog(
       context: context,
@@ -916,7 +951,7 @@ class _InLoopTasksScreenState extends State<InLoopTasksScreen>
                     _buildFilterDropdownLabel("TAG"),
                     AppDropdown<String>(
                       value: _tagFilter,
-                      items: ["All Tags", ...tags.map((t) => t.name)],
+                      items: ["All Tags", ...tagOptions],
                       labelBuilder: (v) => v,
                       onChanged: (v) => setDialogState(() => _tagFilter = v!),
                     ),

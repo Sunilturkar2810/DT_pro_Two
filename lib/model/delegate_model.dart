@@ -55,6 +55,61 @@ class RevisionModel {
 }
 
 class DelegationModel {
+  static List<String> _parseStringList(dynamic rawValue) {
+    if (rawValue is List) {
+      return rawValue
+          .map((item) => item.toString().trim())
+          .where((item) => item.isNotEmpty)
+          .toList();
+    }
+
+    if (rawValue is String && rawValue.trim().isNotEmpty) {
+      final trimmed = rawValue.trim();
+      if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+        try {
+          final decoded = jsonDecode(trimmed);
+          if (decoded is List) {
+            return decoded
+                .map((item) => item.toString().trim())
+                .where((item) => item.isNotEmpty)
+                .toList();
+          }
+        } catch (_) {}
+      }
+
+      return trimmed
+          .split(',')
+          .map((item) => item.trim())
+          .where((item) => item.isNotEmpty)
+          .toList();
+    }
+
+    return const [];
+  }
+
+  static String normalizeStatus(dynamic rawStatus) {
+    final original = rawStatus?.toString().trim() ?? '';
+    final status = original.toLowerCase();
+
+    switch (status) {
+      case 'completed':
+      case 'done':
+        return 'Completed';
+      case 'in progress':
+      case 'in-progress':
+      case 'working':
+        return 'In Progress';
+      case 'overdue':
+      case 'over due':
+      case 'late':
+        return 'Overdue';
+      case 'pending':
+        return 'Pending';
+      default:
+        return original.isEmpty ? 'Pending' : original;
+    }
+  }
+
   String? id;
   String? parentId;
   String? groupId;
@@ -69,6 +124,9 @@ class DelegationModel {
   bool evidenceRequired;
   List<RemarkModel> remarks;
   String createdAt;
+  String? deletedAt;
+  String? deletedBy;
+  String deletedByName;
 
   // Additional fields from backend
   List<String> inLoopIds;
@@ -84,6 +142,7 @@ class DelegationModel {
   String? voiceNoteUrl;       // uploaded voice recording URL
   List<String> referenceDocs; // uploaded attachment URLs
   String? reminderAt;         // ISO string of reminder time (stored in tags)
+  List<Map<String, dynamic>> reminders;
   
   // Recurrence
   bool isRecurring;
@@ -124,6 +183,7 @@ class DelegationModel {
     this.voiceNoteUrl,
     this.referenceDocs = const [],
     this.reminderAt,
+    this.reminders = const [],
     this.isRecurring = false,
     this.recurringFrequency,
     this.recurringInterval,
@@ -131,6 +191,9 @@ class DelegationModel {
     this.recurringDays = const [],
     this.periodicallyDays,
     this.createdAt = '',
+    this.deletedAt,
+    this.deletedBy,
+    this.deletedByName = '',
   });
 
   factory DelegationModel.fromJson(Map<String, dynamic> json) {
@@ -175,20 +238,22 @@ class DelegationModel {
     // Backend se direct names parse karo
     final delegatorFirst = json['delegatorFirstName'] ?? json['delegator_first_name'] ?? '';
     final delegatorLast = json['delegatorLastName'] ?? json['delegator_last_name'] ?? '';
-    final assigneeFirst = json['assigneeFirstName'] ?? json['assignee_first_name'] ?? '';
-    final assigneeLast = json['assigneeLastName'] ?? json['assignee_last_name'] ?? '';
+    final assigneeFirst = json['assigneeFirstName'] ??
+        json['assignee_first_name'] ??
+        json['doerFirstName'] ??
+        json['doer_first_name'] ??
+        '';
+    final assigneeLast = json['assigneeLastName'] ??
+        json['assignee_last_name'] ??
+        json['doerLastName'] ??
+        json['doer_last_name'] ??
+        '';
+    final deletedByFirst = json['deletedByFirstName'] ?? json['deleted_by_first_name'] ?? '';
+    final deletedByLast = json['deletedByLastName'] ?? json['deleted_by_last_name'] ?? '';
 
     // Parse referenceDocs — stored as JSON string or list
-    List<String> refDocsList = [];
     final rawRefDocs = json['referenceDocs'] ?? json['reference_docs'];
-    if (rawRefDocs is List) {
-      refDocsList = rawRefDocs.map((e) => e.toString()).toList();
-    } else if (rawRefDocs is String && rawRefDocs.isNotEmpty) {
-      try {
-        final decoded = rawRefDocs.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
-        refDocsList = decoded;
-      } catch (_) {}
-    }
+    final refDocsList = _parseStringList(rawRefDocs);
 
     // Parse reminderAt from tags jsonb and also parse text tags
     String? reminderAt;
@@ -243,6 +308,25 @@ class DelegationModel {
           .toList();
     }
 
+    final rawReminders = json['reminders'];
+    List<Map<String, dynamic>> reminders = [];
+    if (rawReminders is List) {
+      reminders = rawReminders
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
+    } else if (rawReminders is String && rawReminders.trim().isNotEmpty) {
+      try {
+        final decoded = jsonDecode(rawReminders);
+        if (decoded is List) {
+          reminders = decoded
+              .whereType<Map>()
+              .map((e) => Map<String, dynamic>.from(e))
+              .toList();
+        }
+      } catch (_) {}
+    }
+
     return DelegationModel(
       id: json['id']?.toString(),
       parentId: json['parentId']?.toString() ?? json['parent_id']?.toString(),
@@ -254,7 +338,7 @@ class DelegationModel {
       priority: json['priority'] ?? 'Medium',
       dueDate: json['dueDate'] ?? json['due_date'] ?? '',
       startDate: json['startDate'] ?? json['start_date'],
-      status: json['status'] ?? 'Pending',
+      status: normalizeStatus(json['status']),
       evidenceRequired: json['evidenceRequired'] == true || json['evidence_required'] == true || json['evidenceRequired'] == 1 || json['evidence_required'] == 1,
       remarks: remarksList,
       inLoopIds: inLoopList,
@@ -270,6 +354,7 @@ class DelegationModel {
       voiceNoteUrl: json['voiceNoteUrl'] ?? json['voice_note_url'],
       referenceDocs: refDocsList,
       reminderAt: reminderAt,
+      reminders: reminders,
       isRecurring: json['isRecurring'] == true || json['is_recurring'] == true,
       recurringFrequency: json['recurringFrequency'] ?? json['recurring_frequency'],
       recurringInterval: json['recurringInterval'] ?? json['recurring_interval'],
@@ -277,6 +362,9 @@ class DelegationModel {
       recurringDays: (json['recurringDays'] is List) ? List<String>.from(json['recurringDays']) : [],
       periodicallyDays: json['periodicallyDays'] ?? json['periodically_days'],
       createdAt: json['createdAt'] ?? json['created_at'] ?? json['date'] ?? '',
+      deletedAt: json['deletedAt']?.toString() ?? json['deleted_at']?.toString(),
+      deletedBy: json['deletedBy']?.toString() ?? json['deleted_by']?.toString(),
+      deletedByName: '$deletedByFirst $deletedByLast'.trim(),
     );
   }
 
@@ -299,8 +387,9 @@ class DelegationModel {
       "asset": asset,
       if (evidenceUrl != null) "evidenceUrl": evidenceUrl,
       if (voiceNoteUrl != null) "voiceNoteUrl": voiceNoteUrl,
-      if (referenceDocs.isNotEmpty) "referenceDocs": referenceDocs.join(','),
+      if (referenceDocs.isNotEmpty) "referenceDocs": referenceDocs,
       if (reminderAt != null) "tags": {"reminderAt": reminderAt},
+      if (reminders.isNotEmpty) "reminders": reminders,
       "isRecurring": isRecurring,
       if (recurringFrequency != null) "recurringFrequency": recurringFrequency,
       if (recurringInterval != null) "recurringInterval": recurringInterval,

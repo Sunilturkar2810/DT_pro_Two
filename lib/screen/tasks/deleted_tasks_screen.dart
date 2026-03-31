@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../model/delegate_model.dart';
 import '../../provider/delegation_provider.dart';
 import '../../provider/auth_provider.dart';
 import '../../provider/user_provider.dart';
@@ -53,6 +54,94 @@ class _DeletedTasksScreenState extends State<DeletedTasksScreen> {
       return DateFormat('MMM dd, yyyy').format(dt);
     } catch (_) {
       return dateStr;
+    }
+  }
+
+  DateTime? _parseDate(String? dateStr) {
+    if (dateStr == null || dateStr.trim().isEmpty) return null;
+    try {
+      return DateTime.parse(dateStr).toLocal();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  String _effectiveStatus(DelegationModel task) {
+    final normalizedStatus = DelegationModel.normalizeStatus(task.status);
+    if (normalizedStatus == 'Completed') return normalizedStatus;
+
+    final dueDate = _parseDate(task.dueDate);
+    if (dueDate == null) return normalizedStatus;
+
+    final today = DateTime.now();
+    final dueDay = DateTime(dueDate.year, dueDate.month, dueDate.day);
+    final todayDay = DateTime(today.year, today.month, today.day);
+
+    if (dueDay.isBefore(todayDay)) {
+      return 'Overdue';
+    }
+
+    return normalizedStatus;
+  }
+
+  DateTime? _deletedReferenceDate(DelegationModel task) {
+    return _parseDate(task.deletedAt) ?? _parseDate(task.createdAt);
+  }
+
+  bool _matchesDeletedDateRange(DelegationModel task) {
+    final referenceDate = _deletedReferenceDate(task);
+    if (referenceDate == null) return _dateRange == 'All Time';
+
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final taskDay = DateTime(
+      referenceDate.year,
+      referenceDate.month,
+      referenceDate.day,
+    );
+
+    switch (_dateRange) {
+      case 'Today':
+        return !taskDay.isBefore(today);
+      case 'Yesterday':
+        final yesterday = today.subtract(const Duration(days: 1));
+        return taskDay.isAtSameMomentAs(yesterday);
+      case 'This Week':
+        final weekdayOffset = today.weekday == DateTime.sunday ? 6 : today.weekday - 1;
+        final start = today.subtract(Duration(days: weekdayOffset));
+        return !taskDay.isBefore(start);
+      case 'Next Week':
+        final weekdayOffset = today.weekday == DateTime.sunday ? 6 : today.weekday - 1;
+        final nextWeekStart = today.subtract(Duration(days: weekdayOffset)).add(const Duration(days: 7));
+        final nextWeekEnd = nextWeekStart.add(const Duration(days: 6));
+        return !taskDay.isBefore(nextWeekStart) && !taskDay.isAfter(nextWeekEnd);
+      case 'This Month':
+        final monthStart = DateTime(now.year, now.month, 1);
+        return !taskDay.isBefore(monthStart);
+      case 'Next Month':
+        final nextMonthStart = DateTime(now.year, now.month + 1, 1);
+        final nextMonthEnd = DateTime(now.year, now.month + 2, 0);
+        return !taskDay.isBefore(nextMonthStart) && !taskDay.isAfter(nextMonthEnd);
+      case 'Custom':
+        if (_customStartDate == null || _customEndDate == null) return true;
+        final start = DateTime(
+          _customStartDate!.year,
+          _customStartDate!.month,
+          _customStartDate!.day,
+        );
+        final end = DateTime(
+          _customEndDate!.year,
+          _customEndDate!.month,
+          _customEndDate!.day,
+          23,
+          59,
+          59,
+          999,
+        );
+        return !referenceDate.isBefore(start) && !referenceDate.isAfter(end);
+      case 'All Time':
+      default:
+        return true;
     }
   }
 
@@ -125,21 +214,21 @@ class _DeletedTasksScreenState extends State<DeletedTasksScreen> {
       body: Consumer<DelegationProvider>(
         builder: (context, provider, child) {
             final allTasks = provider.deletedDelegations;
-            int countOverdue = allTasks.where((t) => t.status == 'Overdue').length;
-            int countPending = allTasks.where((t) => t.status == 'Pending').length;
-            int countInProgress = allTasks.where((t) => t.status == 'In Progress').length;
-            int countCompleted = allTasks.where((t) => t.status == 'Completed').length;
+            final users = context.watch<UserProvider>().users;
+            final countOverdue = allTasks.where((t) => _effectiveStatus(t) == 'Overdue').length;
+            final countPending = allTasks.where((t) => _effectiveStatus(t) == 'Pending').length;
+            final countInProgress = allTasks.where((t) => _effectiveStatus(t) == 'In Progress').length;
+            final countCompleted = allTasks.where((t) => _effectiveStatus(t) == 'Completed').length;
 
             final displayList = allTasks.where((task) {
               final q = _searchQuery.toLowerCase();
               final matchesSearch = task.delegationName.toLowerCase().contains(q) || 
                                     task.description.toLowerCase().contains(q);
-              final matchesStatus = _statusFilter == 'All' || task.status == _statusFilter;
+              final matchesStatus = _statusFilter == 'All' || _effectiveStatus(task) == _statusFilter;
               
               // Assigned By
               bool matchesAssignedBy = true;
               if (_assignedByFilter != "Anyone") {
-                final users = Provider.of<UserProvider>(context, listen: false).users;
                 final delegator = task.getAssignedByName(users);
                 matchesAssignedBy = delegator == _assignedByFilter;
               }
@@ -159,46 +248,7 @@ class _DeletedTasksScreenState extends State<DeletedTasksScreen> {
                 matchesTags = task.tagsList.contains(_tagFilter);
               }
 
-              // Date logic
-              bool matchesDate = true;
-              final now = DateTime.now();
-              try {
-                final due = DateTime.parse(task.dueDate.split('T')[0]);
-                final today = DateTime(now.year, now.month, now.day);
-                final taskDate = DateTime(due.year, due.month, due.day);
-                
-                if (_dateRange == "Today") {
-                  matchesDate = taskDate.isAtSameMomentAs(today);
-                } else if (_dateRange == "Yesterday") {
-                  final yesterday = today.subtract(const Duration(days: 1));
-                  matchesDate = taskDate.isAtSameMomentAs(yesterday);
-                } else if (_dateRange == "This Week") {
-                  final weekStart = today.subtract(Duration(days: today.weekday - 1));
-                  final weekEnd = weekStart.add(const Duration(days: 6));
-                  matchesDate = taskDate.isAfter(weekStart.subtract(const Duration(days: 1))) &&
-                                taskDate.isBefore(weekEnd.add(const Duration(days: 1)));
-                } else if (_dateRange == "Last Week") {
-                  final lastWeekStart = today.subtract(Duration(days: today.weekday - 1 + 7));
-                  final lastWeekEnd = lastWeekStart.add(const Duration(days: 6));
-                  matchesDate = taskDate.isAfter(lastWeekStart.subtract(const Duration(days: 1))) &&
-                                taskDate.isBefore(lastWeekEnd.add(const Duration(days: 1)));
-                } else if (_dateRange == "This Month") {
-                  matchesDate = taskDate.year == today.year && taskDate.month == today.month;
-                } else if (_dateRange == "Last Month") {
-                  final lastMonth = today.month == 1 ? 12 : today.month - 1;
-                  final lastMonthYear = today.month == 1 ? today.year - 1 : today.year;
-                  matchesDate = taskDate.year == lastMonthYear && taskDate.month == lastMonth;
-                } else if (_dateRange == "This Year") {
-                  matchesDate = taskDate.year == today.year;
-                } else if (_dateRange == "Custom") {
-                  if (_customStartDate != null && _customEndDate != null) {
-                    final start = DateTime(_customStartDate!.year, _customStartDate!.month, _customStartDate!.day);
-                    final end = DateTime(_customEndDate!.year, _customEndDate!.month, _customEndDate!.day);
-                    matchesDate = (taskDate.isAtSameMomentAs(start) || taskDate.isAfter(start)) &&
-                                  (taskDate.isAtSameMomentAs(end) || taskDate.isBefore(end));
-                  }
-                }
-              } catch (_) {}
+              final matchesDate = _matchesDeletedDateRange(task);
 
               return matchesSearch && matchesStatus && matchesDate && matchesAssignedBy && matchesPriority && matchesCategory && matchesTags;
             }).toList();
@@ -209,16 +259,17 @@ class _DeletedTasksScreenState extends State<DeletedTasksScreen> {
                     ? a.delegationName.compareTo(b.delegationName)
                     : b.delegationName.compareTo(a.delegationName);
               } else if (_sortBy == 'Due Date') {
-                return _sortAscending 
-                    ? a.dueDate.compareTo(b.dueDate)
-                    : b.dueDate.compareTo(a.dueDate);
+                final aTime = _parseDate(a.dueDate)?.millisecondsSinceEpoch ?? 0;
+                final bTime = _parseDate(b.dueDate)?.millisecondsSinceEpoch ?? 0;
+                return _sortAscending ? aTime.compareTo(bTime) : bTime.compareTo(aTime);
+              } else if (_sortBy == 'Deleted At') {
+                final aTime = _deletedReferenceDate(a)?.millisecondsSinceEpoch ?? 0;
+                final bTime = _deletedReferenceDate(b)?.millisecondsSinceEpoch ?? 0;
+                return _sortAscending ? aTime.compareTo(bTime) : bTime.compareTo(aTime);
               } else {
-                // For 'Deleted At' and 'Created At', we use createdAt as reference
-                final dateA = a.createdAt;
-                final dateB = b.createdAt;
-                return _sortAscending
-                    ? dateA.compareTo(dateB)
-                    : dateB.compareTo(dateA);
+                final aTime = _parseDate(a.createdAt)?.millisecondsSinceEpoch ?? 0;
+                final bTime = _parseDate(b.createdAt)?.millisecondsSinceEpoch ?? 0;
+                return _sortAscending ? aTime.compareTo(bTime) : bTime.compareTo(aTime);
               }
             });
 
@@ -272,10 +323,9 @@ class _DeletedTasksScreenState extends State<DeletedTasksScreen> {
                                 "Today",
                                 "Yesterday",
                                 "This Week",
-                                "Last Week",
+                                "Next Week",
                                 "This Month",
-                                "Last Month",
-                                "This Year",
+                                "Next Month",
                                 "Custom"
                               ],
                               labelBuilder: (v) => v,
@@ -441,7 +491,21 @@ class _DeletedTasksScreenState extends State<DeletedTasksScreen> {
                         itemCount: displayList.length,
                         itemBuilder: (context, index) {
                             final task = displayList[index];
-                            final uInitials = task.delegatorName.isNotEmpty ? task.delegatorName.substring(0, 2).toUpperCase() : 'U';
+                            final assigneeName = task.assigneeName.isNotEmpty
+                                ? task.assigneeName
+                                : task.getAssignedToName(users);
+                            final assignedByName = task.delegatorName.isNotEmpty
+                                ? task.delegatorName
+                                : task.getAssignedByName(users);
+                            final deletedOn = _formatDate(task.deletedAt ?? task.createdAt);
+                            final effectiveStatus = _effectiveStatus(task);
+                            final initialsParts = assigneeName
+                                .split(' ')
+                                .where((part) => part.trim().isNotEmpty)
+                                .take(2)
+                                .map((part) => part.trim()[0].toUpperCase())
+                                .join();
+                            final avatarText = initialsParts.isNotEmpty ? initialsParts : 'U';
 
                             return Container(
                               margin: const EdgeInsets.only(bottom: 12),
@@ -466,16 +530,37 @@ class _DeletedTasksScreenState extends State<DeletedTasksScreen> {
                                         CircleAvatar(
                                           radius: 14,
                                           backgroundColor: Colors.white,
-                                          child: Text(uInitials, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: Colors.black87)),
+                                          child: Text(avatarText, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: Colors.black87)),
                                         ),
                                         const SizedBox(width: 12),
                                         Expanded(
                                           child: Column(
                                             crossAxisAlignment: CrossAxisAlignment.start,
                                             children: [
-                                              Text(task.delegationName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.black), maxLines: 1, overflow: TextOverflow.ellipsis),
+                                              Row(
+                                                children: [
+                                                  Expanded(
+                                                    child: Text(
+                                                      assigneeName,
+                                                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.black),
+                                                      maxLines: 1,
+                                                      overflow: TextOverflow.ellipsis,
+                                                    ),
+                                                  ),
+                                                  const SizedBox(width: 8),
+                                                  Text(
+                                                    'Deleted $deletedOn',
+                                                    style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.redAccent),
+                                                  ),
+                                                ],
+                                              ),
                                               const SizedBox(height: 1),
-                                              Text('From: ${task.delegatorName}', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.black87), maxLines: 1, overflow: TextOverflow.ellipsis),
+                                              Text(
+                                                task.category.isNotEmpty ? task.category.toUpperCase() : 'GENERAL',
+                                                style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.black54),
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
                                             ],
                                           ),
                                         ),
@@ -505,42 +590,102 @@ class _DeletedTasksScreenState extends State<DeletedTasksScreen> {
                                     child: Column(
                                       crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
+                                        Text(
+                                          task.delegationName,
+                                          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: Colors.black87),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
                                         if (task.description.isNotEmpty) ...[
+                                          const SizedBox(height: 8),
                                           Text(
                                             task.description,
                                             style: TextStyle(fontSize: 13, color: Colors.grey.shade600, fontWeight: FontWeight.w500),
                                             maxLines: 2,
                                             overflow: TextOverflow.ellipsis,
                                           ),
-                                          const SizedBox(height: 12),
-                                          const Divider(height: 1, color: Color(0xFFF1F5F9)),
-                                          const SizedBox(height: 12),
                                         ],
-                                        Row(
-                                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                        const SizedBox(height: 12),
+                                        Wrap(
+                                          spacing: 10,
+                                          runSpacing: 10,
+                                          crossAxisAlignment: WrapCrossAlignment.center,
                                           children: [
-                                            Row(
-                                              children: [
-                                                Icon(Icons.flag, size: 14, color: task.priority == 'Urgent' ? Colors.red : Colors.grey),
-                                                const SizedBox(width: 4),
-                                                Text(task.priority, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey)),
-                                                const SizedBox(width: 12),
-                                                Container(
-                                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                                  decoration: BoxDecoration(color: _getStatusColor(task.status).withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
-                                                  child: Text(task.status.toUpperCase(), style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: _getStatusColor(task.status))),
-                                                )
-                                              ],
+                                            Text(
+                                              'Assigned By $assignedByName',
+                                              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.grey.shade700),
                                             ),
-                                            Row(
-                                              children: [
-                                                const Icon(Icons.access_time, size: 14, color: Colors.orange),
-                                                const SizedBox(width: 4),
-                                                Text('Due: ${_formatDate(task.dueDate)}', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.orange)),
-                                              ],
-                                            )
+                                            if (task.dueDate.isNotEmpty)
+                                              Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  Icon(
+                                                    Icons.access_time,
+                                                    size: 14,
+                                                    color: effectiveStatus == 'Overdue' ? Colors.red : Colors.orange,
+                                                  ),
+                                                  const SizedBox(width: 4),
+                                                  Text(
+                                                    _formatDate(task.dueDate),
+                                                    style: TextStyle(
+                                                      fontSize: 11,
+                                                      fontWeight: FontWeight.bold,
+                                                      color: effectiveStatus == 'Overdue' ? Colors.red : Colors.orange,
+                                                    ),
+                                                  ),
+                                                  if (effectiveStatus == 'Overdue')
+                                                    const Text(
+                                                      ' | Overdue',
+                                                      style: TextStyle(
+                                                        fontSize: 11,
+                                                        fontWeight: FontWeight.bold,
+                                                        color: Colors.red,
+                                                      ),
+                                                    ),
+                                                ],
+                                              ),
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                              decoration: BoxDecoration(
+                                                color: _getStatusColor(effectiveStatus).withOpacity(0.1),
+                                                borderRadius: BorderRadius.circular(12),
+                                              ),
+                                              child: Text(
+                                                effectiveStatus.toUpperCase(),
+                                                style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: _getStatusColor(effectiveStatus)),
+                                              ),
+                                            ),
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                              decoration: BoxDecoration(
+                                                color: task.priority == 'Urgent'
+                                                    ? Colors.red.withOpacity(0.08)
+                                                    : Colors.grey.withOpacity(0.08),
+                                                borderRadius: BorderRadius.circular(12),
+                                              ),
+                                              child: Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  Icon(Icons.flag, size: 13, color: task.priority == 'Urgent' ? Colors.red : Colors.grey),
+                                                  const SizedBox(width: 4),
+                                                  Text(task.priority, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey)),
+                                                ],
+                                              ),
+                                            ),
+                                            if (task.deletedByName.isNotEmpty)
+                                              Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  const Icon(Icons.delete_outline, size: 14, color: Colors.redAccent),
+                                                  const SizedBox(width: 4),
+                                                  Text(
+                                                    'Deleted by ${task.deletedByName}',
+                                                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.grey.shade600),
+                                                  ),
+                                                ],
+                                              ),
                                           ],
-                                        )
+                                        ),
                                       ],
                                     ),
                                   )
@@ -707,7 +852,7 @@ class _DeletedTasksScreenState extends State<DeletedTasksScreen> {
                 child: Consumer3<UserProvider, CategoryProvider, TagProvider>(
                   builder: (ctx, userProv, catProv, tagProv, _) {
                     final usersList = ["Anyone", ...userProv.users.map((e) => e.fullName)];
-                    final priorities = ["All Priority", "High", "Medium", "Low"];
+                    final priorities = ["All Priority", "Urgent", "High", "Medium", "Low"];
                     final categories = ["All Categories", ...catProv.categoryModels.map((e) => e.name)];
                     final tags = ["All Tags", ...tagProv.tags.map((e) => e.name)];
 

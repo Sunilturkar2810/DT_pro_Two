@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import 'package:file_picker/file_picker.dart';
@@ -8,6 +9,7 @@ import 'package:record/record.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:d_table_delegate_system/model/user_model.dart';
 import 'package:d_table_delegate_system/model/tag_model.dart';
+import 'package:d_table_delegate_system/model/task_template_model.dart';
 import 'package:d_table_delegate_system/provider/tag_provider.dart';
 import 'package:d_table_delegate_system/provider/auth_provider.dart';
 import 'package:d_table_delegate_system/provider/delegation_provider.dart';
@@ -23,6 +25,7 @@ class AssignTaskSheet extends StatefulWidget {
   final String? parentTaskTitle;
   final String? groupId;
   final VoidCallback? onSuccess;
+  final TaskTemplateModel? templateData;
 
   const AssignTaskSheet({
     super.key,
@@ -30,6 +33,7 @@ class AssignTaskSheet extends StatefulWidget {
     this.parentTaskTitle,
     this.groupId,
     this.onSuccess,
+    this.templateData,
   });
 
   @override
@@ -77,6 +81,7 @@ class _AssignTaskSheetState extends State<AssignTaskSheet>
 
   // ── Reminder ──
   DateTime? _reminderDateTime;
+  String _reminderChannel = 'both';
 
   // ── Voice Recording ──
   final AudioRecorder _recorder = AudioRecorder();
@@ -106,18 +111,21 @@ class _AssignTaskSheetState extends State<AssignTaskSheet>
     );
     _fadeController.forward();
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
       final catProv = Provider.of<CategoryProvider>(context, listen: false);
-      if (catProv.categories.isEmpty) catProv.fetchCategories();
+      if (catProv.categories.isEmpty) {
+        await catProv.fetchCategories();
+      }
       final userProv = Provider.of<UserProvider>(context, listen: false);
       final groupId = widget.groupId?.trim();
       if (groupId != null && groupId.isNotEmpty) {
-        _loadGroupUsers(groupId);
+        await _loadGroupUsers(groupId);
       } else if (userProv.users.isEmpty) {
-        userProv.fetchUsers();
+        await userProv.fetchUsers();
       }
       final tagProv = Provider.of<TagProvider>(context, listen: false);
-      if (tagProv.tags.isEmpty) tagProv.fetchTags();
+      if (tagProv.tags.isEmpty) await tagProv.fetchTags();
+      _applyTemplatePrefill();
     });
 
     _titleFocus.addListener(() => setState(() {}));
@@ -159,6 +167,38 @@ class _AssignTaskSheetState extends State<AssignTaskSheet>
         setState(() => _isLoadingGroupUsers = false);
       }
     }
+  }
+
+  void _applyTemplatePrefill() {
+    final template = widget.templateData;
+    if (template == null) return;
+
+    final description = template.description?.trim() ?? '';
+    final checklist = (template.checklistItems ?? [])
+        .map((item) {
+          if (item is Map) {
+            final map = Map<String, dynamic>.from(item);
+            return (map['text'] ?? map['itemName'] ?? '').toString().trim();
+          }
+          return item.toString().trim();
+        })
+        .where((item) => item.isNotEmpty)
+        .toList();
+
+    setState(() {
+      _titleController.text = template.title;
+      _descController.text = description;
+      _priority = template.priority?.trim().isNotEmpty == true
+          ? template.priority!.trim()
+          : 'High';
+      _repeat = (template.frequency ?? 'Once') != 'Once';
+      _repeatFrequency = _repeat ? (template.frequency ?? 'Daily') : 'Daily';
+      _category = template.category?.trim().isNotEmpty == true
+          ? template.category!.trim()
+          : 'General';
+      _checklist = checklist;
+      _showChecklist = checklist.isNotEmpty;
+    });
   }
   
   void _showLinkDialog() {
@@ -324,6 +364,7 @@ class _AssignTaskSheetState extends State<AssignTaskSheet>
       _selectedTags = [];
       _requiresEvidence = false;
       _reminderDateTime = null;
+      _reminderChannel = 'both';
       _repeat = false;
       _repeatFrequency = 'Daily';
       _showChecklist = false;
@@ -387,7 +428,7 @@ class _AssignTaskSheetState extends State<AssignTaskSheet>
     if (timeValue <= 0) timeValue = 1;
 
     return {
-      'type': 'email',
+      'type': _reminderChannel,
       'timeValue': timeValue,
       'timeUnit': timeUnit,
       'triggerType': isBefore ? 'before' : 'after',
@@ -452,10 +493,15 @@ class _AssignTaskSheetState extends State<AssignTaskSheet>
     // ── 2. Upload file attachments ─────────────────────────────────────────
     List<String> refDocUrls = [];
     for (final pf in _attachedFiles) {
-      if (pf.path == null) continue;
+      if ((pf.path == null || pf.path!.isEmpty) &&
+          (pf.bytes == null || pf.bytes!.isEmpty)) {
+        continue;
+      }
       try {
+        final uploadTarget =
+            (pf.path != null && pf.path!.isNotEmpty) ? File(pf.path!) : pf;
         final url = await delegationProv.uploadFile(
-          File(pf.path!),
+          uploadTarget,
           folder: 'attachments',
         );
         refDocUrls.add(url);
@@ -666,6 +712,7 @@ class _AssignTaskSheetState extends State<AssignTaskSheet>
                 final result = await FilePicker.platform.pickFiles(
                   allowMultiple: true,
                   type: FileType.any,
+                  withData: kIsWeb,
                 );
                 if (result != null) {
                   setState(() => _attachedFiles.addAll(result.files));
@@ -685,6 +732,7 @@ class _AssignTaskSheetState extends State<AssignTaskSheet>
                 final result = await FilePicker.platform.pickFiles(
                   allowMultiple: true,
                   type: FileType.image,
+                  withData: kIsWeb,
                 );
                 if (result != null) {
                   setState(() => _attachedFiles.addAll(result.files));
@@ -703,6 +751,7 @@ class _AssignTaskSheetState extends State<AssignTaskSheet>
                 Navigator.pop(ctx);
                 final result = await FilePicker.platform.pickFiles(
                   type: FileType.video,
+                  withData: kIsWeb,
                 );
                 if (result != null) {
                   setState(() => _attachedFiles.addAll(result.files));
@@ -785,13 +834,6 @@ class _AssignTaskSheetState extends State<AssignTaskSheet>
           spacing: 8,
           runSpacing: 8,
           children: _attachedFiles.map((f) {
-            final isImg = [
-              'jpg',
-              'jpeg',
-              'png',
-              'gif',
-              'webp',
-            ].contains(f.extension?.toLowerCase() ?? '');
             return Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
               decoration: BoxDecoration(
@@ -804,22 +846,7 @@ class _AssignTaskSheetState extends State<AssignTaskSheet>
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  if (isImg && f.path != null)
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(4),
-                      child: Image.file(
-                        File(f.path!),
-                        width: 28,
-                        height: 28,
-                        fit: BoxFit.cover,
-                      ),
-                    )
-                  else
-                    Icon(
-                      _fileIcon(f.extension ?? ''),
-                      size: 18,
-                      color: const Color(0xFF6366F1),
-                    ),
+                  _buildAttachmentPreview(f),
                   const SizedBox(width: 7),
                   ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 110),
@@ -847,6 +874,58 @@ class _AssignTaskSheetState extends State<AssignTaskSheet>
           }).toList(),
         ),
       ],
+    );
+  }
+
+  Widget _buildAttachmentPreview(PlatformFile file) {
+    final isImage = [
+      'jpg',
+      'jpeg',
+      'png',
+      'gif',
+      'webp',
+    ].contains(file.extension?.toLowerCase() ?? '');
+
+    if (isImage) {
+      if (kIsWeb && file.bytes != null && file.bytes!.isNotEmpty) {
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(4),
+          child: Image.memory(
+            file.bytes!,
+            width: 28,
+            height: 28,
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => Icon(
+              _fileIcon(file.extension ?? ''),
+              size: 18,
+              color: const Color(0xFF6366F1),
+            ),
+          ),
+        );
+      }
+
+      if (file.path != null && file.path!.isNotEmpty) {
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(4),
+          child: Image.file(
+            File(file.path!),
+            width: 28,
+            height: 28,
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => Icon(
+              _fileIcon(file.extension ?? ''),
+              size: 18,
+              color: const Color(0xFF6366F1),
+            ),
+          ),
+        );
+      }
+    }
+
+    return Icon(
+      _fileIcon(file.extension ?? ''),
+      size: 18,
+      color: const Color(0xFF6366F1),
     );
   }
 
@@ -1006,6 +1085,7 @@ class _AssignTaskSheetState extends State<AssignTaskSheet>
         time.hour,
         time.minute,
       );
+      _reminderChannel = 'both';
     });
     _showSuccess(
       'Reminder set for ' +
@@ -1054,17 +1134,73 @@ class _AssignTaskSheetState extends State<AssignTaskSheet>
                       color: Color(0xFF1A1D23),
                     ),
                   ),
+                  Text(
+                    _reminderChannelLabel(_reminderChannel),
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF64748B),
+                    ),
+                  ),
                 ],
               ),
               const Spacer(),
               GestureDetector(
-                onTap: () => setState(() => _reminderDateTime = null),
+                onTap: () => setState(() {
+                  _reminderDateTime = null;
+                  _reminderChannel = 'both';
+                }),
                 child: Icon(Icons.cancel, size: 18, color: Colors.grey[400]),
               ),
             ],
           ),
         ),
+        const SizedBox(height: 10),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            _buildReminderChannelChip('both'),
+            _buildReminderChannelChip('whatsapp'),
+            _buildReminderChannelChip('email'),
+          ],
+        ),
       ],
+    );
+  }
+
+  String _reminderChannelLabel(String value) {
+    switch (value) {
+      case 'whatsapp':
+        return 'WhatsApp';
+      case 'email':
+        return 'Email';
+      case 'both':
+      default:
+        return 'Email + WhatsApp';
+    }
+  }
+
+  Widget _buildReminderChannelChip(String value) {
+    final isSelected = _reminderChannel == value;
+    return ChoiceChip(
+      label: Text(
+        _reminderChannelLabel(value),
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+          color: isSelected ? Colors.white : const Color(0xFF475569),
+        ),
+      ),
+      selected: isSelected,
+      selectedColor: const Color(0xFF10B981),
+      backgroundColor: Colors.white,
+      side: BorderSide(
+        color: isSelected
+            ? const Color(0xFF10B981)
+            : const Color(0xFFE2E8F0),
+      ),
+      onSelected: (_) => setState(() => _reminderChannel = value),
     );
   }
 

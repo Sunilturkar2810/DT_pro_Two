@@ -3,6 +3,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:provider/provider.dart';
 import '../../services/auth_service.dart';
 import '../../provider/user_provider.dart';
+import '../../utils/phone_number_helper.dart';
 
 class AddUserScreen extends StatefulWidget {
   const AddUserScreen({Key? key}) : super(key: key);
@@ -59,6 +60,18 @@ class _AddUserScreenState extends State<AddUserScreen> {
     final invalidUser = _users.any((u) => (u['firstName'] as String).isEmpty || (u['workEmail'] as String).isEmpty || (u['password'] as String).isEmpty);
     if (invalidUser) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please fill First Name, Work Email and Password for all rows'), backgroundColor: Colors.red));
+      return;
+    }
+    final invalidPhoneUser = _users.any(
+      (u) => !isValidIndianPhone(u['mobileNumber']?.toString()),
+    );
+    if (invalidPhoneUser) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('If entered, mobile number must be exactly 10 digits'),
+          backgroundColor: Colors.red,
+        ),
+      );
       return;
     }
 
@@ -240,11 +253,41 @@ class _AddUserScreenState extends State<AddUserScreen> {
           child: Text(label.toUpperCase(), style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.grey, letterSpacing: 1)),
         ),
         TextFormField(
-          initialValue: value,
+          initialValue:
+              type == TextInputType.phone ? extractIndianPhoneDigits(value) : value,
           onChanged: onChanged,
           keyboardType: type,
+          inputFormatters:
+              type == TextInputType.phone ? indianPhoneInputFormatters() : null,
           style: const TextStyle(fontSize: 13),
-          decoration: InputDecoration(
+          decoration: type == TextInputType.phone
+              ? buildIndianPhoneDecoration(
+                  context,
+                  decoration: InputDecoration(
+                    filled: true,
+                    fillColor:
+                        isDark ? const Color(0xFF12161B) : Colors.grey.shade50,
+                    contentPadding:
+                        const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(
+                        color: isDark ? Colors.white10 : Colors.grey.shade200,
+                      ),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(
+                        color: isDark ? Colors.white10 : Colors.grey.shade200,
+                      ),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: Color(0xFF20E19F)),
+                    ),
+                  ),
+                )
+              : InputDecoration(
             prefixIcon: icon != null ? Icon(icon, size: 16, color: Colors.grey) : null,
             filled: true,
             fillColor: isDark ? const Color(0xFF12161B) : Colors.grey.shade50,

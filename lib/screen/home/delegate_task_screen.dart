@@ -820,7 +820,7 @@ class _DelegateTasksScreenState extends State<DelegateTasksScreen> {
         onTap: () => Navigator.push(
             context,
             MaterialPageRoute(
-                builder: (_) => TaskDetailScreen(task: task))),
+                builder: (_) => TaskDetailScreen(task: task, allowEdit: true))),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -899,7 +899,7 @@ class _DelegateTasksScreenState extends State<DelegateTasksScreen> {
                 runSpacing: 4,
                 children: [
                   _statusBadge(task.status, statusColor),
-                  _dateTag(task.dueDate),
+                  if (task.dueDate.isNotEmpty) _dateTag(task.dueDate),
                   _priorityTag(task.priority),
                   if (timeAgo.isNotEmpty)
                     Text(
@@ -958,8 +958,7 @@ class _DelegateTasksScreenState extends State<DelegateTasksScreen> {
   }
 
   Widget _dateTag(String date) {
-    String display = date;
-    if (date.length > 10) display = date.substring(0, 10);
+    final display = _formatDate(date);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
       decoration: BoxDecoration(
@@ -980,6 +979,30 @@ class _DelegateTasksScreenState extends State<DelegateTasksScreen> {
         ],
       ),
     );
+  }
+
+  String _formatDate(String date) {
+    if (date.isEmpty) return "N/A";
+    try {
+      final dt = DateTime.parse(date);
+      final months = [
+        "Jan",
+        "Feb",
+        "Mar",
+        "Apr",
+        "May",
+        "Jun",
+        "Jul",
+        "Aug",
+        "Sep",
+        "Oct",
+        "Nov",
+        "Dec"
+      ];
+      return "${dt.day} ${months[dt.month - 1]}";
+    } catch (_) {
+      return date.split('T')[0];
+    }
   }
 
   void _showFilterDialog() {

@@ -2,9 +2,10 @@ import 'package:d_table_delegate_system/provider/auth_provider.dart';
 import 'package:d_table_delegate_system/widget/app_dropdown.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../../utils/phone_number_helper.dart';
 
 
-// ✅ New Backend: Register requires ADMIN/MANAGER token
+// âœ… New Backend: Register requires ADMIN/MANAGER token
 // This screen is now only accessible by logged-in Admins/Managers to add new users.
 // Self-signup is NOT supported by the new backend (erprld.com/api).
 class SignupScreen extends StatefulWidget {
@@ -48,12 +49,12 @@ class _SignupScreenState extends State<SignupScreen> {
     final primaryColor = const Color(0xFF20E19F);
     final authProvider = context.read<AuthProvider>();
 
-    // ⚠️ If user is not authenticated (ajeeb case), show info screen
+    // âš ï¸ If user is not authenticated (ajeeb case), show info screen
     if (!authProvider.isAuthenticated) {
       return _buildNotAvailableScreen(context, primaryColor);
     }
 
-    // ⚠️ Only Admin/Manager can access this screen
+    // âš ï¸ Only Admin/Manager can access this screen
     final isAdminOrManager = authProvider.isAdmin ||
         (authProvider.currentUser?.role?.toUpperCase() == 'MANAGER') ||
         (authProvider.currentUser?.role?.toUpperCase() == 'SUPERADMIN');
@@ -158,11 +159,12 @@ class _SignupScreenState extends State<SignupScreen> {
                     _buildTextField(
                       controller: mobileController,
                       label: 'Mobile Number',
-                      hint: '+91 XXXXX XXXXX',
+                      hint: '9876543210',
                       icon: Icons.phone_outlined,
                       keyboardType: TextInputType.phone,
                       primaryColor: primaryColor,
                       isRequired: false,
+                      isPhone: true,
                     ),
                     const SizedBox(height: 15),
                     Row(
@@ -192,14 +194,14 @@ class _SignupScreenState extends State<SignupScreen> {
                     ),
                     const SizedBox(height: 15),
 
-                    // Role Dropdown — New backend roles: ADMIN, MANAGER, User
+                    // Role Dropdown â€” New backend roles: ADMIN, MANAGER, User
                     _buildDropdown(primaryColor),
 
                     const SizedBox(height: 15),
                     _buildTextField(
                       controller: passwordController,
                       label: 'Initial Password',
-                      hint: '••••••••',
+                      hint: 'â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢',
                       icon: Icons.lock_outline,
                       isPassword: true,
                       obscureText: _obscurePassword,
@@ -210,7 +212,7 @@ class _SignupScreenState extends State<SignupScreen> {
                     _buildTextField(
                       controller: confirmController,
                       label: 'Confirm Password',
-                      hint: '••••••••',
+                      hint: 'â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢',
                       icon: Icons.lock_reset_outlined,
                       isPassword: true,
                       obscureText: _obscureConfirm,
@@ -363,6 +365,7 @@ class _SignupScreenState extends State<SignupScreen> {
     required Color primaryColor,
     bool isRequired = true,
     String? Function(String?)? validator,
+    bool isPhone = false,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -381,11 +384,37 @@ class _SignupScreenState extends State<SignupScreen> {
             controller: controller,
             obscureText: obscureText,
             keyboardType: keyboardType,
+            inputFormatters: isPhone ? indianPhoneInputFormatters() : null,
             validator: validator ?? (v) {
               if (isRequired && (v == null || v.isEmpty)) return 'Required';
+              if (isPhone) {
+                return indianPhoneValidationMessage(v);
+              }
               return null;
             },
-            decoration: InputDecoration(
+            decoration: isPhone
+                ? buildIndianPhoneDecoration(
+                    context,
+                    decoration: InputDecoration(
+                      hintText: hint,
+                      hintStyle: TextStyle(color: Colors.grey[400], fontSize: 14),
+                      suffixIcon: isPassword
+                          ? IconButton(
+                              icon: Icon(
+                                obscureText ? Icons.visibility_off : Icons.visibility,
+                                color: Colors.grey[400],
+                                size: 20,
+                              ),
+                              onPressed: onTogglePassword,
+                            )
+                          : null,
+                      border: InputBorder.none,
+                      contentPadding: const EdgeInsets.symmetric(vertical: 15, horizontal: 10),
+                      errorStyle: const TextStyle(height: 0),
+                    ),
+                    hintText: hint,
+                  )
+                : InputDecoration(
               hintText: hint,
               hintStyle: TextStyle(color: Colors.grey[400], fontSize: 14),
               prefixIcon: Icon(icon, color: primaryColor, size: 22),

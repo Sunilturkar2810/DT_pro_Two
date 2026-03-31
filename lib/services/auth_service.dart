@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:d_table_delegate_system/config/api_constants.dart';
 import 'package:d_table_delegate_system/services/dio_client.dart';
 import 'package:dio/dio.dart';
+import '../utils/phone_number_helper.dart';
 
 class AuthService {
   final Dio _dio = DioClient().dio;
@@ -209,9 +210,18 @@ class AuthService {
     List<Map<String, dynamic>> users,
   ) async {
     try {
+      final normalizedUsers = users.map((user) {
+        final normalized = Map<String, dynamic>.from(user);
+        if (normalized.containsKey('mobileNumber')) {
+          normalized['mobileNumber'] =
+              normalizeIndianPhone(normalized['mobileNumber']?.toString());
+        }
+        return normalized;
+      }).toList();
+
       final response = await _dio.post(
         ApiConstants.bulkRegister,
-        data: {'users': users},
+        data: {'users': normalizedUsers},
       );
       return response.data;
     } on DioException catch (e) {

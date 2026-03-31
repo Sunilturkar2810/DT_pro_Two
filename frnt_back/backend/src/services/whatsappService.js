@@ -14,27 +14,33 @@ const API_KEY = process.env.AISENSY_API_KEY;
  */
 export const sendWhatsAppCampaign = async (to, userName, campaignName, templateParams = []) => {
     try {
-        // Veup is typically a whitelabel of AiSensy, using the standard AiSensy backend endpoint
-        const url = 'https://backend.api-wa.co/campaign/veup/api/v2';
+        // AiSensy/Veup is typically a whitelabel. 'aisensy' is the standard backend segment.
+        const brand = process.env.AISENSY_BRAND || 'aisensy';
+        const url = `https://backend.api-wa.co/campaign/${brand}/api/v2`;
         
         // AiSensy expects specific number format (e.g. 919876543210)
-        const cleanTo = to.replace(/\D/g, '');
+        let cleanTo = to.replace(/\D/g, '');
+        if (cleanTo.length === 10) {
+            cleanTo = '91' + cleanTo;
+        }
 
-        // Sanitize content: AiSensy parameters cannot have newlines, tabs or 4+ spaces
-        const sanitizedContent = content
-            .replace(/[\r\n\t]/g, ' ') // Replace newlines/tabs with space
-            .replace(/\s{4,}/g, ' ')  // Replace 4+ consecutive spaces with single space
-            .trim();
+        console.log(`[WhatsApp] Triggering campaign '${campaignName}' to ${cleanTo} via ${brand}`);
 
-        // We map our "content" (from templates) to the first parameter of the AiSensy campaign
-        // The user's campaign "RLD3" might have a variable like "$FirstName" or similar.
-        // If "content" is designed in our app, we can pass it as a param.
+
+        // Sanitize parameters: AiSensy parameters cannot have newlines, tabs or 4+ spaces
+        const sanitizedParams = templateParams.map(param => 
+            String(param || '')
+                .replace(/[\r\n\t]/g, ' ') // Replace newlines/tabs with space
+                .replace(/\s{4,}/g, ' ')  // Replace 4+ consecutive spaces with single space
+                .trim()
+        );
+
         const data = {
             apiKey: API_KEY,
             campaignName: campaignName,
-            destination: to,
+            destination: cleanTo,
             userName: userName || 'User',
-            templateParams: templateParams,
+            templateParams: sanitizedParams,
             source: process.env.AISENSY_SOURCE || 'kesharia_rld_app',
             media: {},
             buttons: [],

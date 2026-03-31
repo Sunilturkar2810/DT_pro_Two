@@ -285,10 +285,21 @@ class _MyGroupsScreenState extends State<MyGroupsScreen> {
                       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                       leading: CircleAvatar(
                         backgroundColor: primary.withOpacity(0.2),
-                        child: Text(
-                          group.name.isNotEmpty ? group.name[0].toUpperCase() : "G",
-                          style: TextStyle(color: Colors.green.shade800, fontWeight: FontWeight.bold),
-                        ),
+                        backgroundImage:
+                            group.imageUrl != null && group.imageUrl!.isNotEmpty
+                                ? NetworkImage(group.imageUrl!)
+                                : null,
+                        child: group.imageUrl != null && group.imageUrl!.isNotEmpty
+                            ? null
+                            : Text(
+                                group.name.isNotEmpty
+                                    ? group.name[0].toUpperCase()
+                                    : "G",
+                                style: TextStyle(
+                                  color: Colors.green.shade800,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
                       ),
                       title: Text(group.name, style: const TextStyle(fontWeight: FontWeight.bold)),
                       subtitle: Text(

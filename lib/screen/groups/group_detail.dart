@@ -1,8 +1,13 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:d_table_delegate_system/provider/theme_provider.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import '../../provider/auth_provider.dart';
 import '../../provider/group_provider.dart';
+import '../../provider/user_provider.dart';
 import '../../model/group_model.dart';
 import '../../widget/custom_date_range_picker.dart';
 import '../../widget/app_dropdown.dart';
@@ -36,6 +41,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> with SingleTicker
     _tabController = TabController(length: 5, vsync: this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<GroupProvider>().fetchGroupDetails(widget.groupId);
+      context.read<UserProvider>().fetchUsers();
     });
   }
 
@@ -60,9 +66,191 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> with SingleTicker
     });
   }
 
+  Future<void> _pickEditImage(
+    StateSetter setDialogState,
+    ValueChanged<File> onPicked,
+  ) async {
+    final picker = ImagePicker();
+    final pickedFile = await picker.pickImage(source: ImageSource.gallery);
+    if (pickedFile == null) return;
+    setDialogState(() => onPicked(File(pickedFile.path)));
+  }
+
+  void _showEditGroupDialog() {
+    final groupProvider = context.read<GroupProvider>();
+    final userProvider = context.read<UserProvider>();
+    final group = groupProvider.selectedGroup;
+    if (group == null) return;
+
+    final nameController = TextEditingController(text: group.name);
+    final descController =
+        TextEditingController(text: group.description ?? '');
+    final selectedMemberIds = groupProvider.groupMembers
+        .map((m) => (m['userId'] ?? m['id']).toString())
+        .where((id) => id.isNotEmpty)
+        .toList();
+    File? selectedImage;
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) => AlertDialog(
+          insetPadding:
+              const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+          title: const Text(
+            "Edit Group",
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+          content: SizedBox(
+            width: MediaQuery.of(dialogContext).size.width > 600
+                ? 540
+                : MediaQuery.of(dialogContext).size.width * 0.9,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  GestureDetector(
+                    onTap: () => _pickEditImage(
+                      setDialogState,
+                      (file) => selectedImage = file,
+                    ),
+                    child: CircleAvatar(
+                      radius: 36,
+                      backgroundColor: ThemeProvider.primaryGreen.withOpacity(0.12),
+                      backgroundImage: selectedImage != null
+                          ? FileImage(selectedImage!)
+                          : (group.imageUrl != null && group.imageUrl!.isNotEmpty
+                              ? NetworkImage(group.imageUrl!) as ImageProvider
+                              : null),
+                      child: selectedImage == null &&
+                              (group.imageUrl == null || group.imageUrl!.isEmpty)
+                          ? const Icon(Icons.add_a_photo_outlined)
+                          : null,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: nameController,
+                    decoration: const InputDecoration(labelText: 'Group Name'),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: descController,
+                    maxLines: 3,
+                    decoration:
+                        const InputDecoration(labelText: 'Description'),
+                  ),
+                  const SizedBox(height: 16),
+                  const Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      'Members',
+                      style:
+                          TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Container(
+                    constraints: const BoxConstraints(maxHeight: 260),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: ListView(
+                      shrinkWrap: true,
+                      children: userProvider.users.map((user) {
+                        final isSelected = selectedMemberIds.contains(user.id);
+                        return CheckboxListTile(
+                          dense: true,
+                          value: isSelected,
+                          title: Text(user.fullName),
+                          subtitle: Text(
+                            user.designation.isNotEmpty
+                                ? user.designation
+                                : user.workEmail,
+                          ),
+                          onChanged: (value) {
+                            setDialogState(() {
+                              if (value == true) {
+                                selectedMemberIds.add(user.id);
+                              } else {
+                                selectedMemberIds.remove(user.id);
+                              }
+                            });
+                          },
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cancel'),
+            ),
+            Consumer<GroupProvider>(
+              builder: (context, provider, _) => ElevatedButton(
+                onPressed: provider.isLoading
+                    ? null
+                    : () async {
+                        if (nameController.text.trim().isEmpty) return;
+                        final success = await provider.updateGroup(
+                          widget.groupId,
+                          name: nameController.text.trim(),
+                          description: descController.text.trim(),
+                          memberIds: selectedMemberIds,
+                          image: selectedImage,
+                          existingImageUrl: group.imageUrl,
+                        );
+                        if (!mounted) return;
+                        if (success) {
+                          Navigator.pop(dialogContext);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Group updated successfully'),
+                            ),
+                          );
+                        }
+                      },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: ThemeProvider.primaryGreen,
+                ),
+                child: provider.isLoading
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Text(
+                        'Save',
+                        style: TextStyle(color: Colors.white),
+                      ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final primary = ThemeProvider.primaryGreen;
+    final selectedGroup = context.watch<GroupProvider>().selectedGroup;
+    final displayGroup = selectedGroup ??
+        GroupModel(
+          id: widget.groupId,
+          name: widget.groupName,
+          description: '',
+          createdBy: '',
+          memberCount: 0,
+        );
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
@@ -99,7 +287,24 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> with SingleTicker
                       color: primary,
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: const Icon(LucideIcons.users, color: Colors.white, size: 24),
+                    child: SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: displayGroup.imageUrl != null &&
+                              displayGroup.imageUrl!.isNotEmpty
+                          ? ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: Image.network(
+                                displayGroup.imageUrl!,
+                                fit: BoxFit.cover,
+                              ),
+                            )
+                          : const Icon(
+                              LucideIcons.users,
+                              color: Colors.white,
+                              size: 24,
+                            ),
+                    ),
                   ),
                   const SizedBox(width: 12),
                   Flexible(
@@ -107,15 +312,35 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> with SingleTicker
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          widget.groupName,
+                          displayGroup.name,
                           style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: Color(0xFF1E293B)),
                         ),
-                        const Text("Manage tasks and monitor performance", 
-                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey)
+                        Text(
+                          displayGroup.description?.isNotEmpty == true
+                              ? displayGroup.description!
+                              : "Manage tasks and monitor performance",
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey)
                         ),
                       ],
                     ),
                   ),
+                  const SizedBox(width: 8),
+                  GestureDetector(
+                    onTap: _showEditGroupDialog,
+                    child: Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: primary.withOpacity(0.25)),
+                      ),
+                      child: Icon(LucideIcons.pencil, color: primary, size: 18),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
                   // Styled Add Button in Header (Restore functionality here)
                   GestureDetector(
                     onTap: _showAssignTaskSheet,
@@ -444,9 +669,16 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> with SingleTicker
   
   Widget _buildTasksTab(GroupProvider provider) {
     final allTasks = provider.groupTasks;
+    final currentUserId = context.read<AuthProvider>().currentUser?.id;
     
-    // 1. Apply Status Filter
     List finalTasks = allTasks.where((t) {
+      if (_activeSubTab == 'My Task' &&
+          currentUserId != null &&
+          currentUserId.isNotEmpty) {
+        return (t['doerId'] ?? t['assignedTo']) == currentUserId;
+      }
+      return true;
+    }).where((t) {
       if (_selectedStatusFilter == 'All') return true;
       if (_selectedStatusFilter == 'Overdue') return t['status'] == 'Overdue';
       if (_selectedStatusFilter == 'Pending') return t['status'] == 'Pending' || t['status'] == 'To Do';
@@ -459,6 +691,11 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> with SingleTicker
 
     // 2. Status Filter Counts
     int cAll = allTasks.length;
+    int cMy = currentUserId == null
+        ? 0
+        : allTasks
+            .where((t) => (t['doerId'] ?? t['assignedTo']) == currentUserId)
+            .length;
     int cOverdue = allTasks.where((t) => t['status'] == 'Overdue').length;
     int cPending = allTasks.where((t) => t['status'] == 'Pending' || t['status'] == 'To Do').length;
     int cWorking = allTasks.where((t) => t['status'] == 'In Progress' || t['status'] == 'Working').length;
@@ -476,7 +713,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> with SingleTicker
             children: [
               _buildSubTabButton("All Task", _activeSubTab == "All Task"),
               const SizedBox(width: 8),
-              _buildSubTabButton("My Task", _activeSubTab == "My Task", count: 0),
+              _buildSubTabButton("My Task", _activeSubTab == "My Task", count: cMy),
             ],
           ),
         ),

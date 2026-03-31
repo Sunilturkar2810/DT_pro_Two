@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../provider/auth_provider.dart';
 import '../provider/theme_provider.dart';
 import '../model/user_model.dart';
+import '../utils/phone_number_helper.dart';
 
 class PersonalProfilePanel extends StatefulWidget {
   final UserModel user;
@@ -46,7 +47,9 @@ class _PersonalProfilePanelState extends State<PersonalProfilePanel> {
     super.initState();
     _firstNameCtrl = TextEditingController(text: widget.user.firstName);
     _lastNameCtrl = TextEditingController(text: widget.user.lastName);
-    _mobileCtrl = TextEditingController(text: widget.user.mobileNumber ?? '');
+    _mobileCtrl = TextEditingController(
+      text: extractIndianPhoneDigits(widget.user.mobileNumber),
+    );
     _personalEmailCtrl =
         TextEditingController(text: widget.user.personalEmail ?? '');
     _designationCtrl = TextEditingController(text: widget.user.designation);
@@ -80,6 +83,17 @@ class _PersonalProfilePanelState extends State<PersonalProfilePanel> {
   }
 
   Future<void> _saveChanges() async {
+    final mobileError = indianPhoneValidationMessage(_mobileCtrl.text.trim());
+    if (mobileError != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(mobileError),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
     setState(() => _isSaving = true);
 
     try {
@@ -198,7 +212,7 @@ class _PersonalProfilePanelState extends State<PersonalProfilePanel> {
                     const SizedBox(height: 12),
                     _buildField('Last Name', _lastNameCtrl),
                     const SizedBox(height: 12),
-                    _buildField('Mobile Number', _mobileCtrl),
+                    _buildField('Mobile Number', _mobileCtrl, isPhone: true),
                     const SizedBox(height: 12),
                     _buildField('Gender', _genderCtrl),
                     const SizedBox(height: 12),
@@ -273,7 +287,7 @@ class _PersonalProfilePanelState extends State<PersonalProfilePanel> {
   void _resetFields() {
     _firstNameCtrl.text = widget.user.firstName;
     _lastNameCtrl.text = widget.user.lastName;
-    _mobileCtrl.text = widget.user.mobileNumber ?? '';
+    _mobileCtrl.text = extractIndianPhoneDigits(widget.user.mobileNumber);
     _personalEmailCtrl.text = widget.user.personalEmail ?? '';
     _designationCtrl.text = widget.user.designation;
     _departmentCtrl.text = widget.user.department;
@@ -314,7 +328,7 @@ class _PersonalProfilePanelState extends State<PersonalProfilePanel> {
     );
   }
 
-  Widget _buildField(String label, TextEditingController controller) {
+  Widget _buildField(String label, TextEditingController controller, {bool isPhone = false}) {
     final ac = widget.appColors;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -331,7 +345,38 @@ class _PersonalProfilePanelState extends State<PersonalProfilePanel> {
         TextField(
           controller: controller,
           readOnly: !_isEditing,
-          decoration: InputDecoration(
+          keyboardType: isPhone ? TextInputType.phone : TextInputType.text,
+          inputFormatters: isPhone ? indianPhoneInputFormatters() : null,
+          decoration: isPhone
+              ? buildIndianPhoneDecoration(
+                  context,
+                  decoration: InputDecoration(
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 8,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(6),
+                      borderSide: BorderSide(
+                        color: _green.withOpacity(0.2),
+                      ),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(6),
+                      borderSide: BorderSide(
+                        color: _green.withOpacity(0.2),
+                      ),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(6),
+                      borderSide: BorderSide(color: _green),
+                    ),
+                    filled: !_isEditing,
+                    fillColor:
+                        !_isEditing ? _green.withOpacity(0.05) : Colors.transparent,
+                  ),
+                )
+              : InputDecoration(
             contentPadding: const EdgeInsets.symmetric(
               horizontal: 10,
               vertical: 8,

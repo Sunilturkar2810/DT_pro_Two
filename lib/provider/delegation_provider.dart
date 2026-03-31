@@ -239,6 +239,89 @@ class DelegationProvider extends ChangeNotifier {
     }
   }
 
+  Future<bool> subscribeToTask(
+    String delegationId,
+    String userId,
+    List<String> currentLoopIds,
+  ) async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+    try {
+      final normalizedLoopIds = currentLoopIds
+          .map((id) => id.toString().trim())
+          .where((id) => id.isNotEmpty)
+          .toSet()
+          .toList();
+
+      if (!normalizedLoopIds.contains(userId)) {
+        normalizedLoopIds.add(userId);
+      }
+
+      await _service.updateDelegation(delegationId, {
+        'inLoopIds': normalizedLoopIds,
+      });
+
+      await refreshSingleTask(delegationId);
+      return true;
+    } catch (e) {
+      _errorMessage = e.toString();
+      print("❌ Subscribe Task Error: $_errorMessage");
+      return false;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<bool> saveTaskReminders(
+    String delegationId,
+    List<Map<String, dynamic>> reminders,
+    String userId,
+  ) async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+    try {
+      await _service.updateDelegation(delegationId, {
+        'reminders': reminders,
+        'changedBy': userId,
+        'reason': 'Task reminders updated',
+      });
+
+      await refreshSingleTask(delegationId);
+      return true;
+    } catch (e) {
+      _errorMessage = e.toString();
+      print("❌ Save Task Reminders Error: $_errorMessage");
+      return false;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<bool> updateTaskDetails(
+    String delegationId,
+    Map<String, dynamic> payload,
+  ) async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+    try {
+      await _service.updateDelegation(delegationId, payload);
+      await refreshSingleTask(delegationId);
+      return true;
+    } catch (e) {
+      _errorMessage = e.toString();
+      print("❌ Update Task Details Error: $_errorMessage");
+      return false;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
   // DelegationProvider.dart mein add karein
 
   Future<bool> delete(String id) async {

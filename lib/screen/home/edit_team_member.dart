@@ -4,6 +4,7 @@ import 'package:d_table_delegate_system/provider/theme_provider.dart';
 import 'package:d_table_delegate_system/provider/user_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../utils/phone_number_helper.dart';
 
 class EditTeamMemberScreen extends StatefulWidget {
   final UserModel member;
@@ -38,7 +39,7 @@ class _EditTeamMemberScreenState extends State<EditTeamMemberScreen> {
     _lastNameCtrl = TextEditingController(text: widget.member.lastName);
     _workEmailCtrl = TextEditingController(text: widget.member.workEmail);
     _mobileNumberCtrl =
-        TextEditingController(text: widget.member.mobileNumber ?? '');
+        TextEditingController(text: extractIndianPhoneDigits(widget.member.mobileNumber));
     _designationCtrl =
         TextEditingController(text: widget.member.designation ?? '');
     _departmentCtrl =
@@ -63,6 +64,15 @@ class _EditTeamMemberScreenState extends State<EditTeamMemberScreen> {
     if (_firstNameCtrl.text.isEmpty || _lastNameCtrl.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('First name and last name are required')),
+      );
+      return;
+    }
+
+    final mobileError =
+        indianPhoneValidationMessage(_mobileNumberCtrl.text.trim());
+    if (mobileError != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(mobileError)),
       );
       return;
     }
@@ -165,8 +175,9 @@ class _EditTeamMemberScreenState extends State<EditTeamMemberScreen> {
             _buildTextField(
               label: 'Mobile Number',
               controller: _mobileNumberCtrl,
-              hint: 'Enter mobile number',
+              hint: '9876543210',
               keyboardType: TextInputType.phone,
+              isPhone: true,
             ),
             const SizedBox(height: 20),
 
@@ -320,6 +331,7 @@ class _EditTeamMemberScreenState extends State<EditTeamMemberScreen> {
     required String hint,
     TextInputType keyboardType = TextInputType.text,
     bool readOnly = false,
+    bool isPhone = false,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -329,7 +341,34 @@ class _EditTeamMemberScreenState extends State<EditTeamMemberScreen> {
           controller: controller,
           readOnly: readOnly,
           keyboardType: keyboardType,
-          decoration: InputDecoration(
+          inputFormatters: isPhone ? indianPhoneInputFormatters() : null,
+          decoration: isPhone
+              ? buildIndianPhoneDecoration(
+                  context,
+                  decoration: InputDecoration(
+                    hintText: hint,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide(color: _green),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide(color: _green.withOpacity(0.3)),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide(color: _green),
+                    ),
+                    filled: readOnly,
+                    fillColor:
+                        readOnly ? _green.withOpacity(0.05) : Colors.transparent,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 12,
+                    ),
+                  ),
+                )
+              : InputDecoration(
             hintText: hint,
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(8),

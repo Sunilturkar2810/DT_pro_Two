@@ -5,6 +5,7 @@ import '../../provider/auth_provider.dart';
 import '../../provider/roles_provider.dart';
 import '../../provider/user_provider.dart';
 import '../../model/user_model.dart';
+import '../utils/phone_number_helper.dart';
 
 class CreateMemberDialog extends StatefulWidget {
   final VoidCallback onSuccess;
@@ -36,7 +37,11 @@ class _CreateMemberDialogState extends State<CreateMemberDialog> {
   @override
   void initState() {
     super.initState();
-    _fetchRoles();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _fetchRoles();
+      }
+    });
   }
 
   Future<void> _fetchRoles() async {
@@ -63,6 +68,11 @@ class _CreateMemberDialogState extends State<CreateMemberDialog> {
   Future<void> _submit() async {
     if (_fNameCtrl.text.isEmpty || _lNameCtrl.text.isEmpty || _emailCtrl.text.isEmpty) {
       _showSnackbar('Highlighted fields are required');
+      return;
+    }
+    final mobileError = indianPhoneValidationMessage(_mobileCtrl.text.trim());
+    if (mobileError != null) {
+      _showSnackbar(mobileError);
       return;
     }
 
@@ -210,9 +220,9 @@ class _CreateMemberDialogState extends State<CreateMemberDialog> {
                     const SizedBox(height: 16),
                     Row(
                       children: [
-                        Expanded(child: _buildInput('Mobile Number', _mobileCtrl, hint: "+91 XXXXX XXXXX")),
+                        Expanded(child: _buildInput('Mobile Number', _mobileCtrl, hint: "9876543210", isPhone: true)),
                         const SizedBox(width: 12),
-                        Expanded(child: _buildInput('Password', _passCtrl, hint: "••••••••", helper: "Default: Welcome@123")),
+                        Expanded(child: _buildInput('Password', _passCtrl, hint: "â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢", helper: "Default: Welcome@123")),
                       ],
                     ),
                     const SizedBox(height: 16),
@@ -320,7 +330,7 @@ class _CreateMemberDialogState extends State<CreateMemberDialog> {
     );
   }
 
-  Widget _buildInput(String label, TextEditingController controller, {bool req = false, String hint = "", String helper = ""}) {
+  Widget _buildInput(String label, TextEditingController controller, {bool req = false, String hint = "", String helper = "", bool isPhone = false}) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final surfaceColor = isDark ? const Color(0xFF243244) : Colors.white;
     final borderColor = isDark ? const Color(0xFF334155) : Colors.grey.shade200;
@@ -332,8 +342,25 @@ class _CreateMemberDialogState extends State<CreateMemberDialog> {
         const SizedBox(height: 6),
         TextField(
           controller: controller,
+          keyboardType: isPhone ? TextInputType.phone : TextInputType.text,
+          inputFormatters: isPhone ? indianPhoneInputFormatters() : null,
           style: TextStyle(fontSize: 13, color: isDark ? Colors.white : Colors.black87),
-          decoration: InputDecoration(
+          decoration: isPhone
+              ? buildIndianPhoneDecoration(
+                  context,
+                  decoration: InputDecoration(
+                    hintText: hint,
+                    hintStyle: TextStyle(color: hintColor, fontSize: 13),
+                    filled: true,
+                    fillColor: surfaceColor,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: borderColor)),
+                    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: borderColor)),
+                    focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Color(0xFF20E19F))),
+                  ),
+                  hintText: hint,
+                )
+              : InputDecoration(
             hintText: hint,
             hintStyle: TextStyle(color: hintColor, fontSize: 13),
             filled: true,

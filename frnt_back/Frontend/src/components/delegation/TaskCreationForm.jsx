@@ -433,6 +433,14 @@ const TaskCreationForm = ({ isOpen, onClose, onSuccess, groupId, initialData, pa
     const handleFileSelect = (e) => {
         if (e.target.files && e.target.files.length > 0) {
             const newFiles = Array.from(e.target.files);
+            
+            // Check file sizes
+            const oversized = newFiles.filter(f => f.size > 50 * 1024 * 1024);
+            if (oversized.length > 0) {
+                toast.error(`Some files exceed the 50MB limit: ${oversized.map(f => f.name).join(', ')}`);
+                return;
+            }
+
             setAttachments(prev => [...prev, ...newFiles]);
         }
     };

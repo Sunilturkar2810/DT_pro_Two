@@ -13,8 +13,8 @@ const CompleteTaskModal = ({ task, isOpen, onClose, onSuccess }) => {
         let fileError = null;
 
         files.forEach(file => {
-            if (file.size > 10 * 1024 * 1024) {
-                fileError = `File "${file.name}" exceeds 10MB limit`;
+            if (file.size > 50 * 1024 * 1024) {
+                fileError = `File "${file.name}" exceeds 50MB limit`;
             } else {
                 validFiles.push(file);
             }

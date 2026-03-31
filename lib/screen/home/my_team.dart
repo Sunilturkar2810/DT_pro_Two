@@ -1,8 +1,6 @@
 import 'package:d_table_delegate_system/model/user_model.dart';
 import 'package:d_table_delegate_system/provider/auth_provider.dart';
-import 'package:d_table_delegate_system/provider/theme_provider.dart';
 import 'package:d_table_delegate_system/provider/user_provider.dart';
-import 'package:d_table_delegate_system/screen/auth/signup/signup_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:lucide_icons/lucide_icons.dart';
@@ -22,6 +20,7 @@ class MyTeamScreen extends StatefulWidget {
 
 class _MyTeamScreenState extends State<MyTeamScreen> {
   final TextEditingController _searchCtrl = TextEditingController();
+  String _activeTab = "Teams";
   String _selectedTeamId = "All";
   String _selectedRole = "All";
   String _selectedManager = "All";
@@ -213,6 +212,54 @@ class _MyTeamScreenState extends State<MyTeamScreen> {
     return true;
   }
 
+  bool _canManageMember(UserModel member) {
+    final auth = context.read<AuthProvider>();
+    final currentUserId = auth.currentUser?.id ?? '';
+    return auth.isAdmin ||
+        (currentUserId.isNotEmpty &&
+            member.reportingManagerId == currentUserId);
+  }
+
+  String _managerNameFor(UserModel member, List<UserModel> lookup) {
+    if ((member.manager ?? '').trim().isNotEmpty) {
+      return member.manager!.trim();
+    }
+    final managerId = member.reportingManagerId;
+    if (managerId == null || managerId.isEmpty) return "N/A";
+    final mergedLookup = [...lookup, ...context.read<UserProvider>().users];
+    for (final user in mergedLookup) {
+      if (user.id == managerId) {
+        return user.fullName.trim().isEmpty ? "N/A" : user.fullName;
+      }
+    }
+    return "N/A";
+  }
+
+  List<UserModel> _applyFilters(List<UserModel> sourceMembers) {
+    return sourceMembers.where((u) {
+      final q = _searchCtrl.text.toLowerCase();
+      final matchesSearch = q.isEmpty ||
+          u.fullName.toLowerCase().contains(q) ||
+          u.workEmail.toLowerCase().contains(q) ||
+          (u.teamName ?? '').toLowerCase().contains(q);
+
+      final matchesRole = _selectedRole == "All" || u.role == _selectedRole;
+      final matchesManager = _selectedManager == "All" ||
+          (u.reportingManagerId != null &&
+              u.reportingManagerId == _selectedManager);
+      final matchesTeam = _activeTab != "Teams" ||
+          _selectedTeamId == "All" ||
+          u.teamId == _selectedTeamId;
+      final matchesAccess = _matchesAccess(u);
+
+      return matchesSearch &&
+          matchesRole &&
+          matchesManager &&
+          matchesTeam &&
+          matchesAccess;
+    }).toList();
+  }
+
   @override
   void dispose() {
     _searchCtrl.dispose();
@@ -222,6 +269,11 @@ class _MyTeamScreenState extends State<MyTeamScreen> {
   @override
   Widget build(BuildContext context) {
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
+    final authProvider = context.watch<AuthProvider>();
+    final userProvider = context.watch<UserProvider>();
+    final isAdmin = authProvider.isAdmin;
+    final isManager =
+        authProvider.currentUser?.role.toUpperCase() == 'MANAGER';
 
     return Scaffold(
       backgroundColor: isDark ? const Color(0xFF12161B) : Colors.white,
@@ -249,36 +301,32 @@ class _MyTeamScreenState extends State<MyTeamScreen> {
             return Center(child: CircularProgressIndicator(color: _primaryGreen));
           }
 
-          final allMembers = _teamMembers;
-          
-          // Filters logic
-          final filteredMembers = allMembers.where((u) {
-            final q = _searchCtrl.text.toLowerCase();
-            final matchesSearch = q.isEmpty ||
-                u.fullName.toLowerCase().contains(q) ||
-                u.workEmail.toLowerCase().contains(q);
-            
-            final matchesRole = _selectedRole == "All" || u.role == _selectedRole;
-            final matchesManager = _selectedManager == "All" || (u.manager != null && u.manager == _selectedManager);
-            final matchesTeam = _selectedTeamId == "All" || u.teamId == _selectedTeamId;
-            final matchesAccess = _matchesAccess(u);
-            
-            return matchesSearch &&
-                matchesRole &&
-                matchesManager &&
-                matchesTeam &&
-                matchesAccess;
-          }).toList();
-
-          final uniqueRoles = ["All", ...allMembers.map((m) => m.role).toSet().toList()];
-          final uniqueManagers = ["All", ...allMembers.map((m) => m.manager).whereType<String>().toSet().toList()];
+          final sourceMembers = _activeTab == "Users" && isAdmin
+              ? userProvider.users
+                  .where((u) => (u.status ?? '').toLowerCase() != 'delete')
+                  .toList()
+              : _teamMembers;
+          final filteredMembers = _applyFilters(sourceMembers);
+          final uniqueRoles = [
+            "All",
+            ...sourceMembers.map((m) => m.role).where((r) => r.isNotEmpty).toSet()
+          ];
+          final uniqueManagers = [
+            "All",
+            ...sourceMembers
+                .map((m) => m.reportingManagerId)
+                .whereType<String>()
+                .where((id) => id.isNotEmpty)
+                .toSet()
+          ];
 
           return Column(
             children: [
-              _buildFilterBar(uniqueRoles, uniqueManagers, isDark),
-              _buildStats(allMembers, isDark),
+              _buildFilterBar(uniqueRoles, uniqueManagers, isDark, isAdmin, isManager),
+              _buildTabs(isAdmin, isDark),
+              _buildStats(sourceMembers, isDark),
               Expanded(
-                child: _buildTable(filteredMembers, isDark),
+                child: _buildTable(filteredMembers, sourceMembers, isDark),
               ),
             ],
           );
@@ -287,58 +335,76 @@ class _MyTeamScreenState extends State<MyTeamScreen> {
     );
   }
 
-  Widget _buildFilterBar(List<String> roles, List<String> managers, bool isDark) {
+  Widget _buildFilterBar(
+    List<String> roles,
+    List<String> managers,
+    bool isDark,
+    bool isAdmin,
+    bool isManager,
+  ) {
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Row(
         children: [
-          _actionButton(
-            LucideIcons.plus, 
-            "Create New Team", 
-            _primaryGreen,
-            onTap: () {
+          if (isAdmin) ...[
+            _actionButton(
+              LucideIcons.plus,
+              "Create New Team",
+              _primaryGreen,
+              onTap: () {
+                showDialog(
+                  context: context,
+                  builder: (ctx) => CreateTeamDialog(
+                    onSuccess: () {
+                      context.read<UserProvider>().fetchUsers();
+                      _refreshMembersForCurrentTeam();
+                    },
+                  ),
+                );
+              },
+            ),
+            const SizedBox(width: 8),
+          ],
+          if (isAdmin || isManager) ...[
+            _actionButton(LucideIcons.userPlus, "Add Member", _primaryGreen,
+                onTap: () {
               showDialog(
                 context: context,
-                builder: (ctx) => CreateTeamDialog(
+                builder: (ctx) => CreateMemberDialog(
                   onSuccess: () {
                     context.read<UserProvider>().fetchUsers();
                     _refreshMembersForCurrentTeam();
                   },
                 ),
               );
-            }
-          ),
-          const SizedBox(width: 8),
-          _actionButton(LucideIcons.userPlus, "Add Member", _primaryGreen, onTap: () {
-            showDialog(
-              context: context,
-              builder: (ctx) => CreateMemberDialog(
-                onSuccess: () {
-                  context.read<UserProvider>().fetchUsers();
+            }),
+            const SizedBox(width: 8),
+          ],
+          if (isAdmin) ...[
+            _actionButton(
+              LucideIcons.upload,
+              "Upload User",
+              _primaryGreen,
+              onTap: () async {
+                final refresh = await Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const AddUserScreen()),
+                );
+                if (refresh == true) {
                   _refreshMembersForCurrentTeam();
-                },
-              ),
-            );
-           }),
-          const SizedBox(width: 8),
-          _actionButton(
-            LucideIcons.upload, 
-            "Upload User", 
-            _primaryGreen,
-            onTap: () async {
-              final refresh = await Navigator.push(context, MaterialPageRoute(builder: (_) => const AddUserScreen()));
-              if (refresh == true) {
-                _refreshMembersForCurrentTeam();
-              }
-            }
-          ),
-          const SizedBox(width: 12),
-          _buildTeamDropdown(),
-          const SizedBox(width: 8),
+                }
+              },
+            ),
+            const SizedBox(width: 12),
+          ],
+          if (_activeTab == "Teams") ...[
+            _buildTeamDropdown(),
+            const SizedBox(width: 8),
+          ],
           _buildDropdown(roles, _selectedRole, (v) => setState(() => _selectedRole = v!), isDark, "All"),
           const SizedBox(width: 8),
-          _buildDropdown(managers, _selectedManager, (v) => setState(() => _selectedManager = v!), isDark, "Reporting Manager"),
+          _buildManagerDropdown(managers),
           const SizedBox(width: 8),
           _buildSearchField(isDark),
           const SizedBox(width: 8),
@@ -391,6 +457,75 @@ class _MyTeamScreenState extends State<MyTeamScreen> {
         setState(() => _selectedTeamId = teamId);
         await _loadSelectedTeamMembers(teamId);
       },
+    );
+  }
+
+  Widget _buildManagerDropdown(List<String> managerIds) {
+    final allUsers = context.read<UserProvider>().users;
+    return AppDropdown<String>(
+      isCompact: true,
+      value: managerIds.contains(_selectedManager) ? _selectedManager : managerIds.first,
+      items: managerIds,
+      labelBuilder: (managerId) {
+        if (managerId == 'All') return 'Reporting Manager';
+        for (final user in allUsers) {
+          if (user.id == managerId) return user.fullName;
+        }
+        return 'Unknown Manager';
+      },
+      onChanged: (value) => setState(() => _selectedManager = value ?? 'All'),
+    );
+  }
+
+  Widget _buildTabs(bool isAdmin, bool isDark) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      child: Row(
+        children: [
+          _buildTabButton("Teams", isDark),
+          const SizedBox(width: 8),
+          if (isAdmin) _buildTabButton("Users", isDark),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTabButton(String label, bool isDark) {
+    final selected = _activeTab == label;
+    return GestureDetector(
+      onTap: () {
+        if (_activeTab == label) return;
+        setState(() {
+          _activeTab = label;
+          _selectedManager = "All";
+          _selectedRole = "All";
+          _selectedAccess = "All";
+          _searchCtrl.clear();
+        });
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        decoration: BoxDecoration(
+          color: selected
+              ? _primaryGreen.withOpacity(isDark ? 0.18 : 0.12)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(
+            color: selected
+                ? _primaryGreen
+                : (isDark ? slate800 : slate200),
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            color: selected
+                ? _primaryGreen
+                : (isDark ? Colors.white70 : slate600),
+          ),
+        ),
+      ),
     );
   }
 
@@ -457,7 +592,7 @@ class _MyTeamScreenState extends State<MyTeamScreen> {
     );
   }
 
-  Widget _buildTable(List<UserModel> members, bool isDark) {
+  Widget _buildTable(List<UserModel> members, List<UserModel> sourceMembers, bool isDark) {
     if (members.isEmpty) {
       return Center(
         child: Padding(
@@ -468,7 +603,9 @@ class _MyTeamScreenState extends State<MyTeamScreen> {
               Icon(LucideIcons.users, size: 48, color: slate400.withOpacity(0.5)),
               const SizedBox(height: 16),
               Text(
-                "No team members match your filters.", 
+                _activeTab == "Users"
+                    ? "No users match your filters."
+                    : "No team members match your filters.",
                 style: TextStyle(color: slate600, fontSize: 14, fontWeight: FontWeight.bold),
                 textAlign: TextAlign.center,
               ),
@@ -482,13 +619,15 @@ class _MyTeamScreenState extends State<MyTeamScreen> {
       padding: const EdgeInsets.only(top: 8, bottom: 24),
       itemCount: members.length,
       itemBuilder: (context, index) {
-        return _buildListCard(members[index], isDark);
+        return _buildListCard(members[index], sourceMembers, isDark);
       },
     );
   }
 
-  Widget _buildListCard(UserModel m, bool isDark) {
-    final canManageMembers = context.read<AuthProvider>().isAdmin;
+  Widget _buildListCard(UserModel m, List<UserModel> sourceMembers, bool isDark) {
+    final auth = context.read<AuthProvider>();
+    final canManageMember = _canManageMember(m);
+    final canDeleteMember = auth.isAdmin;
     return Container(
       margin: const EdgeInsets.only(bottom: 12, left: 16, right: 16),
       padding: const EdgeInsets.all(16),
@@ -535,75 +674,80 @@ class _MyTeamScreenState extends State<MyTeamScreen> {
                 ),
               ),
               const SizedBox(width: 8),
-              Theme(
-                data: Theme.of(context).copyWith(
-                  splashColor: Colors.transparent,
-                  highlightColor: Colors.transparent,
-                ),
-                child: PopupMenuButton<String>(
-                  icon: Icon(LucideIcons.moreVertical, size: 20, color: slate400),
-                  padding: EdgeInsets.zero,
-                  position: PopupMenuPosition.under,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  color: isDark ? const Color(0xFF1E293B) : Colors.white,
-                  elevation: 8,
-                  offset: const Offset(0, 4),
-                  itemBuilder: (context) => [
-                    PopupMenuItem(
-                      value: 'edit',
-                      height: 40,
-                      child: Text('Edit', style: TextStyle(color: isDark ? Colors.white : const Color(0xFF1E293B), fontSize: 13, fontWeight: FontWeight.w500)),
-                    ),
-                    PopupMenuItem(
-                      value: 'update_cred',
-                      height: 40,
-                      child: Text('Update Credentials', style: TextStyle(color: isDark ? Colors.white : const Color(0xFF1E293B), fontSize: 13, fontWeight: FontWeight.w500)),
-                    ),
-                    const PopupMenuDivider(height: 1),
-                    const PopupMenuItem(
-                      value: 'delete_tasks',
-                      height: 40,
-                      child: Text('Delete All Tasks', style: TextStyle(color: Colors.red, fontSize: 13, fontWeight: FontWeight.bold)),
-                    ),
-                    const PopupMenuItem(
-                      value: 'delete_user',
-                      height: 40,
-                      child: Text('DELETE USER', style: TextStyle(color: Colors.red, fontSize: 13, fontWeight: FontWeight.w900, fontStyle: FontStyle.italic)),
-                    ),
-                    if (canManageMembers && (m.teamId ?? '').isNotEmpty)
-                      const PopupMenuItem(
-                        value: 'remove_from_team',
+              if (canManageMember)
+                Theme(
+                  data: Theme.of(context).copyWith(
+                    splashColor: Colors.transparent,
+                    highlightColor: Colors.transparent,
+                  ),
+                  child: PopupMenuButton<String>(
+                    icon: Icon(LucideIcons.moreVertical, size: 20, color: slate400),
+                    padding: EdgeInsets.zero,
+                    position: PopupMenuPosition.under,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    color: isDark ? const Color(0xFF1E293B) : Colors.white,
+                    elevation: 8,
+                    offset: const Offset(0, 4),
+                    itemBuilder: (context) => [
+                      PopupMenuItem(
+                        value: 'edit',
                         height: 40,
-                        child: Text('Remove From Team', style: TextStyle(color: Colors.orange, fontSize: 13, fontWeight: FontWeight.bold)),
+                        child: Text('Edit', style: TextStyle(color: isDark ? Colors.white : const Color(0xFF1E293B), fontSize: 13, fontWeight: FontWeight.w500)),
                       ),
-                  ],
-                  onSelected: (val) {
-                    if (val == 'edit') {
-                      showDialog(context: context, builder: (_) => UpdateMemberDialog(member: m, onSuccess: () {
-                        context.read<UserProvider>().fetchUsers();
-                        _refreshMembersForCurrentTeam();
-                      }));
-                    } else if (val == 'update_cred') {
-                      showDialog(context: context, builder: (_) => UpdateCredentialsDialog(member: m, onSuccess: () {
-                        context.read<UserProvider>().fetchUsers();
-                        _refreshMembersForCurrentTeam();
-                      }));
-                    } else if (val == 'delete_tasks') {
-                      showDialog(context: context, builder: (_) => DeleteTasksDialog(member: m, onSuccess: () {
-                        context.read<UserProvider>().fetchUsers();
-                        _refreshMembersForCurrentTeam();
-                      }));
-                    } else if (val == 'delete_user') {
-                      showDialog(context: context, builder: (_) => DeleteUserDialog(member: m, onSuccess: () {
-                        context.read<UserProvider>().fetchUsers();
-                        _refreshMembersForCurrentTeam();
-                      }));
-                    } else if (val == 'remove_from_team') {
-                      _removeMemberFromTeam(m);
-                    }
-                  },
+                      PopupMenuItem(
+                        value: 'update_cred',
+                        height: 40,
+                        child: Text('Update Credentials', style: TextStyle(color: isDark ? Colors.white : const Color(0xFF1E293B), fontSize: 13, fontWeight: FontWeight.w500)),
+                      ),
+                      if (canDeleteMember) const PopupMenuDivider(height: 1),
+                      if (canDeleteMember)
+                        const PopupMenuItem(
+                          value: 'delete_tasks',
+                          height: 40,
+                          child: Text('Delete All Tasks', style: TextStyle(color: Colors.red, fontSize: 13, fontWeight: FontWeight.bold)),
+                        ),
+                      if (canDeleteMember)
+                        const PopupMenuItem(
+                          value: 'delete_user',
+                          height: 40,
+                          child: Text('DELETE USER', style: TextStyle(color: Colors.red, fontSize: 13, fontWeight: FontWeight.w900, fontStyle: FontStyle.italic)),
+                        ),
+                      if (canDeleteMember &&
+                          _activeTab == "Teams" &&
+                          (m.teamId ?? '').isNotEmpty)
+                        const PopupMenuItem(
+                          value: 'remove_from_team',
+                          height: 40,
+                          child: Text('Remove From Team', style: TextStyle(color: Colors.orange, fontSize: 13, fontWeight: FontWeight.bold)),
+                        ),
+                    ],
+                    onSelected: (val) {
+                      if (val == 'edit') {
+                        showDialog(context: context, builder: (_) => UpdateMemberDialog(member: m, onSuccess: () {
+                          context.read<UserProvider>().fetchUsers();
+                          _refreshMembersForCurrentTeam();
+                        }));
+                      } else if (val == 'update_cred') {
+                        showDialog(context: context, builder: (_) => UpdateCredentialsDialog(member: m, onSuccess: () {
+                          context.read<UserProvider>().fetchUsers();
+                          _refreshMembersForCurrentTeam();
+                        }));
+                      } else if (val == 'delete_tasks') {
+                        showDialog(context: context, builder: (_) => DeleteTasksDialog(member: m, onSuccess: () {
+                          context.read<UserProvider>().fetchUsers();
+                          _refreshMembersForCurrentTeam();
+                        }));
+                      } else if (val == 'delete_user') {
+                        showDialog(context: context, builder: (_) => DeleteUserDialog(member: m, onSuccess: () {
+                          context.read<UserProvider>().fetchUsers();
+                          _refreshMembersForCurrentTeam();
+                        }));
+                      } else if (val == 'remove_from_team') {
+                        _removeMemberFromTeam(m);
+                      }
+                    },
+                  ),
                 ),
-              ),
             ],
           ),
           
@@ -615,13 +759,22 @@ class _MyTeamScreenState extends State<MyTeamScreen> {
           Row(
             children: [
               Expanded(child: _infoBlock("Mobile", m.mobileNumber ?? "N/A", LucideIcons.phone, isDark)),
-              Expanded(child: _infoBlock("Reports To", m.manager ?? "N/A", LucideIcons.userCheck, isDark)),
+              Expanded(child: _infoBlock("Reports To", _managerNameFor(m, sourceMembers), LucideIcons.userCheck, isDark)),
             ],
           ),
           const SizedBox(height: 16),
           Row(
             children: [
-              Expanded(child: _infoBlock("Team Name", m.teamName ?? "N/A", LucideIcons.users, isDark)),
+              Expanded(
+                child: _infoBlock(
+                  _activeTab == "Users" ? "Department" : "Team Name",
+                  _activeTab == "Users"
+                      ? (m.department.isNotEmpty ? m.department : "N/A")
+                      : (m.teamName ?? "N/A"),
+                  _activeTab == "Users" ? LucideIcons.briefcase : LucideIcons.users,
+                  isDark,
+                ),
+              ),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -647,6 +800,15 @@ class _MyTeamScreenState extends State<MyTeamScreen> {
               ),
             ],
           ),
+          if (_activeTab == "Users") ...[
+            const SizedBox(height: 16),
+            _infoBlock(
+              "Status",
+              (m.status ?? "active").toString(),
+              LucideIcons.checkCircle,
+              isDark,
+            ),
+          ],
         ],
       ),
     );

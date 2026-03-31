@@ -8,11 +8,13 @@ class UserModel {
   final String department;
   final String? mobileNumber;
   final String? manager;
+  final String? reportingManagerId;
   final String? profilePhotoUrl;
   final String? teamId;
   final String? teamName;
   final bool? taskAccess;
   final bool? leaveAccess;
+  final String? status;
   
   // Remaining fields
   final String? personalEmail;
@@ -37,11 +39,13 @@ class UserModel {
     required this.department,
     this.mobileNumber,
     this.manager,
+    this.reportingManagerId,
     this.profilePhotoUrl,
     this.teamId,
     this.teamName,
     this.taskAccess,
     this.leaveAccess,
+    this.status,
     this.personalEmail,
     this.emergencyMobileNo,
     this.dateOfBirth,
@@ -67,6 +71,7 @@ class UserModel {
       department: json['department'] ?? 'General',
       mobileNumber: json['mobileNumber']?.toString(),
       manager: json['manager'],
+      reportingManagerId: json['reportingManagerId']?.toString(),
       profilePhotoUrl: json['profilePhotoUrl'],
       teamId: json['teamId']?.toString(),
       teamName: json['teamName']?.toString(),
@@ -76,6 +81,7 @@ class UserModel {
       leaveAccess: json['leaveAccess'] is bool
           ? json['leaveAccess'] as bool
           : json['leaveAccess']?.toString().toLowerCase() == 'true',
+      status: json['status']?.toString(),
       personalEmail: json['personalEmail'],
       emergencyMobileNo: json['emergencyMobileNo']?.toString(),
       dateOfBirth: json['dateOfBirth']?.toString(),
@@ -114,11 +120,13 @@ class UserModel {
       'department': department,
       'mobileNumber': mobileNumber,
       'manager': manager,
+      'reportingManagerId': reportingManagerId,
       'profilePhotoUrl': profilePhotoUrl,
       'teamId': teamId,
       'teamName': teamName,
       'taskAccess': taskAccess,
       'leaveAccess': leaveAccess,
+      'status': status,
       'personalEmail': personalEmail,
       'emergencyMobileNo': emergencyMobileNo,
       'dateOfBirth': dateOfBirth,

@@ -1,4 +1,7 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -7,6 +10,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 
 import 'package:d_table_delegate_system/model/delegate_model.dart';
 import 'package:d_table_delegate_system/provider/auth_provider.dart';
+import 'package:d_table_delegate_system/provider/category_provider.dart';
 import 'package:d_table_delegate_system/provider/delegation_provider.dart';
 import 'package:d_table_delegate_system/provider/user_provider.dart';
 import 'package:d_table_delegate_system/widget/assign_task_sheet.dart';
@@ -164,10 +168,37 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
     }
   }
 
-  Future<void> _changeStatus(String newStatus, {String reason = ''}) async {
-    final taskId = _currentTask?.id;
+  bool _canMarkTaskCompleted(DelegationModel task) {
+    final hasPendingChecklist = task.checklistItems.isNotEmpty &&
+        task.checklistItems.any((item) => !_isChecklistItemDone(item));
+    if (hasPendingChecklist) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Please complete all checklist items before marking the task as completed.',
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return false;
+    }
+
+    return true;
+  }
+
+  Future<void> _updateTaskStatus(
+    DelegationModel task,
+    String newStatus, {
+    required String reason,
+    String? successMessage,
+  }) async {
+    final taskId = task.id;
     final userId = context.read<AuthProvider>().currentUser?.id ?? '';
     if (taskId == null || taskId.isEmpty || userId.isEmpty || _isActionLoading) {
+      return;
+    }
+
+    if (newStatus == 'Completed' && !_canMarkTaskCompleted(task)) {
       return;
     }
 
@@ -183,7 +214,11 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
     setState(() => _isActionLoading = false);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(success ? 'Status updated to $newStatus' : 'Failed to update status'),
+        content: Text(
+          success
+              ? (successMessage ?? 'Status updated to $newStatus')
+              : 'Failed to update status',
+        ),
         backgroundColor: success ? Colors.green : Colors.red,
       ),
     );
@@ -193,29 +228,330 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
     }
   }
 
+  Future<void> _changeStatus(String newStatus, {String reason = ''}) async {
+    final task = _currentTask;
+    if (task == null) {
+      return;
+    }
+
+    if (newStatus == 'Completed') {
+      if (!_canMarkTaskCompleted(task)) {
+        return;
+      }
+      await _showCompleteTaskDialog(task, reason: reason);
+      return;
+    }
+
+    await _updateTaskStatus(
+      task,
+      newStatus,
+      reason: reason,
+      successMessage: 'Status updated to $newStatus',
+    );
+  }
+
   void _focusRemarkBox() {
     FocusScope.of(context).requestFocus(_remarkFocusNode);
   }
 
-  void _showReminderInfo(DelegationModel task) {
-    final reminderAt = task.reminderAt;
-    final reminderText = (reminderAt != null && reminderAt.isNotEmpty)
-        ? _formatDate(reminderAt)
-        : 'No reminder is configured for this task.';
+  Future<void> _subscribeToTask(DelegationModel task) async {
+    final taskId = task.id;
+    final currentUserId = context.read<AuthProvider>().currentUser?.id ?? '';
 
-    showDialog<void>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Reminder'),
-        content: Text(reminderText),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
-          ),
-        ],
+    if (taskId == null || taskId.isEmpty || currentUserId.isEmpty || _isActionLoading) {
+      return;
+    }
+
+    if (task.inLoopIds.contains(currentUserId)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('You are already subscribed to this task.'),
+          backgroundColor: Colors.green,
+        ),
+      );
+      return;
+    }
+
+    setState(() => _isActionLoading = true);
+    final success = await context.read<DelegationProvider>().subscribeToTask(
+      taskId,
+      currentUserId,
+      task.inLoopIds,
+    );
+    if (!mounted) return;
+
+    setState(() => _isActionLoading = false);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(success ? 'Subscribed to task!' : 'Failed to update subscription'),
+        backgroundColor: success ? Colors.green : Colors.red,
       ),
     );
+
+    if (success) {
+      await _loadTaskDetail();
+    }
+  }
+
+  Future<void> _showReminderInfo(DelegationModel task) async {
+    final taskId = task.id;
+    final currentUserId = context.read<AuthProvider>().currentUser?.id ?? '';
+    if (taskId == null || taskId.isEmpty || currentUserId.isEmpty) return;
+
+    DateTime? selectedReminder = _extractExistingReminder(task);
+    String selectedChannel = _extractExistingReminderChannel(task);
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('Task Reminder'),
+              content: SizedBox(
+                width: 360,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      selectedReminder == null
+                          ? 'No reminder configured for this task.'
+                          : 'Reminder scheduled for ${DateFormat('dd MMM yyyy, hh:mm a').format(selectedReminder!)}',
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: Color(0xFF475569),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    DropdownButtonFormField<String>(
+                      value: selectedChannel,
+                      decoration: const InputDecoration(
+                        labelText: 'Notification Channel',
+                        border: OutlineInputBorder(),
+                      ),
+                      items: const [
+                        DropdownMenuItem(
+                          value: 'both',
+                          child: Text('Email + WhatsApp'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'whatsapp',
+                          child: Text('WhatsApp'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'email',
+                          child: Text('Email'),
+                        ),
+                      ],
+                      onChanged: (value) {
+                        if (value == null) return;
+                        setDialogState(() => selectedChannel = value);
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    OutlinedButton.icon(
+                      onPressed: () async {
+                        final date = await showDatePicker(
+                          context: context,
+                          initialDate: selectedReminder ?? DateTime.now(),
+                          firstDate: DateTime.now().subtract(const Duration(days: 1)),
+                          lastDate: DateTime.now().add(const Duration(days: 3650)),
+                        );
+                        if (date == null) return;
+
+                        if (!context.mounted) return;
+                        final time = await showTimePicker(
+                          context: context,
+                          initialTime: TimeOfDay.fromDateTime(
+                            selectedReminder ?? DateTime.now(),
+                          ),
+                        );
+                        if (time == null) return;
+
+                        setDialogState(() {
+                          selectedReminder = DateTime(
+                            date.year,
+                            date.month,
+                            date.day,
+                            time.hour,
+                            time.minute,
+                          );
+                        });
+                      },
+                      icon: const Icon(Icons.schedule_rounded),
+                      label: Text(
+                        selectedReminder == null
+                            ? 'Set Reminder'
+                            : 'Change Reminder',
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: const Text('Close'),
+                ),
+                if (task.reminders.isNotEmpty || selectedReminder != null)
+                  TextButton(
+                    onPressed: _isActionLoading
+                        ? null
+                        : () async {
+                            setState(() => _isActionLoading = true);
+                            final success = await context
+                                .read<DelegationProvider>()
+                                .saveTaskReminders(
+                              taskId,
+                              const [],
+                              currentUserId,
+                            );
+                            if (!mounted) return;
+
+                            setState(() => _isActionLoading = false);
+                            Navigator.pop(dialogContext);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  success
+                                      ? 'Reminder cleared successfully'
+                                      : 'Failed to clear reminder',
+                                ),
+                                backgroundColor:
+                                    success ? Colors.green : Colors.red,
+                              ),
+                            );
+
+                            if (success) {
+                              await _loadTaskDetail();
+                            }
+                          },
+                    child: const Text('Clear'),
+                  ),
+                if (selectedReminder != null)
+                  TextButton(
+                    onPressed: _isActionLoading
+                        ? null
+                        : () async {
+                            final reminderPayload = _buildReminderPayloadForTask(
+                              task,
+                              selectedReminder!,
+                              selectedChannel,
+                            );
+                            if (reminderPayload == null) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    'Due date missing, unable to configure reminder.',
+                                  ),
+                                  backgroundColor: Colors.red,
+                                ),
+                              );
+                              return;
+                            }
+
+                            setState(() => _isActionLoading = true);
+                            final success = await context
+                                .read<DelegationProvider>()
+                                .saveTaskReminders(
+                              taskId,
+                              [reminderPayload],
+                              currentUserId,
+                            );
+                            if (!mounted) return;
+
+                            setState(() => _isActionLoading = false);
+                            Navigator.pop(dialogContext);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  success
+                                      ? 'Reminder saved successfully'
+                                      : 'Failed to save reminder',
+                                ),
+                                backgroundColor:
+                                    success ? Colors.green : Colors.red,
+                              ),
+                            );
+
+                            if (success) {
+                              await _loadTaskDetail();
+                            }
+                          },
+                    child: const Text('Save'),
+                  ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  DateTime? _extractExistingReminder(DelegationModel task) {
+    if (task.reminders.isNotEmpty) {
+      for (final reminder in task.reminders) {
+        final reminderTime = reminder['reminderTime']?.toString().trim();
+        if (reminderTime != null && reminderTime.isNotEmpty) {
+          final parsed = DateTime.tryParse(reminderTime);
+          if (parsed != null) return parsed.toLocal();
+        }
+      }
+    }
+
+    final reminderAt = task.reminderAt;
+    if (reminderAt != null && reminderAt.isNotEmpty) {
+      return DateTime.tryParse(reminderAt)?.toLocal();
+    }
+
+    return null;
+  }
+
+  String _extractExistingReminderChannel(DelegationModel task) {
+    if (task.reminders.isEmpty) return 'both';
+    final type = task.reminders.first['type']?.toString().trim().toLowerCase();
+    if (type == 'email' || type == 'whatsapp' || type == 'both') {
+      return type!;
+    }
+    return 'both';
+  }
+
+  Map<String, dynamic>? _buildReminderPayloadForTask(
+    DelegationModel task,
+    DateTime reminderDateTime,
+    String channel,
+  ) {
+    final dueDate = DateTime.tryParse(task.dueDate)?.toLocal();
+    if (dueDate == null) return null;
+
+    final isBefore = reminderDateTime.isBefore(dueDate);
+    final diff = isBefore
+        ? dueDate.difference(reminderDateTime)
+        : reminderDateTime.difference(dueDate);
+
+    var timeValue = diff.inMinutes.abs();
+    var timeUnit = 'minutes';
+
+    if (timeValue >= 1440 && timeValue % 1440 == 0) {
+      timeValue = timeValue ~/ 1440;
+      timeUnit = 'days';
+    } else if (timeValue >= 60 && timeValue % 60 == 0) {
+      timeValue = timeValue ~/ 60;
+      timeUnit = 'hours';
+    }
+
+    if (timeValue <= 0) {
+      timeValue = 1;
+    }
+
+    return {
+      'type': channel,
+      'timeValue': timeValue,
+      'timeUnit': timeUnit,
+      'triggerType': isBefore ? 'before' : 'after',
+    };
   }
 
   bool _isChecklistItemDone(Map<String, dynamic> item) {
@@ -315,6 +651,445 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
     }
   }
 
+  Future<void> _showEditTaskDialog(DelegationModel task) async {
+    final taskId = task.id;
+    final currentUserId = context.read<AuthProvider>().currentUser?.id ?? '';
+    if (taskId == null || taskId.isEmpty || currentUserId.isEmpty) return;
+
+    final titleController = TextEditingController(text: task.delegationName);
+    final descriptionController = TextEditingController(text: task.description);
+    final categoryProvider = context.read<CategoryProvider>();
+    if (categoryProvider.categoryModels.isEmpty) {
+      await categoryProvider.fetchCategories();
+    }
+
+    final categoryItems = categoryProvider.categoryModels
+        .map((item) => item.name)
+        .where((name) => name.trim().isNotEmpty)
+        .toSet()
+        .toList();
+    if (task.category.trim().isNotEmpty) {
+      categoryItems.insert(0, task.category.trim());
+    }
+    if (categoryItems.isEmpty) {
+      categoryItems.add('General');
+    }
+
+    String selectedPriority = task.priority.isNotEmpty ? task.priority : 'High';
+    String selectedCategory =
+        task.category.isNotEmpty ? task.category : categoryItems.first;
+    bool evidenceRequired = task.evidenceRequired;
+    DateTime selectedDueDate =
+        DateTime.tryParse(task.dueDate)?.toLocal() ?? DateTime.now().add(const Duration(days: 1));
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('Edit Task'),
+              content: SizedBox(
+                width: 420,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      TextField(
+                        controller: titleController,
+                        decoration: const InputDecoration(labelText: 'Title'),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: descriptionController,
+                        maxLines: 3,
+                        decoration: const InputDecoration(labelText: 'Description'),
+                      ),
+                      const SizedBox(height: 12),
+                      DropdownButtonFormField<String>(
+                        value: selectedPriority,
+                        decoration: const InputDecoration(labelText: 'Priority'),
+                        items: const ['Urgent', 'High', 'Medium', 'Low']
+                            .map((item) => DropdownMenuItem(
+                                  value: item,
+                                  child: Text(item),
+                                ))
+                            .toList(),
+                        onChanged: (value) {
+                          if (value == null) return;
+                          setDialogState(() => selectedPriority = value);
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                      DropdownButtonFormField<String>(
+                        value: categoryItems.contains(selectedCategory)
+                            ? selectedCategory
+                            : categoryItems.first,
+                        decoration: const InputDecoration(labelText: 'Category'),
+                        items: categoryItems
+                            .map((item) => DropdownMenuItem(
+                                  value: item,
+                                  child: Text(item),
+                                ))
+                            .toList(),
+                        onChanged: (value) {
+                          if (value == null) return;
+                          setDialogState(() => selectedCategory = value);
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('Due Date'),
+                        subtitle: Text(
+                          DateFormat('dd MMM yyyy, hh:mm a').format(selectedDueDate),
+                        ),
+                        trailing: IconButton(
+                          icon: const Icon(Icons.schedule_rounded),
+                          onPressed: () async {
+                            final date = await showDatePicker(
+                              context: context,
+                              initialDate: selectedDueDate,
+                              firstDate: DateTime.now().subtract(const Duration(days: 365)),
+                              lastDate: DateTime.now().add(const Duration(days: 3650)),
+                            );
+                            if (date == null) return;
+                            if (!context.mounted) return;
+                            final time = await showTimePicker(
+                              context: context,
+                              initialTime: TimeOfDay.fromDateTime(selectedDueDate),
+                            );
+                            if (time == null) return;
+                            setDialogState(() {
+                              selectedDueDate = DateTime(
+                                date.year,
+                                date.month,
+                                date.day,
+                                time.hour,
+                                time.minute,
+                              );
+                            });
+                          },
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      SwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('Evidence Required'),
+                        value: evidenceRequired,
+                        onChanged: (value) {
+                          setDialogState(() => evidenceRequired = value);
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton(
+                  onPressed: _isActionLoading
+                      ? null
+                      : () async {
+                          final title = titleController.text.trim();
+                          if (title.isEmpty) return;
+
+                          Navigator.pop(dialogContext);
+                          setState(() => _isActionLoading = true);
+                          final success = await context
+                              .read<DelegationProvider>()
+                              .updateTaskDetails(taskId, {
+                            'taskTitle': title,
+                            'description': descriptionController.text.trim(),
+                            'priority': selectedPriority,
+                            'category': selectedCategory,
+                            'dueDate': selectedDueDate.toUtc().toIso8601String(),
+                            'evidenceRequired': evidenceRequired,
+                            'changedBy': currentUserId,
+                            'reason': 'Task updated from detail view',
+                          });
+                          if (!mounted) return;
+
+                          setState(() => _isActionLoading = false);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                success
+                                    ? 'Task updated successfully'
+                                    : 'Failed to update task',
+                              ),
+                              backgroundColor:
+                                  success ? Colors.green : Colors.red,
+                            ),
+                          );
+
+                          if (success) {
+                            await _loadTaskDetail();
+                          }
+                        },
+                  child: const Text('Save'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _showCompleteTaskDialog(
+    DelegationModel task, {
+    required String reason,
+  }) async {
+    final taskId = task.id;
+    final currentUserId = context.read<AuthProvider>().currentUser?.id ?? '';
+    if (taskId == null || taskId.isEmpty || currentUserId.isEmpty) return;
+
+    final existingEvidenceUrls = _parseEvidenceUrls(task.evidenceUrl);
+    final uploadedProvider = context.read<DelegationProvider>();
+    final selectedFiles = <PlatformFile>[];
+    var isSubmitting = false;
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            Future<void> pickEvidenceFiles() async {
+              final result = await FilePicker.platform.pickFiles(
+                allowMultiple: true,
+              );
+              if (result == null || result.files.isEmpty) return;
+
+              setDialogState(() {
+                for (final file in result.files) {
+                  final alreadyAdded = selectedFiles.any(
+                    (item) =>
+                        item.name == file.name &&
+                        (item.path ?? '') == (file.path ?? ''),
+                  );
+                  if (!alreadyAdded) {
+                    selectedFiles.add(file);
+                  }
+                }
+              });
+            }
+
+            Future<void> completeTask() async {
+              if (isSubmitting) return;
+
+              if (task.evidenceRequired &&
+                  existingEvidenceUrls.isEmpty &&
+                  selectedFiles.isEmpty) {
+                ScaffoldMessenger.of(dialogContext).showSnackBar(
+                  const SnackBar(
+                    content: Text(
+                      'Evidence is required before completing this task.',
+                    ),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+                return;
+              }
+
+              setDialogState(() => isSubmitting = true);
+
+              try {
+                final uploadedEvidenceUrls = <String>[];
+                for (final file in selectedFiles) {
+                  final url = await uploadedProvider.uploadFile(
+                    file,
+                    folder: 'evidence',
+                  );
+                  uploadedEvidenceUrls.add(url);
+                }
+
+                final mergedEvidenceUrls = <String>[
+                  ...existingEvidenceUrls,
+                  ...uploadedEvidenceUrls,
+                ].toSet().toList();
+
+                final payload = <String, dynamic>{
+                  'status': 'Completed',
+                  'changedBy': currentUserId,
+                  'reason': reason,
+                };
+
+                if (mergedEvidenceUrls.isNotEmpty) {
+                  payload['evidenceUrl'] = jsonEncode(mergedEvidenceUrls);
+                }
+
+                final success = await uploadedProvider.updateTaskDetails(
+                  taskId,
+                  payload,
+                );
+                if (!mounted) return;
+
+                if (success) {
+                  Navigator.pop(dialogContext);
+                  ScaffoldMessenger.of(this.context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Task completed successfully'),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                  await _loadTaskDetail();
+                  return;
+                }
+
+                ScaffoldMessenger.of(dialogContext).showSnackBar(
+                  const SnackBar(
+                    content: Text('Failed to complete task'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+              } catch (_) {
+                if (!mounted) return;
+                ScaffoldMessenger.of(dialogContext).showSnackBar(
+                  const SnackBar(
+                    content: Text('Failed to upload evidence files'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+              } finally {
+                if (dialogContext.mounted) {
+                  setDialogState(() => isSubmitting = false);
+                }
+              }
+            }
+
+            return AlertDialog(
+              title: const Text('Complete Task'),
+              content: SizedBox(
+                width: 420,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      task.evidenceRequired
+                          ? 'Evidence is required before this task can be completed.'
+                          : 'You can attach evidence before completing this task.',
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: Color(0xFF475569),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    if (existingEvidenceUrls.isNotEmpty) ...[
+                      Text(
+                        'Existing evidence (${existingEvidenceUrls.length})',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF1E293B),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: existingEvidenceUrls.map((url) {
+                          final label = Uri.tryParse(url)?.pathSegments.isNotEmpty == true
+                              ? Uri.parse(url).pathSegments.last
+                              : 'Evidence';
+                          return ActionChip(
+                            label: Text(
+                              label,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            onPressed: () => _openExternalLink(url),
+                          );
+                        }).toList(),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+                    OutlinedButton.icon(
+                      onPressed: isSubmitting ? null : pickEvidenceFiles,
+                      icon: const Icon(Icons.upload_file_rounded),
+                      label: Text(
+                        selectedFiles.isEmpty
+                            ? 'Add Evidence Files'
+                            : 'Add More Evidence (${selectedFiles.length})',
+                      ),
+                    ),
+                    if (selectedFiles.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: List.generate(selectedFiles.length, (index) {
+                          final file = selectedFiles[index];
+                          return Chip(
+                            label: Text(
+                              file.name,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            deleteIcon: const Icon(Icons.close, size: 18),
+                            onDeleted: isSubmitting
+                                ? null
+                                : () => setDialogState(
+                                      () => selectedFiles.removeAt(index),
+                                    ),
+                          );
+                        }),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: isSubmitting
+                      ? null
+                      : () => Navigator.pop(dialogContext),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: isSubmitting ? null : completeTask,
+                  child: isSubmitting
+                      ? const SizedBox(
+                          height: 18,
+                          width: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('Complete Task'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _changeSubtaskStatus(
+    DelegationModel subtask,
+    String newStatus,
+  ) async {
+    await _updateTaskStatus(
+      subtask,
+      newStatus,
+      reason: 'Subtask status updated to $newStatus',
+      successMessage: 'Sub task marked as $newStatus',
+    );
+  }
+
+  bool _canActOnSubtask(
+    DelegationModel subtask,
+    String? currentUserId,
+    bool isAdmin,
+  ) {
+    if (currentUserId == null || currentUserId.isEmpty) return false;
+    return isAdmin ||
+        currentUserId == subtask.delegatorId ||
+        currentUserId == subtask.assingDoerId;
+  }
+
   Color _statusColor(String status) {
     switch (status) {
       case 'Completed':
@@ -323,6 +1098,8 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
         return Colors.orange;
       case 'Overdue':
         return Colors.redAccent;
+      case 'Need Revision':
+        return Colors.indigo;
       case 'Pending':
         return Colors.blueGrey;
       default:
@@ -345,6 +1122,35 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
     }
   }
 
+  List<String> _parseEvidenceUrls(String? rawEvidence) {
+    if (rawEvidence == null || rawEvidence.trim().isEmpty) return const [];
+
+    final trimmed = rawEvidence.trim();
+    if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+      try {
+        final decoded = jsonDecode(trimmed);
+        if (decoded is List) {
+          return decoded
+              .map((item) => item.toString().trim())
+              .where((item) => item.isNotEmpty)
+              .toList();
+        }
+        return decoded
+            .toString()
+            .split(',')
+            .map((item) => item.trim())
+            .where((item) => item.isNotEmpty)
+            .toList();
+      } catch (_) {}
+    }
+
+    return trimmed
+        .split(',')
+        .map((item) => item.trim())
+        .where((item) => item.isNotEmpty)
+        .toList();
+  }
+
   @override
   Widget build(BuildContext context) {
     // Show loading if we don't have task data yet (especially when coming from Map)
@@ -364,18 +1170,22 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
     }
 
     final currentUserId = context.read<AuthProvider>().currentUser?.id;
+    final isAdmin = context.read<AuthProvider>().isAdmin;
     final isAssigner = currentUserId != null && currentUserId == task.delegatorId;
     final isDoer = currentUserId != null && currentUserId == task.assingDoerId;
     final canAct = isAssigner || isDoer;
+    final canDelete = isAdmin || canAct;
+    final isSubscribed =
+        currentUserId != null && task.inLoopIds.contains(currentUserId);
     final completedChecklistCount =
         task.checklistItems.where(_isChecklistItemDone).length;
     final completedSubtasksCount =
         task.subtasks.where((item) => item.status == 'Completed').length;
-    final attachmentUrls = [
-      ...task.referenceDocs,
-      if (task.evidenceUrl != null && task.evidenceUrl!.trim().isNotEmpty)
-        task.evidenceUrl!.trim(),
-    ];
+    final evidenceUrls = _parseEvidenceUrls(task.evidenceUrl);
+    final attachmentUrls = task.referenceDocs
+        .where((url) => url.trim().isNotEmpty)
+        .toSet()
+        .toList();
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
@@ -405,7 +1215,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     _statusPill(task.status),
-                    if (canAct)
+                    if (canDelete)
                       IconButton(
                         icon: const Icon(LucideIcons.trash2,
                             color: Colors.red, size: 20),
@@ -592,14 +1402,32 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
               trailing: _countBadge(
                   "$completedSubtasksCount/${task.subtasks.length}"),
               child: task.subtasks.isEmpty
-                  ? const Center(
-                      child: Text(
-                        "NO SUB TASKS YET",
-                        style: TextStyle(
-                          color: Color(0xFF94A3B8),
-                          fontWeight: FontWeight.w800,
-                          fontSize: 12,
-                        ),
+                  ? Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Text(
+                            "NO SUB TASKS YET",
+                            style: TextStyle(
+                              color: Color(0xFF94A3B8),
+                              fontWeight: FontWeight.w800,
+                              fontSize: 12,
+                            ),
+                          ),
+                          if (task.id != null) ...[
+                            const SizedBox(height: 12),
+                            OutlinedButton.icon(
+                              onPressed: _isActionLoading
+                                  ? null
+                                  : () => _openSubTaskSheet(task),
+                              icon: const Icon(LucideIcons.plus, size: 16),
+                              label: const Text(
+                                "CREATE SUB TASK",
+                                style: TextStyle(fontWeight: FontWeight.w800),
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
                     )
                   : Column(
@@ -648,6 +1476,43 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
                                   ),
                                 ],
                               ),
+                              if (_canActOnSubtask(
+                                subtask,
+                                currentUserId,
+                                isAdmin,
+                              )) ...[
+                                const SizedBox(height: 12),
+                                Wrap(
+                                  spacing: 8,
+                                  runSpacing: 8,
+                                  children: [
+                                    _quickActionButton(
+                                      "IN PROGRESS",
+                                      LucideIcons.playCircle,
+                                      Colors.orange,
+                                      onTap: _isActionLoading ||
+                                              subtask.status == 'In Progress'
+                                          ? null
+                                          : () => _changeSubtaskStatus(
+                                                subtask,
+                                                "In Progress",
+                                              ),
+                                    ),
+                                    _quickActionButton(
+                                      "COMPLETE",
+                                      LucideIcons.checkCircle,
+                                      Colors.green,
+                                      onTap: _isActionLoading ||
+                                              subtask.status == 'Completed'
+                                          ? null
+                                          : () => _changeSubtaskStatus(
+                                                subtask,
+                                                "Completed",
+                                              ),
+                                    ),
+                                  ],
+                                ),
+                              ],
                             ],
                           ),
                         );
@@ -745,6 +1610,60 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
               const SizedBox(height: 24),
             ],
 
+            if (evidenceUrls.isNotEmpty) ...[
+              _buildSectionCard(
+                title: "EVIDENCE PROVIDED",
+                icon: LucideIcons.shieldCheck,
+                child: Column(
+                  children: evidenceUrls.map((url) {
+                    final parsed = Uri.tryParse(url);
+                    final last = parsed?.pathSegments.isNotEmpty == true
+                        ? parsed!.pathSegments.last
+                        : url;
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 10),
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF0FDF4),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: const Color(0xFFBBF7D0)),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.verified_outlined,
+                            size: 18,
+                            color: Color(0xFF10B981),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              last,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF166534),
+                              ),
+                            ),
+                          ),
+                          IconButton(
+                            onPressed: () => _openExternalLink(url),
+                            icon: const Icon(
+                              Icons.open_in_new_rounded,
+                              size: 18,
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ),
+              const SizedBox(height: 24),
+            ],
+
             if (canAct) ...[
             const Text("QUICK ACTIONS", style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: Color(0xFF64748B), letterSpacing: 0.5)),
             const SizedBox(height: 12),
@@ -757,7 +1676,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
                     "IN PROGRESS",
                     LucideIcons.playCircle,
                     Colors.orange,
-                    onTap: _isActionLoading
+                    onTap: _isActionLoading || task.status == "In Progress"
                         ? null
                         : () => _changeStatus(
                               "In Progress",
@@ -769,7 +1688,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
                     "COMPLETE",
                     LucideIcons.checkCircle,
                     Colors.green,
-                    onTap: _isActionLoading
+                    onTap: _isActionLoading || task.status == "Completed"
                         ? null
                         : () => _changeStatus(
                               "Completed",
@@ -795,6 +1714,13 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
                   Colors.cyan,
                   onTap: task.id == null ? null : () => _openSubTaskSheet(task),
                 ),
+                if (widget.allowEdit && isAssigner)
+                  _quickActionButton(
+                    "EDIT",
+                    LucideIcons.pencil,
+                    Colors.purple,
+                    onTap: _isActionLoading ? null : () => _showEditTaskDialog(task),
+                  ),
               ],
             ),
             const SizedBox(height: 24),
@@ -839,6 +1765,11 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
               ),
             ),
             const SizedBox(height: 24),
+            ],
+
+            if (!canAct) ...[
+              _buildObserverModeCard(task, isSubscribed),
+              const SizedBox(height: 24),
             ],
 
             _buildSectionCard(
@@ -1098,6 +2029,90 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
               children: inLoopNames.map((name) => _inLoopBadge(name)).toList(),
             ),
           ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildObserverModeCard(DelegationModel task, bool isSubscribed) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Column(
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: isSubscribed
+                  ? const Color(0xFFE0E7FF)
+                  : const Color(0xFFF1F5F9),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              isSubscribed
+                  ? Icons.notifications_active_outlined
+                  : Icons.notifications_off_outlined,
+              color: isSubscribed
+                  ? const Color(0xFF4F46E5)
+                  : const Color(0xFF94A3B8),
+            ),
+          ),
+          const SizedBox(height: 12),
+          const Text(
+            "OBSERVER MODE",
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w900,
+              color: Color(0xFF1E293B),
+              letterSpacing: 0.5,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            isSubscribed
+                ? "You are currently subscribed."
+                : "Subscribe to receive updates.",
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 11,
+              height: 1.5,
+              color: Color(0xFF64748B),
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 16),
+          ElevatedButton.icon(
+            onPressed: _isActionLoading || isSubscribed
+                ? null
+                : () => _subscribeToTask(task),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: isSubscribed
+                  ? const Color(0xFFE2E8F0)
+                  : const Color(0xFF4F46E5),
+              foregroundColor: isSubscribed
+                  ? const Color(0xFF64748B)
+                  : Colors.white,
+              elevation: isSubscribed ? 0 : 2,
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            icon: Icon(
+              isSubscribed ? Icons.check_circle_outline : Icons.notifications_active,
+              size: 18,
+            ),
+            label: Text(
+              isSubscribed ? "SUBSCRIBED" : "SUBSCRIBE",
+              style: const TextStyle(fontWeight: FontWeight.w900),
+            ),
+          ),
         ],
       ),
     );
