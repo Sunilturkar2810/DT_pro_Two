@@ -7,8 +7,6 @@ import 'package:flutter/material.dart';
 import 'package:hive/hive.dart';
 import '../utils/phone_number_helper.dart';
 
-
-
 class AuthProvider extends ChangeNotifier {
   final AuthService _authService = AuthService();
   bool _isLoading = false;
@@ -22,11 +20,13 @@ class AuthProvider extends ChangeNotifier {
   UserModel? get currentUser => _currentUser;
 
   // ✅ Getter to check if the user is an Admin
-  bool get isAdmin => 
-      _currentUser?.role?.toLowerCase() == 'admin' || 
+  bool get isAdmin =>
+      _currentUser?.role?.toLowerCase() == 'admin' ||
       _currentUser?.role?.toLowerCase() == 'superadmin';
 
-  AuthProvider() { restoreSession(); }
+  AuthProvider() {
+    restoreSession();
+  }
 
   Future<bool> login(String email, String password) async {
     _isLoading = true;
@@ -48,7 +48,9 @@ class AuthProvider extends ChangeNotifier {
       _isAuthenticated = true;
 
       // 🕵️ Is print se check karein ki ID khali toh nahi?
-      print("🚀 LOGIN SUCCESS! ID: ${_currentUser?.id}, Role: ${_currentUser?.role}");
+      print(
+        "🚀 LOGIN SUCCESS! ID: ${_currentUser?.id}, Role: ${_currentUser?.role}",
+      );
 
       // 🔄 Fetch full profile details not returned by login (workEmail, designation, etc)
       await fetchCurrentUserProfile();
@@ -71,10 +73,10 @@ class AuthProvider extends ChangeNotifier {
       final data = await _authService.fetchMe();
       final merged = {...(_currentUser?.toJson() ?? {}), ...data};
       _currentUser = UserModel.fromJson(merged);
-      
+
       final box = Hive.box('settingsBox');
       await box.put('auth_user', jsonEncode(_currentUser!.toJson()));
-      
+
       // Update UI with full profile data
       notifyListeners();
       print("✅ Full profile fetched for: ${_currentUser?.workEmail}");
@@ -83,6 +85,28 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  Future<bool> refreshCurrentUserProfile() async {
+    if (!_isAuthenticated) return false;
+
+    _errorMessage = null;
+    try {
+      final data = await _authService.fetchMe();
+      final merged = {...(_currentUser?.toJson() ?? {}), ...data};
+      _currentUser = UserModel.fromJson(merged);
+
+      final box = Hive.box('settingsBox');
+      await box.put('auth_user', jsonEncode(_currentUser!.toJson()));
+
+      notifyListeners();
+      print("✅ Full profile refreshed for: ${_currentUser?.workEmail}");
+      return true;
+    } catch (e) {
+      _errorMessage = e.toString().replaceAll('Exception: ', '');
+      notifyListeners();
+      print("⚠️ Failed to refresh full profile: $e");
+      return false;
+    }
+  }
 
   // --- REGISTER METHOD ---
   Future<bool> register({
@@ -128,22 +152,24 @@ class AuthProvider extends ChangeNotifier {
 
       if (resp.containsKey('token') && resp.containsKey('user')) {
         final box = Hive.box('settingsBox');
-        
+
         // Store token
         await box.put('auth_token', resp['token']);
-        
+
         // Store user data
         await box.put('auth_user', jsonEncode(resp['user']));
-        
+
         // Store user ID
         String fetchedId = resp['user']['userId'] ?? resp['user']['id'] ?? '';
         await box.put('auth_user_id', fetchedId);
-        
+
         // Set current user and mark as authenticated
         _currentUser = UserModel.fromJson(resp['user']);
         _isAuthenticated = true;
-        
-        print("✅ User auto-authenticated after signup! ID: ${_currentUser?.id}, Designation: ${_currentUser?.designation}");
+
+        print(
+          "✅ User auto-authenticated after signup! ID: ${_currentUser?.id}, Designation: ${_currentUser?.designation}",
+        );
         return true;
       } else if (resp['message'] == "User registered successfully") {
         // Fallback for backward compatibility - signup successful but need to login
@@ -174,13 +200,15 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final userId = _currentUser?.id ?? Hive.box('settingsBox').get('auth_user_id') ?? '';
+      final userId =
+          _currentUser?.id ?? Hive.box('settingsBox').get('auth_user_id') ?? '';
       if (userId.isEmpty) throw 'User ID not found — please login again';
 
       final normalizedUpdates = Map<String, dynamic>.from(updates);
       if (normalizedUpdates.containsKey('mobileNumber')) {
-        normalizedUpdates['mobileNumber'] =
-            normalizeIndianPhone(normalizedUpdates['mobileNumber']?.toString());
+        normalizedUpdates['mobileNumber'] = normalizeIndianPhone(
+          normalizedUpdates['mobileNumber']?.toString(),
+        );
       }
 
       final updatedData = await _authService.updateProfile(
@@ -218,20 +246,16 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      // 1. Upload image and get URL from backend
       final responseData = await _authService.uploadProfileImage(file);
       final newUrl = responseData['url'];
 
       if (newUrl == null) throw 'Failed to get image URL from server';
 
-      // 2. Update user profile with new URL using existing userId
-      final userId = _currentUser?.id ?? Hive.box('settingsBox').get('auth_user_id') ?? '';
-      if (userId.isEmpty) throw 'User ID not found';
-
-      final updatedData = await _authService.updateProfile(userId, {'profilePhotoUrl': newUrl});
-
-      // 3. Update local state & storage
-      final merged = {...(_currentUser?.toJson() ?? {}), ...updatedData};
+      final merged = {
+        ...(_currentUser?.toJson() ?? {}),
+        'profilePhotoUrl': newUrl,
+        'updatedAt': DateTime.now().toIso8601String(),
+      };
       _currentUser = UserModel.fromJson(merged);
 
       final box = Hive.box('settingsBox');
@@ -284,7 +308,10 @@ class AuthProvider extends ChangeNotifier {
 
   // --- ADMIN: UPDATE TEAM MEMBER ---
   // ✅ New backend: PUT /auth/users/:userId
-  Future<bool> updateTeamMemberDetails(String memberId, Map<String, dynamic> updates) async {
+  Future<bool> updateTeamMemberDetails(
+    String memberId,
+    Map<String, dynamic> updates,
+  ) async {
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
@@ -292,8 +319,9 @@ class AuthProvider extends ChangeNotifier {
     try {
       final normalizedUpdates = Map<String, dynamic>.from(updates);
       if (normalizedUpdates.containsKey('mobileNumber')) {
-        normalizedUpdates['mobileNumber'] =
-            normalizeIndianPhone(normalizedUpdates['mobileNumber']?.toString());
+        normalizedUpdates['mobileNumber'] = normalizeIndianPhone(
+          normalizedUpdates['mobileNumber']?.toString(),
+        );
       }
 
       await _authService.updateUser(memberId, normalizedUpdates);
@@ -332,12 +360,12 @@ class AuthProvider extends ChangeNotifier {
     if (token != null && userStr != null) {
       _isAuthenticated = true;
       _currentUser = UserModel.fromJson(jsonDecode(userStr));
-      print("✅ Session Restored for: ${_currentUser?.workEmail} as ${_currentUser?.role}");
-      
+      print(
+        "✅ Session Restored for: ${_currentUser?.workEmail} as ${_currentUser?.role}",
+      );
+
       // Fetch latest full profile data in the background
       fetchCurrentUserProfile();
     }
   }
-
 }
-

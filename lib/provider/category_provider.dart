@@ -37,6 +37,7 @@ class CategoryProvider extends ChangeNotifier {
   Future<bool> createCategory({
     required String name,
     required String color,
+    String? createdBy,
   }) async {
     _isLoading = true;
     _errorMessage = null;
@@ -46,6 +47,7 @@ class CategoryProvider extends ChangeNotifier {
       final newCategory = await _service.createCategory(
         name: name,
         color: color,
+        createdBy: createdBy,
       );
       _categories.insert(0, newCategory);
       _categoryModels.insert(0, CategoryModel.fromJson(newCategory));

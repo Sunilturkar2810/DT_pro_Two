@@ -28,6 +28,8 @@ class UserModel {
   final String? nationality;
   final String? joiningDate;
   final String? currentSalary;
+  final String? createdAt;
+  final String? updatedAt;
 
   UserModel({
     required this.id,
@@ -57,6 +59,8 @@ class UserModel {
     this.nationality,
     this.joiningDate,
     this.currentSalary,
+    this.createdAt,
+    this.updatedAt,
   });
 
   factory UserModel.fromJson(Map<String, dynamic> json) {
@@ -93,6 +97,8 @@ class UserModel {
       nationality: json['nationality'],
       joiningDate: json['joiningDate']?.toString(),
       currentSalary: json['currentSalary']?.toString(),
+      createdAt: json['createdAt']?.toString(),
+      updatedAt: json['updatedAt']?.toString(),
     );
   }
 
@@ -138,6 +144,8 @@ class UserModel {
       'nationality': nationality,
       'joiningDate': joiningDate,
       'currentSalary': currentSalary,
+      'createdAt': createdAt,
+      'updatedAt': updatedAt,
     };
   }
 

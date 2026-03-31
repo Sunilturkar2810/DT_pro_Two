@@ -34,6 +34,7 @@ class CategoryService {
   Future<Map<String, dynamic>> createCategory({
     required String name,
     required String color,
+    String? createdBy,
   }) async {
     try {
       final response = await _dio.post(
@@ -41,6 +42,8 @@ class CategoryService {
         data: {
           'name': name.trim(),
           'color': color.trim(),
+          if (createdBy != null && createdBy.trim().isNotEmpty)
+            'createdBy': createdBy.trim(),
         },
       );
       return Map<String, dynamic>.from(response.data ?? {});
