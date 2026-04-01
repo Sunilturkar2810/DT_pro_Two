@@ -1,5 +1,6 @@
 class NotificationModel {
   final String id;
+  final String title;
   final String message;
   final String type;
   final bool isRead;
@@ -8,6 +9,7 @@ class NotificationModel {
 
   NotificationModel({
     required this.id,
+    required this.title,
     required this.message,
     required this.type,
     required this.isRead,
@@ -18,6 +20,7 @@ class NotificationModel {
   factory NotificationModel.fromJson(Map<String, dynamic> json) {
     return NotificationModel(
       id: json['id'] ?? '',
+      title: json['title']?.toString() ?? json['message']?.toString() ?? '',
       message: json['message'] ?? '',
       type: json['type'] ?? 'general',
       isRead: json['isRead'] ?? false,
@@ -28,6 +31,7 @@ class NotificationModel {
 
   NotificationModel copyWith({
     String? id,
+    String? title,
     String? message,
     String? type,
     bool? isRead,
@@ -36,6 +40,7 @@ class NotificationModel {
   }) {
     return NotificationModel(
       id: id ?? this.id,
+      title: title ?? this.title,
       message: message ?? this.message,
       type: type ?? this.type,
       isRead: isRead ?? this.isRead,

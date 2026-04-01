@@ -80,6 +80,98 @@ class _ActivitiesScreenState extends State<ActivitiesScreen> {
     return fullName.isNotEmpty ? fullName : 'Unknown User';
   }
 
+  Widget _buildErrorBanner(String message, Color primary) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFEF2F2),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFFECACA)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.error_outline, color: Color(0xFFDC2626)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              message,
+              style: const TextStyle(
+                color: Color(0xFF991B1B),
+                fontWeight: FontWeight.w600,
+                fontSize: 12,
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          TextButton(
+            onPressed: () {
+              context.read<ActivityProvider>().fetchActivities(
+                skipLoadingChange: false,
+              );
+            },
+            style: TextButton.styleFrom(
+              foregroundColor: primary,
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              minimumSize: Size.zero,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+            child: const Text(
+              'Retry',
+              style: TextStyle(fontWeight: FontWeight.w700),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildErrorState(String message, Color primary) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.error_outline_rounded, size: 48, color: Colors.red.shade300),
+            const SizedBox(height: 16),
+            const Text(
+              "Couldn't Load Activities",
+              style: TextStyle(
+                fontWeight: FontWeight.w900,
+                fontSize: 16,
+                color: Color(0xFF1E293B),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: Color(0xFF64748B),
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: () {
+                context.read<ActivityProvider>().fetchActivities(
+                  skipLoadingChange: false,
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: primary,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Retry'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final primary = ThemeProvider.primaryGreen;
@@ -228,6 +320,8 @@ class _ActivitiesScreenState extends State<ActivitiesScreen> {
                   ),
                 ),
                 const Divider(height: 1, color: Color(0xFFF1F5F9)),
+                if (provider.errorMessage != null && provider.activities.isNotEmpty)
+                  _buildErrorBanner(provider.errorMessage!, primary),
 
                 // Stats Row
                 if (stats.isNotEmpty)
@@ -282,6 +376,8 @@ class _ActivitiesScreenState extends State<ActivitiesScreen> {
                 Expanded(
                   child: provider.isLoading && provider.activities.isEmpty
                       ? Center(child: CircularProgressIndicator(color: primary))
+                      : provider.errorMessage != null && provider.activities.isEmpty
+                          ? _buildErrorState(provider.errorMessage!, primary)
                       : filteredList.isEmpty
                           ? Center(
                               child: Column(

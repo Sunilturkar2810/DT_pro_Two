@@ -12,19 +12,31 @@ class NotificationService {
   }
 
   Future<void> markAllRead() async {
-    await _dio.put('${ApiConstants.notifications}/read-all');
+    await _dio.put(
+      '${ApiConstants.notifications}/read-all',
+      data: <String, dynamic>{},
+    );
   }
 
   Future<void> markOneRead(String id) async {
-    await _dio.put('${ApiConstants.notifications}/$id/read');
+    await _dio.put(
+      '${ApiConstants.notifications}/$id/read',
+      data: <String, dynamic>{},
+    );
   }
 
   Future<void> deleteNotification(String id) async {
-    await _dio.delete('${ApiConstants.notifications}/$id');
+    await _dio.delete(
+      '${ApiConstants.notifications}/$id',
+      data: <String, dynamic>{},
+    );
   }
 
   Future<void> clearAllNotifications() async {
-    await _dio.delete('${ApiConstants.notifications}/clear-all');
+    await _dio.delete(
+      '${ApiConstants.notifications}/clear-all',
+      data: <String, dynamic>{},
+    );
   }
 
   Future<Map<String, dynamic>?> getNotificationSettings() async {

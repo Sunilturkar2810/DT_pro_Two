@@ -55,6 +55,7 @@ class RolesProvider extends ChangeNotifier {
   Future<bool> createRole({
     required String name,
     required String? description,
+    Map<String, dynamic>? permissions,
   }) async {
     _isLoading = true;
     _errorMessage = null;
@@ -64,6 +65,7 @@ class RolesProvider extends ChangeNotifier {
       await _service.createRole(
         name: name,
         description: description,
+        permissions: permissions,
       );
 
       print('✅ Role created successfully: $name');
@@ -85,6 +87,7 @@ class RolesProvider extends ChangeNotifier {
     required String roleId,
     required String name,
     required String? description,
+    Map<String, dynamic>? permissions,
   }) async {
     _isLoading = true;
     _errorMessage = null;
@@ -95,6 +98,7 @@ class RolesProvider extends ChangeNotifier {
         roleId: roleId,
         name: name,
         description: description,
+        permissions: permissions,
       );
 
       print('✅ Role updated successfully: $name');
@@ -142,6 +146,7 @@ class RolesProvider extends ChangeNotifier {
   Future<bool> updateRolePermissions({
     required String roleId,
     required Map<String, dynamic> permissions,
+    bool refreshAfterUpdate = true,
   }) async {
     _isLoading = true;
     _errorMessage = null;
@@ -154,8 +159,9 @@ class RolesProvider extends ChangeNotifier {
       );
 
       print('✅ Role permissions updated successfully: $roleId');
-      // Refresh all roles after updating permissions to ensure UI states match DB
-      await fetchAllRoles();
+      if (refreshAfterUpdate) {
+        await fetchAllRoles();
+      }
       return true;
     } catch (e) {
       _errorMessage = e.toString();

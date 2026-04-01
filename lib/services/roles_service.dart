@@ -31,12 +31,14 @@ class RolesService {
   Future<Map<String, dynamic>> createRole({
     required String name,
     required String? description,
+    Map<String, dynamic>? permissions,
   }) async {
     final response = await _dio.post(
       ApiConstants.roles,
       data: {
         'name': name.trim(),
         'description': description?.trim().isEmpty == true ? null : description?.trim(),
+        if (permissions != null) 'permissions': permissions,
       },
     );
     return Map<String, dynamic>.from(response.data ?? {});
@@ -46,19 +48,24 @@ class RolesService {
     required String roleId,
     required String name,
     required String? description,
+    Map<String, dynamic>? permissions,
   }) async {
     final response = await _dio.put(
       '${ApiConstants.roles}/$roleId',
       data: {
         'name': name.trim(),
         'description': description?.trim().isEmpty == true ? null : description?.trim(),
+        if (permissions != null) 'permissions': permissions,
       },
     );
     return Map<String, dynamic>.from(response.data ?? {});
   }
 
   Future<Map<String, dynamic>> deleteRole(String roleId) async {
-    final response = await _dio.delete('${ApiConstants.roles}/$roleId');
+    final response = await _dio.delete(
+      '${ApiConstants.roles}/$roleId',
+      data: <String, dynamic>{},
+    );
     return Map<String, dynamic>.from(response.data ?? {});
   }
 

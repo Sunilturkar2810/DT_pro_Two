@@ -3,6 +3,51 @@ import 'package:flutter/material.dart';
 import '../model/notification_model.dart';
 import '../services/notification_service.dart';
 
+const Map<String, String> kNotificationPreferenceEventLabels = {
+  'newTask': 'New Task',
+  'newTaskInLoop': 'New Task (In-Loop)',
+  'taskEdit': 'Task Edited',
+  'taskEditInLoop': 'Task Edited (In-Loop)',
+  'taskComment': 'Task Comment',
+  'taskCommentInLoop': 'Task Comment (In-Loop)',
+  'taskInProgress': 'Task In-Progress',
+  'taskInProgressInLoop': 'Task In-Progress (In-Loop)',
+  'taskComplete': 'Task Complete',
+  'taskCompleteInLoop': 'Task Complete (In-Loop)',
+  'taskReOpen': 'Task Re-Open',
+  'taskReOpenInLoop': 'Task Re-Open (In-Loop)',
+  'dailyPendingReminders': 'Daily Pending Task Reminders',
+  'reminderInLoop': 'Task Reminder (In-Loop)',
+};
+
+const Map<String, String> kNotificationTemplateEventLabels = {
+  'newTask': 'New Task (Assignee)',
+  'taskEdit': 'Task Edited (Assignee)',
+  'taskComment': 'Task Comment (Assignee)',
+  'taskInProgress': 'Task In-Progress (Assignee)',
+  'taskComplete': 'Task Complete (Assignee)',
+  'taskReOpen': 'Task Re-Open (Assignee)',
+  'dailyPendingReminders': 'Daily Pending Reminders',
+  'reminder': 'Custom Reminder (Assignee)',
+  'newTaskInLoop': 'New Task (In-Loop)',
+  'taskEditInLoop': 'Task Edited (In-Loop)',
+  'taskCommentInLoop': 'Task Comment (In-Loop)',
+  'taskInProgressInLoop': 'Task In-Progress (In-Loop)',
+  'taskCompleteInLoop': 'Task Complete (In-Loop)',
+  'taskReOpenInLoop': 'Task Re-Open (In-Loop)',
+  'reminderInLoop': 'Task Reminder (In-Loop)',
+};
+
+const List<String> kNotificationRoles = ['Admin', 'Manager', 'Member'];
+const List<String> kNotificationRoleKeys = ['admin', 'manager', 'member'];
+const List<String> kNotificationFrequencyOptions = [
+  'once',
+  'daily',
+  'weekly',
+  'monthly',
+  'yearly',
+];
+
 class NotificationProvider extends ChangeNotifier {
   final NotificationService _service = NotificationService();
 
@@ -31,6 +76,113 @@ class NotificationProvider extends ChangeNotifier {
   List<NotificationModel> get notifications => _notifications;
   int get unreadCount => _unreadCount;
   List<Map<String, dynamic>> get templates => _templates;
+
+  static const Map<String, String> _legacyEventKeyMap = {
+    'custom': 'reminder',
+    'inLoopNewTask': 'newTaskInLoop',
+    'inLoopTaskEdit': 'taskEditInLoop',
+    'inLoopTaskComment': 'taskCommentInLoop',
+    'inLoopTaskInProgress': 'taskInProgressInLoop',
+    'inLoopTaskComplete': 'taskCompleteInLoop',
+    'inLoopTaskReOpen': 'taskReOpenInLoop',
+  };
+
+  Map<String, bool> _defaultFrequencyMap() => {
+        'once': true,
+        'daily': false,
+        'weekly': false,
+        'monthly': false,
+        'yearly': false,
+      };
+
+  Map<String, dynamic> _buildDefaultChannels() => {
+        for (final event in kNotificationPreferenceEventLabels.keys)
+          event: {
+            for (final role in kNotificationRoleKeys) role: true,
+          },
+      };
+
+  Map<String, dynamic> _buildDefaultFrequency() => {
+        for (final role in kNotificationRoleKeys)
+          role: {
+            for (final event in kNotificationPreferenceEventLabels.keys)
+              event: _defaultFrequencyMap(),
+          },
+      };
+
+  String _normalizeEventKey(String key) => _legacyEventKeyMap[key] ?? key;
+
+  Map<String, dynamic> _normalizeChannelSettings(dynamic rawValue) {
+    final normalized = _buildDefaultChannels();
+    if (rawValue is! Map) {
+      return normalized;
+    }
+
+    final rawMap = Map<String, dynamic>.from(rawValue);
+    for (final entry in rawMap.entries) {
+      final eventKey = _normalizeEventKey(entry.key);
+      if (!kNotificationPreferenceEventLabels.containsKey(eventKey)) {
+        continue;
+      }
+
+      final eventValue = entry.value;
+      if (eventValue is! Map) {
+        continue;
+      }
+
+      final existing = Map<String, dynamic>.from(normalized[eventKey] as Map);
+      final roleMap = Map<String, dynamic>.from(eventValue);
+      for (final role in kNotificationRoleKeys) {
+        existing[role] = roleMap[role] ?? existing[role];
+      }
+      normalized[eventKey] = existing;
+    }
+    return normalized;
+  }
+
+  Map<String, dynamic> _normalizeFrequencySettings(dynamic rawValue) {
+    final normalized = _buildDefaultFrequency();
+    if (rawValue is String || rawValue is! Map) {
+      return normalized;
+    }
+
+    final rawMap = Map<String, dynamic>.from(rawValue);
+    for (final role in kNotificationRoleKeys) {
+      final roleValue = rawMap[role];
+      if (roleValue is! Map) {
+        continue;
+      }
+
+      final normalizedRole = Map<String, dynamic>.from(normalized[role] as Map);
+      final roleMap = Map<String, dynamic>.from(roleValue);
+
+      for (final eventEntry in roleMap.entries) {
+        final eventKey = _normalizeEventKey(eventEntry.key);
+        if (!kNotificationPreferenceEventLabels.containsKey(eventKey)) {
+          continue;
+        }
+
+        final eventValue = eventEntry.value;
+        if (eventValue is! Map) {
+          continue;
+        }
+
+        final normalizedEvent = Map<String, dynamic>.from(
+          normalizedRole[eventKey] as Map,
+        );
+        final eventMap = Map<String, dynamic>.from(eventValue);
+        for (final frequency in kNotificationFrequencyOptions) {
+          normalizedEvent[frequency] =
+              eventMap[frequency] ?? normalizedEvent[frequency];
+        }
+        normalizedRole[eventKey] = normalizedEvent;
+      }
+
+      normalized[role] = normalizedRole;
+    }
+
+    return normalized;
+  }
 
   void _syncUnreadCount() {
     _unreadCount = _notifications.where((item) => !item.isRead).length;
@@ -70,22 +222,27 @@ class NotificationProvider extends ChangeNotifier {
         emailReminders = response['emailReminders'] ?? false;
         dailyTaskReport = response['dailyTaskReport'] ?? false;
         weeklyOffs = List<String>.from(response['weeklyOffs'] ?? ['Sunday']);
-        notificationChannels = Map<String, dynamic>.from(
-          response['notificationChannels'] ?? {},
+        notificationChannels = _normalizeChannelSettings(
+          response['notificationChannels'],
         );
-        notificationFrequency = Map<String, dynamic>.from(
-          response['notificationFrequency'] ?? {},
+        notificationFrequency = _normalizeFrequencySettings(
+          response['notificationFrequency'],
         );
+      } else {
+        notificationChannels = _buildDefaultChannels();
+        notificationFrequency = _buildDefaultFrequency();
       }
     } catch (e) {
       _errorMessage = e.toString();
+      notificationChannels = _buildDefaultChannels();
+      notificationFrequency = _buildDefaultFrequency();
     } finally {
       _isLoading = false;
       notifyListeners();
     }
   }
 
-  Future<void> saveSettings() async {
+  Future<bool> saveSettings() async {
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
@@ -103,8 +260,10 @@ class NotificationProvider extends ChangeNotifier {
         'notificationFrequency': notificationFrequency,
       };
       await _service.saveNotificationSettings(data);
+      return true;
     } catch (e) {
       _errorMessage = e.toString();
+      return false;
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -221,13 +380,7 @@ class NotificationProvider extends ChangeNotifier {
       notificationFrequency[role] = {};
     }
     if (notificationFrequency[role][event] == null) {
-      notificationFrequency[role][event] = {
-        'once': true,
-        'daily': false,
-        'weekly': false,
-        'monthly': false,
-        'yearly': false,
-      };
+      notificationFrequency[role][event] = _defaultFrequencyMap();
     }
     notificationFrequency[role][event][freq] =
         !(notificationFrequency[role][event][freq] ?? false);

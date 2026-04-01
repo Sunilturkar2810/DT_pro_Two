@@ -19,19 +19,24 @@ class _NotificationTemplatesScreenState extends State<NotificationTemplatesScree
   bool _isActive = true;
 
   final Map<String, String> _events = {
-    'newTask': 'New Task',
-    'taskEdit': 'Task Edited',
-    'taskComment': 'Task Comment',
-    'taskInProgress': 'Task In-Progress',
-    'taskComplete': 'Task Complete',
-    'taskReOpen': 'Task Re-Open',
+    'newTask': 'New Task (Assignee)',
+    'taskEdit': 'Task Edited (Assignee)',
+    'taskComment': 'Task Comment (Assignee)',
+    'taskInProgress': 'Task In-Progress (Assignee)',
+    'taskComplete': 'Task Complete (Assignee)',
+    'taskReOpen': 'Task Re-Open (Assignee)',
     'dailyPendingReminders': 'Daily Pending Reminders',
-    'reminder': 'Custom',
+    'reminder': 'Custom Reminder (Assignee)',
+    'newTaskInLoop': 'New Task (In-Loop)',
+    'taskEditInLoop': 'Task Edited (In-Loop)',
+    'taskCommentInLoop': 'Task Comment (In-Loop)',
+    'taskInProgressInLoop': 'Task In-Progress (In-Loop)',
+    'taskCompleteInLoop': 'Task Complete (In-Loop)',
+    'taskReOpenInLoop': 'Task Re-Open (In-Loop)',
+    'reminderInLoop': 'Task Reminder (In-Loop)',
   };
 
   final List<Map<String, String>> _variables = [
-    {'key': '{title}', 'label': 'Title', 'desc': 'Notification title text'},
-    {'key': '{message}', 'label': 'Message', 'desc': 'Notification message summary'},
     {'key': '{taskId}', 'label': 'Task ID', 'desc': 'Related task identifier'},
     {'key': '{taskTitle}', 'label': 'Task Title', 'desc': 'The title of the task'},
     {'key': '{taskDescription}', 'label': 'Description', 'desc': 'Task description'},
@@ -40,15 +45,17 @@ class _NotificationTemplatesScreenState extends State<NotificationTemplatesScree
     {'key': '{dueDate}', 'label': 'Due Date', 'desc': 'Formatted due date'},
     {'key': '{assignerName}', 'label': 'Assigner', 'desc': 'Who assigned the task'},
     {'key': '{doerName}', 'label': 'Assignee', 'desc': 'Who is assigned'},
-    {'key': '{userName}', 'label': 'User Name', 'desc': 'Target user name for generic notifications'},
     {'key': '{updatedBy}', 'label': 'Updated By', 'desc': 'Who edited the task'},
     {'key': '{status}', 'label': 'Status', 'desc': 'Current task status'},
     {'key': '{remark}', 'label': 'Remark', 'desc': 'Recent comment'},
     {'key': '{commenterName}', 'label': 'Commenter', 'desc': 'Who added the remark'},
     {'key': '{taskList}', 'label': 'Task List', 'desc': 'Summary list (Daily Report)'},
-    {'key': '{reminderChannel}', 'label': 'Reminder Channel', 'desc': 'Email, WhatsApp, or both'},
-    {'key': '{html}', 'label': 'HTML Content', 'desc': 'Raw HTML fallback from backend'},
-    {'key': '{attachments}', 'label': 'Attachments', 'desc': 'Attachment summary when provided'},
+    {'key': '{frequency}', 'label': 'Frequency', 'desc': 'Recurrence frequency like Daily or Weekly'},
+    {'key': '{startDate}', 'label': 'Start Date', 'desc': 'Task or repeat start date'},
+    {'key': '{endDate}', 'label': 'End Date', 'desc': 'Task or repeat end date'},
+    {'key': '{voiceNoteUrl}', 'label': 'Voice Note', 'desc': 'Link to the recorded audio note'},
+    {'key': '{referenceDocs}', 'label': 'Attachments', 'desc': 'Links to reference files and documents'},
+    {'key': '{evidenceUrl}', 'label': 'Evidence File', 'desc': 'Link to the completion evidence file'},
   ];
 
   @override

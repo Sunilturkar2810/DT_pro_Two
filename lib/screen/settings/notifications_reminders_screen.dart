@@ -20,27 +20,7 @@ class _NotificationsRemindersScreenState extends State<NotificationsRemindersScr
   final TextEditingController _bodyController = TextEditingController();
   bool _isTemplateActive = true;
 
-  final List<String> _roles = ['Admin', 'Manager', 'Member'];
-  final Map<String, String> _eventLabels = {
-    'newTask': 'New Task',
-    'taskEdit': 'Task Edited',
-    'taskComment': 'Task Comment',
-    'taskInProgress': 'Task In-Progress',
-    'taskComplete': 'Task Complete',
-    'taskReOpen': 'Task Re-Open',
-    'dailyPendingReminders': 'Daily Pending Reminders',
-    'custom': 'Custom',
-    'inLoopNewTask': 'In Loop: New Task',
-    'inLoopTaskEdit': 'In Loop: Task Edited',
-    'inLoopTaskComment': 'In Loop: Task Comment',
-    'inLoopTaskInProgress': 'In Loop: Task In-Progress',
-    'inLoopTaskComplete': 'In Loop: Task Complete',
-    'inLoopTaskReOpen': 'In Loop: Task Re-Open',
-  };
-
   final List<String> _templateVariables = [
-    '{title}',
-    '{message}',
     '{taskId}',
     '{taskTitle}',
     '{taskDescription}',
@@ -49,15 +29,17 @@ class _NotificationsRemindersScreenState extends State<NotificationsRemindersScr
     '{dueDate}',
     '{assignerName}',
     '{doerName}',
-    '{userName}',
     '{updatedBy}',
     '{status}',
     '{remark}',
     '{commenterName}',
     '{taskList}',
-    '{reminderChannel}',
-    '{html}',
-    '{attachments}',
+    '{frequency}',
+    '{startDate}',
+    '{endDate}',
+    '{voiceNoteUrl}',
+    '{referenceDocs}',
+    '{evidenceUrl}',
   ];
 
   @override
@@ -288,9 +270,9 @@ class _NotificationsRemindersScreenState extends State<NotificationsRemindersScr
                   scrollDirection: Axis.horizontal,
                   physics: const BouncingScrollPhysics(),
                   padding: const EdgeInsets.symmetric(horizontal: 12),
-                  itemCount: _eventLabels.length,
+                  itemCount: kNotificationTemplateEventLabels.length,
                   itemBuilder: (context, index) {
-                    final entry = _eventLabels.entries.elementAt(index);
+                    final entry = kNotificationTemplateEventLabels.entries.elementAt(index);
                     final isSelected = _activeEventTemplate == entry.key;
                     final hasTemplate = _hasTemplateForEvent(provider, entry.key);
                     
@@ -409,7 +391,10 @@ class _NotificationsRemindersScreenState extends State<NotificationsRemindersScr
   }
 
   Widget _buildTemplateEditor(NotificationProvider provider) {
-    final eventTitle = _eventLabels[_activeEventTemplate]!.toUpperCase();
+    final eventTitle =
+        (kNotificationTemplateEventLabels[_activeEventTemplate] ??
+                _activeEventTemplate)
+            .toUpperCase();
     final channelTitle = _activeChannel.toUpperCase();
     final savedTemplates = _templatesForActiveChannel(provider);
     final hasCurrentTemplate =
@@ -710,7 +695,8 @@ class _NotificationsRemindersScreenState extends State<NotificationsRemindersScr
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
                                   Text(
-                                    _eventLabels[eventName] ?? eventName,
+                                    kNotificationTemplateEventLabels[eventName] ??
+                                        eventName,
                                     style: TextStyle(
                                       fontSize: 11,
                                       fontWeight: FontWeight.w700,
@@ -941,7 +927,7 @@ class _NotificationsRemindersScreenState extends State<NotificationsRemindersScr
             DataColumn(label: Text("Manager", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
             DataColumn(label: Text("Member", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
           ],
-          rows: _eventLabels.entries.map((entry) {
+          rows: kNotificationPreferenceEventLabels.entries.map((entry) {
             return DataRow(cells: [
               DataCell(Text(entry.value, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600))),
               DataCell(_buildMatrixCheck(provider, entry.key, 'admin')),
@@ -961,7 +947,7 @@ class _NotificationsRemindersScreenState extends State<NotificationsRemindersScr
           padding: const EdgeInsets.all(4),
           decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(12)),
           child: Row(
-            children: List.generate(3, (index) => Expanded(
+            children: List.generate(kNotificationRoles.length, (index) => Expanded(
               child: GestureDetector(
                 onTap: () => setState(() => _activeRoleTab = index),
                 child: Container(
@@ -971,7 +957,7 @@ class _NotificationsRemindersScreenState extends State<NotificationsRemindersScr
                     borderRadius: BorderRadius.circular(10),
                     boxShadow: _activeRoleTab == index ? [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 4)] : [],
                   ),
-                  child: Center(child: Text(_roles[index], style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: _activeRoleTab == index ? const Color(0xFF10B981) : Colors.grey))),
+                  child: Center(child: Text(kNotificationRoles[index], style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: _activeRoleTab == index ? const Color(0xFF10B981) : Colors.grey))),
                 ),
               ),
             )),
@@ -991,14 +977,16 @@ class _NotificationsRemindersScreenState extends State<NotificationsRemindersScr
                 DataColumn(label: Text("Daily", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 11))),
                 DataColumn(label: Text("Weekly", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 11))),
                 DataColumn(label: Text("Monthly", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 11))),
+                DataColumn(label: Text("Yearly", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 11))),
               ],
-              rows: _eventLabels.entries.map((entry) {
+              rows: kNotificationPreferenceEventLabels.entries.map((entry) {
                 return DataRow(cells: [
                   DataCell(Text(entry.value, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold))),
                   DataCell(_buildFreqCheck(provider, entry.key, 'once')),
                   DataCell(_buildFreqCheck(provider, entry.key, 'daily')),
                   DataCell(_buildFreqCheck(provider, entry.key, 'weekly')),
                   DataCell(_buildFreqCheck(provider, entry.key, 'monthly')),
+                  DataCell(_buildFreqCheck(provider, entry.key, 'yearly')),
                 ]);
               }).toList(),
             ),
@@ -1023,7 +1011,7 @@ class _NotificationsRemindersScreenState extends State<NotificationsRemindersScr
   }
 
   Widget _buildFreqCheck(NotificationProvider provider, String event, String freq) {
-    String role = _roles[_activeRoleTab].toLowerCase();
+    final role = kNotificationRoleKeys[_activeRoleTab];
     bool isChecked = provider.notificationFrequency[role]?[event]?[freq] ?? false;
     return Center(
       child: GestureDetector(
@@ -1038,14 +1026,47 @@ class _NotificationsRemindersScreenState extends State<NotificationsRemindersScr
   }
 
   Widget _buildBottomSaveBar() {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(color: Colors.white, boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, -5))]),
-      child: ElevatedButton.icon(
-        onPressed: () => context.read<NotificationProvider>().saveSettings(),
-        icon: const Icon(Icons.save, color: Colors.white),
-        label: const Text("Save Changes", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-        style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF10B981), padding: const EdgeInsets.symmetric(vertical: 15), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
+    return Consumer<NotificationProvider>(
+      builder: (context, provider, _) => Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(color: Colors.white, boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, -5))]),
+        child: ElevatedButton.icon(
+          onPressed: provider.isLoading
+              ? null
+              : () async {
+                  final success = await provider.saveSettings();
+                  if (!mounted) {
+                    return;
+                  }
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        success
+                            ? 'Notification settings saved successfully'
+                            : (provider.errorMessage ?? 'Failed to save notification settings'),
+                      ),
+                      backgroundColor:
+                          success ? const Color(0xFF10B981) : Colors.redAccent,
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                },
+          icon: provider.isLoading
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
+                )
+              : const Icon(Icons.save, color: Colors.white),
+          label: Text(
+            provider.isLoading ? "Saving..." : "Save Changes",
+            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          ),
+          style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF10B981), padding: const EdgeInsets.symmetric(vertical: 15), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
+        ),
       ),
     );
   }
