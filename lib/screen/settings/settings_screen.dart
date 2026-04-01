@@ -30,8 +30,8 @@ class SettingsScreen extends StatelessWidget {
         title: const Text(
           'SETTINGS',
           style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
+            color: Colors.black,
+            fontWeight: FontWeight.w700,
             fontSize: 18,
             letterSpacing: 1.2,
           ),
@@ -39,7 +39,7 @@ class SettingsScreen extends StatelessWidget {
         backgroundColor: const Color(0xFF20E19F),
         elevation: 0,
         centerTitle: true,
-        iconTheme: const IconThemeData(color: Colors.white),
+        iconTheme: const IconThemeData(color: Colors.black),
       ),
       body: SingleChildScrollView(
         physics: const BouncingScrollPhysics(),

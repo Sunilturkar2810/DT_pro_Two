@@ -40,8 +40,8 @@ class _HolidaysScreenState extends State<HolidaysScreen> {
         title: const Text(
           'HOLIDAYS',
           style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
+            color: Colors.black,
+            fontWeight: FontWeight.w700,
             fontSize: 18,
             letterSpacing: 1.2,
           ),
@@ -49,7 +49,7 @@ class _HolidaysScreenState extends State<HolidaysScreen> {
         backgroundColor: const Color(0xFF20E19F),
         elevation: 0,
         centerTitle: true,
-        iconTheme: const IconThemeData(color: Colors.white),
+        iconTheme: const IconThemeData(color: Colors.black),
       ),
       floatingActionButton: isAdmin
           ? FloatingActionButton.extended(
@@ -126,14 +126,21 @@ class _HolidaysScreenState extends State<HolidaysScreen> {
               'Total Holidays',
               holidays.length.toString(),
               const Color(0xFF10B981),
+              Icons.event_available_rounded,
             ),
             const SizedBox(width: 12),
-            _statCard('Next Holiday', nextHoliday, Colors.blue),
+            _statCard(
+              'Next Holiday',
+              nextHoliday,
+              Colors.blue,
+              Icons.upcoming_rounded,
+            ),
             const SizedBox(width: 12),
             _statCard(
               'This Year',
               currentYearCount.toString(),
               const Color(0xFFF59E0B),
+              Icons.calendar_month_rounded,
             ),
           ],
         ),
@@ -141,88 +148,80 @@ class _HolidaysScreenState extends State<HolidaysScreen> {
     );
   }
 
-  Widget _statCard(String title, String value, Color color) {
+  Widget _statCard(String title, String value, Color color, IconData icon) {
     return SizedBox(
-      width: 132,
-      height: 118,
+      width: 150,
+      height: 110,
       child: Container(
-        padding: const EdgeInsets.fromLTRB(14, 14, 14, 10),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(26),
+          borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withOpacity(0.06),
-              blurRadius: 14,
-              offset: const Offset(0, 8),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
             ),
           ],
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Container(
-                  width: 12,
-                  height: 12,
-                  decoration: BoxDecoration(
-                    color: color,
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: color.withOpacity(0.28),
-                        blurRadius: 8,
-                        offset: const Offset(0, 3),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: Stack(
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: color.withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(8),
                       ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    title.toUpperCase(),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 10,
-                      letterSpacing: 0.9,
-                      fontWeight: FontWeight.w800,
-                      color: Colors.grey.shade600,
+                      child: Icon(icon, color: color, size: 20),
                     ),
-                  ),
-                ),
-              ],
-            ),
-            const Spacer(),
-            Expanded(
-              flex: 2,
-              child: Center(
-                child: Text(
-                  value,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: value.length > 10 ? 18 : 26,
-                    fontWeight: FontWeight.w900,
-                    color: const Color(0xFF111827),
-                    height: 1.05,
-                  ),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          value,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: value.length > 10 ? 16 : 20,
+                            fontWeight: FontWeight.w600,
+                            color: const Color(0xFF111827),
+                            height: 1.1,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          title.toUpperCase(),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: Colors.grey.shade600,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
               ),
-            ),
-            Container(
-              height: 6,
-              width: double.infinity,
-              decoration: BoxDecoration(
-                color: color,
-                borderRadius: BorderRadius.circular(999),
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child: Container(height: 4, color: color),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

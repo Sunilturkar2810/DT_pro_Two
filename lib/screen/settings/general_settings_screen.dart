@@ -516,14 +516,14 @@ class _GeneralSettingsScreenState extends State<GeneralSettingsScreen> {
       title: const Text(
         'GENERAL',
         style: TextStyle(
-          color: Colors.white,
-          fontWeight: FontWeight.bold,
+          color: Colors.black,
+          fontWeight: FontWeight.w700,
           letterSpacing: 1.2,
         ),
       ),
       backgroundColor: const Color(0xFF20E19F),
       centerTitle: true,
-      iconTheme: const IconThemeData(color: Colors.white),
+      iconTheme: const IconThemeData(color: Colors.black),
     );
   }
 
