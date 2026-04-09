@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../../provider/notification_provider.dart';
+import '../../utils/notification_template_helper.dart';
 
 class NotificationTemplatesScreen extends StatefulWidget {
   const NotificationTemplatesScreen({super.key});
@@ -61,9 +62,17 @@ class _NotificationTemplatesScreenState extends State<NotificationTemplatesScree
   @override
   void initState() {
     super.initState();
+    _subjectController.addListener(_handleDraftChanged);
+    _bodyController.addListener(_handleDraftChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadInitialData();
     });
+  }
+
+  void _handleDraftChanged() {
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   Future<void> _loadInitialData() async {
@@ -191,8 +200,86 @@ class _NotificationTemplatesScreenState extends State<NotificationTemplatesScree
     return filtered;
   }
 
+  Map<String, String> _previewData() {
+    final eventLabel = _events[_activeEvent] ?? _activeEvent;
+    return buildNotificationTemplatePreviewData(
+      eventLabel: eventLabel,
+      channel: _activeChannel,
+    );
+  }
+
+  String _previewValue(String template) {
+    return replaceNotificationTemplatePlaceholders(template, _previewData());
+  }
+
+  Widget _buildResolvedPreview() {
+    final previewSubject = _previewValue(_subjectController.text.trim());
+    final previewBody = _previewValue(_bodyController.text);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0F172A),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            _activeChannel == 'email'
+                ? 'From $kNotificationEmailSenderName'
+                : 'Resolved WhatsApp preview',
+            style: const TextStyle(
+              color: Color(0xFF94A3B8),
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          if (_activeChannel == 'email') ...[
+            const SizedBox(height: 8),
+            Text(
+              previewSubject.isEmpty ? 'No subject yet' : previewSubject,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 15,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
+          const SizedBox(height: 12),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.06),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: Colors.white.withOpacity(0.08)),
+            ),
+            child: Text(
+              previewBody.trim().isEmpty
+                  ? 'Missing ya blank placeholders yahan backend ki tarah empty render honge.'
+                  : previewBody,
+              style: TextStyle(
+                color: previewBody.trim().isEmpty
+                    ? const Color(0xFF94A3B8)
+                    : Colors.white,
+                fontSize: 12,
+                height: 1.5,
+                fontFamily:
+                    _activeChannel == 'whatsapp' ? 'monospace' : null,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   void dispose() {
+    _subjectController.removeListener(_handleDraftChanged);
+    _bodyController.removeListener(_handleDraftChanged);
     _subjectController.dispose();
     _bodyController.dispose();
     super.dispose();
@@ -475,6 +562,9 @@ class _NotificationTemplatesScreenState extends State<NotificationTemplatesScree
                             decoration: _inputDeco("Enter content here..."),
                             style: const TextStyle(fontSize: 13, fontFamily: 'monospace', color: Color(0xFF334155), height: 1.5),
                           ),
+                          const SizedBox(height: 24),
+                          _buildSectionLabel("RESOLVED PREVIEW"),
+                          _buildResolvedPreview(),
                           const SizedBox(height: 24),
                           _buildSectionLabel("SAVED TEMPLATES"),
                           Container(

@@ -8,8 +8,13 @@ import { sendWhatsAppCampaign } from './whatsappService.js';
  */
 const replacePlaceholders = (template, data) => {
     if (!template) return '';
-    return template.replace(/{([\w]+)}/g, (match, key) => {
-        return data[key] !== undefined ? data[key] : match;
+    return template.replace(/{([^{}]+)}/g, (match, key) => {
+        const cleanKey = key.trim();
+        const value = data[cleanKey];
+        if (value !== undefined && value !== null && String(value).trim() !== '') {
+            return value;
+        }
+        return '';
     });
 };
 
@@ -46,7 +51,15 @@ export const notifyUser = async (userId, eventType, data) => {
             }
         };
 
-        const currentPrefs = prefs || defaultPrefs;
+        // Merge user prefs with defaults to prevent missing keys
+        const currentPrefs = {
+            ...defaultPrefs,
+            ...(prefs || {}),
+            notificationChannels: {
+                ...defaultPrefs.notificationChannels,
+                ...(prefs?.notificationChannels || {})
+            }
+        };
 
         // Fetch custom templates for this event
         const templates = await db.select()
@@ -126,7 +139,9 @@ export const notifyUser = async (userId, eventType, data) => {
         if (userRole.includes('manager')) mappedRole = 'manager';
 
         const channelSettings = currentPrefs.notificationChannels ? currentPrefs.notificationChannels[eventType] : null;
-        const isEnabledForRole = channelSettings && (channelSettings[mappedRole] || channelSettings.member); // Fallback to member if role not specifically found
+        const isEnabledForRole = channelSettings && (channelSettings[mappedRole] || channelSettings.member);
+
+        console.log(`[Notifier] Event: ${eventType}, User: ${user.firstName}, Role: ${mappedRole}, Enabled: ${!!isEnabledForRole}`);
 
         if (!isEnabledForRole) return;
 

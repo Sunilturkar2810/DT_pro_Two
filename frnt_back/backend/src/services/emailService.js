@@ -32,7 +32,7 @@ export const sendEmail = async (to, subject, html, attachments = []) => {
                 try {
                     // Check if it's our S3 bucket
                     const s3Match = att.path.includes(`${bucketName}.s3`);
-                    
+
                     if (s3Match) {
                         const urlParts = att.path.split('.com/');
                         if (urlParts.length > 1) {
@@ -48,7 +48,7 @@ export const sendEmail = async (to, subject, html, attachments = []) => {
 
                     // Fallback to axios for other URLs or if key extraction failed
                     console.log(`Fetching remote attachment via Axios: ${att.path}`);
-                    const response = await axios.get(att.path, { 
+                    const response = await axios.get(att.path, {
                         responseType: 'arraybuffer',
                         timeout: 10000,
                         headers: { 'User-Agent': 'Mozilla/5.0' }
@@ -68,7 +68,7 @@ export const sendEmail = async (to, subject, html, attachments = []) => {
         const cleanAttachments = processedAttachments.filter(Boolean);
 
         const info = await transporter.sendMail({
-            from: `"Kesariya Group" <${process.env.SMTP_USERNAME}>`,
+            from: `"RLD Group" <${process.env.SMTP_USERNAME}>`,
             to,
             subject,
             html,

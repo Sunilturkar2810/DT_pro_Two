@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../provider/notification_provider.dart';
+import '../../utils/notification_template_helper.dart';
 
 class NotificationsRemindersScreen extends StatefulWidget {
   const NotificationsRemindersScreen({super.key});
@@ -45,6 +46,8 @@ class _NotificationsRemindersScreenState extends State<NotificationsRemindersScr
   @override
   void initState() {
     super.initState();
+    _subjectController.addListener(_handleTemplateDraftChanged);
+    _bodyController.addListener(_handleTemplateDraftChanged);
     _mainTabController = TabController(length: 2, vsync: this);
     _mainTabController.addListener(() {
       setState(() {});
@@ -61,6 +64,12 @@ class _NotificationsRemindersScreenState extends State<NotificationsRemindersScr
         await _fetchCurrentTemplate();
       }
     });
+  }
+
+  void _handleTemplateDraftChanged() {
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   Future<void> _loadTemplateWorkspace() async {
@@ -199,9 +208,126 @@ class _NotificationsRemindersScreenState extends State<NotificationsRemindersScr
     return filtered;
   }
 
+  Map<String, String> _previewData() {
+    final eventLabel =
+        kNotificationTemplateEventLabels[_activeEventTemplate] ??
+        _activeEventTemplate;
+    return buildNotificationTemplatePreviewData(
+      eventLabel: eventLabel,
+      channel: _activeChannel,
+    );
+  }
+
+  String _previewValue(String template) {
+    return replaceNotificationTemplatePlaceholders(template, _previewData());
+  }
+
+  Widget _buildTemplatePreviewCard() {
+    final previewSubject = _previewValue(_subjectController.text.trim());
+    final previewBody = _previewValue(_bodyController.text);
+    final hasBody = previewBody.trim().isNotEmpty;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0F172A),
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 14,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                _activeChannel == 'email'
+                    ? Icons.mail_outline_rounded
+                    : Icons.smartphone_outlined,
+                size: 16,
+                color: const Color(0xFF34D399),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                _activeChannel == 'email'
+                    ? 'LIVE EMAIL PREVIEW'
+                    : 'LIVE WHATSAPP PREVIEW',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1.1,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          if (_activeChannel == 'email') ...[
+            Text(
+              'From $kNotificationEmailSenderName',
+              style: const TextStyle(
+                color: Color(0xFF94A3B8),
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              previewSubject.isEmpty ? 'No subject yet' : previewSubject,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 12),
+          ] else ...[
+            Text(
+              'Campaign/body preview with backend-style placeholder cleanup',
+              style: const TextStyle(
+                color: Color(0xFF94A3B8),
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.06),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.white.withOpacity(0.08)),
+            ),
+            child: Text(
+              hasBody
+                  ? previewBody
+                  : 'Blank, null, ya missing placeholders preview me empty aaenge. Body content add karte hi yahan resolved message dikh jayega.',
+              style: TextStyle(
+                color: hasBody ? Colors.white : const Color(0xFF94A3B8),
+                fontSize: 12,
+                height: 1.5,
+                fontFamily:
+                    _activeChannel == 'whatsapp' ? 'monospace' : null,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   void dispose() {
     _mainTabController.dispose();
+    _subjectController.removeListener(_handleTemplateDraftChanged);
+    _bodyController.removeListener(_handleTemplateDraftChanged);
     _subjectController.dispose();
     _bodyController.dispose();
     super.dispose();
@@ -625,6 +751,18 @@ class _NotificationsRemindersScreenState extends State<NotificationsRemindersScr
                   ),
                 ),
               ),
+              const SizedBox(height: 24),
+              Text(
+                "RESOLVED PREVIEW",
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 10,
+                  color: Colors.grey,
+                  letterSpacing: 1.1,
+                ),
+              ),
+              const SizedBox(height: 8),
+              _buildTemplatePreviewCard(),
               const SizedBox(height: 24),
               Text(
                 "SAVED TEMPLATES (${savedTemplates.length})",

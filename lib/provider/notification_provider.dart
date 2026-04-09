@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../model/notification_model.dart';
 import '../services/notification_service.dart';
+import '../utils/notification_template_helper.dart';
 
 const Map<String, String> kNotificationPreferenceEventLabels = {
   'newTask': 'New Task',
@@ -64,8 +65,14 @@ class NotificationProvider extends ChangeNotifier {
   bool emailReminders = false;
   bool dailyTaskReport = false;
   List<String> weeklyOffs = ['Sunday'];
-  Map<String, dynamic> notificationChannels = {};
-  Map<String, dynamic> notificationFrequency = {};
+  Map<String, dynamic> notificationChannels = buildDefaultNotificationChannels(
+    events: kNotificationPreferenceEventLabels.keys,
+    roles: kNotificationRoleKeys,
+  );
+  Map<String, dynamic> notificationFrequency = buildDefaultNotificationFrequency(
+    events: kNotificationPreferenceEventLabels.keys,
+    roles: kNotificationRoleKeys,
+  );
 
   Map<String, dynamic>? activeTemplate;
   List<Map<String, dynamic>> _templates = [];
@@ -87,101 +94,27 @@ class NotificationProvider extends ChangeNotifier {
     'inLoopTaskReOpen': 'taskReOpenInLoop',
   };
 
-  Map<String, bool> _defaultFrequencyMap() => {
-        'once': true,
-        'daily': false,
-        'weekly': false,
-        'monthly': false,
-        'yearly': false,
-      };
-
-  Map<String, dynamic> _buildDefaultChannels() => {
-        for (final event in kNotificationPreferenceEventLabels.keys)
-          event: {
-            for (final role in kNotificationRoleKeys) role: true,
-          },
-      };
-
-  Map<String, dynamic> _buildDefaultFrequency() => {
-        for (final role in kNotificationRoleKeys)
-          role: {
-            for (final event in kNotificationPreferenceEventLabels.keys)
-              event: _defaultFrequencyMap(),
-          },
-      };
-
-  String _normalizeEventKey(String key) => _legacyEventKeyMap[key] ?? key;
-
-  Map<String, dynamic> _normalizeChannelSettings(dynamic rawValue) {
-    final normalized = _buildDefaultChannels();
+  Map<String, dynamic>? _normalizeTemplate(dynamic rawValue) {
     if (rawValue is! Map) {
-      return normalized;
+      return null;
     }
 
-    final rawMap = Map<String, dynamic>.from(rawValue);
-    for (final entry in rawMap.entries) {
-      final eventKey = _normalizeEventKey(entry.key);
-      if (!kNotificationPreferenceEventLabels.containsKey(eventKey)) {
-        continue;
-      }
+    final template = Map<String, dynamic>.from(rawValue);
+    final hasContent =
+        template['id'] != null ||
+        (template['subject']?.toString().trim().isNotEmpty ?? false) ||
+        (template['body']?.toString().trim().isNotEmpty ?? false);
 
-      final eventValue = entry.value;
-      if (eventValue is! Map) {
-        continue;
-      }
-
-      final existing = Map<String, dynamic>.from(normalized[eventKey] as Map);
-      final roleMap = Map<String, dynamic>.from(eventValue);
-      for (final role in kNotificationRoleKeys) {
-        existing[role] = roleMap[role] ?? existing[role];
-      }
-      normalized[eventKey] = existing;
-    }
-    return normalized;
-  }
-
-  Map<String, dynamic> _normalizeFrequencySettings(dynamic rawValue) {
-    final normalized = _buildDefaultFrequency();
-    if (rawValue is String || rawValue is! Map) {
-      return normalized;
+    if (!hasContent) {
+      return null;
     }
 
-    final rawMap = Map<String, dynamic>.from(rawValue);
-    for (final role in kNotificationRoleKeys) {
-      final roleValue = rawMap[role];
-      if (roleValue is! Map) {
-        continue;
-      }
-
-      final normalizedRole = Map<String, dynamic>.from(normalized[role] as Map);
-      final roleMap = Map<String, dynamic>.from(roleValue);
-
-      for (final eventEntry in roleMap.entries) {
-        final eventKey = _normalizeEventKey(eventEntry.key);
-        if (!kNotificationPreferenceEventLabels.containsKey(eventKey)) {
-          continue;
-        }
-
-        final eventValue = eventEntry.value;
-        if (eventValue is! Map) {
-          continue;
-        }
-
-        final normalizedEvent = Map<String, dynamic>.from(
-          normalizedRole[eventKey] as Map,
-        );
-        final eventMap = Map<String, dynamic>.from(eventValue);
-        for (final frequency in kNotificationFrequencyOptions) {
-          normalizedEvent[frequency] =
-              eventMap[frequency] ?? normalizedEvent[frequency];
-        }
-        normalizedRole[eventKey] = normalizedEvent;
-      }
-
-      normalized[role] = normalizedRole;
-    }
-
-    return normalized;
+    return {
+      ...template,
+      'subject': template['subject']?.toString() ?? '',
+      'body': template['body']?.toString() ?? '',
+      'isActive': template['isActive'] ?? true,
+    };
   }
 
   void _syncUnreadCount() {
@@ -222,20 +155,38 @@ class NotificationProvider extends ChangeNotifier {
         emailReminders = response['emailReminders'] ?? false;
         dailyTaskReport = response['dailyTaskReport'] ?? false;
         weeklyOffs = List<String>.from(response['weeklyOffs'] ?? ['Sunday']);
-        notificationChannels = _normalizeChannelSettings(
-          response['notificationChannels'],
+        notificationChannels = mergeNotificationChannels(
+          events: kNotificationPreferenceEventLabels.keys,
+          roles: kNotificationRoleKeys,
+          rawValue: response['notificationChannels'],
+          legacyEventKeyMap: _legacyEventKeyMap,
         );
-        notificationFrequency = _normalizeFrequencySettings(
-          response['notificationFrequency'],
+        notificationFrequency = mergeNotificationFrequency(
+          events: kNotificationPreferenceEventLabels.keys,
+          roles: kNotificationRoleKeys,
+          rawValue: response['notificationFrequency'],
+          legacyEventKeyMap: _legacyEventKeyMap,
         );
       } else {
-        notificationChannels = _buildDefaultChannels();
-        notificationFrequency = _buildDefaultFrequency();
+        notificationChannels = buildDefaultNotificationChannels(
+          events: kNotificationPreferenceEventLabels.keys,
+          roles: kNotificationRoleKeys,
+        );
+        notificationFrequency = buildDefaultNotificationFrequency(
+          events: kNotificationPreferenceEventLabels.keys,
+          roles: kNotificationRoleKeys,
+        );
       }
     } catch (e) {
       _errorMessage = e.toString();
-      notificationChannels = _buildDefaultChannels();
-      notificationFrequency = _buildDefaultFrequency();
+      notificationChannels = buildDefaultNotificationChannels(
+        events: kNotificationPreferenceEventLabels.keys,
+        roles: kNotificationRoleKeys,
+      );
+      notificationFrequency = buildDefaultNotificationFrequency(
+        events: kNotificationPreferenceEventLabels.keys,
+        roles: kNotificationRoleKeys,
+      );
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -278,7 +229,7 @@ class NotificationProvider extends ChangeNotifier {
     try {
       final response = await _service.getTemplate(event, channel);
       if (response != null && response['success'] == true) {
-        activeTemplate = Map<String, dynamic>.from(response['data'] ?? {});
+        activeTemplate = _normalizeTemplate(response['data']);
       }
     } catch (e) {
       _errorMessage = e.toString();
@@ -293,7 +244,14 @@ class NotificationProvider extends ChangeNotifier {
     _errorMessage = null;
     notifyListeners();
     try {
-      _templates = await _service.getTemplates();
+      _templates = await _service
+          .getTemplates()
+          .then(
+            (items) => items
+                .map(_normalizeTemplate)
+                .whereType<Map<String, dynamic>>()
+                .toList(),
+          );
     } catch (e) {
       _errorMessage = e.toString();
     } finally {
@@ -380,7 +338,8 @@ class NotificationProvider extends ChangeNotifier {
       notificationFrequency[role] = {};
     }
     if (notificationFrequency[role][event] == null) {
-      notificationFrequency[role][event] = _defaultFrequencyMap();
+      notificationFrequency[role][event] =
+          buildDefaultNotificationFrequencyEntry();
     }
     notificationFrequency[role][event][freq] =
         !(notificationFrequency[role][event][freq] ?? false);
