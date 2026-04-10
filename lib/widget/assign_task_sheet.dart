@@ -60,7 +60,7 @@ class _AssignTaskSheetState extends State<AssignTaskSheet>
   int _periodicallyDaysCount = 1;
   bool _isSubmitting = false;
 
-  UserModel? _selectedDoer;
+  List<UserModel> _selectedDoers = [];
   DateTime? _startDate;
   DateTime? _endDate;
   String _priority = 'High';
@@ -97,6 +97,12 @@ class _AssignTaskSheetState extends State<AssignTaskSheet>
   static const Color _primary = ThemeProvider.primaryGreen;
 
   bool get _isSubTaskMode => widget.parentTaskId != null;
+
+  String? get _selectedAssigneeSummary {
+    if (_selectedDoers.isEmpty) return null;
+    if (_selectedDoers.length == 1) return _selectedDoers.first.fullName;
+    return '${_selectedDoers.length} Selected';
+  }
 
   @override
   void initState() {
@@ -380,7 +386,7 @@ class _AssignTaskSheetState extends State<AssignTaskSheet>
     _checklistController.clear();
     _remarkController.clear();
     setState(() {
-      _selectedDoer = null;
+      _selectedDoers = [];
       _selectedInLoop = [];
       _startDate = null;
       _endDate = null;
@@ -479,8 +485,8 @@ class _AssignTaskSheetState extends State<AssignTaskSheet>
       _showError('Please enter task description');
       return;
     }
-    if (_selectedDoer == null) {
-      print('❌ ERROR: _selectedDoer is null');
+    if (_selectedDoers.isEmpty) {
+      print('❌ ERROR: _selectedDoers is empty');
       _showError('Please select an assignee');
       return;
     }
@@ -586,7 +592,7 @@ class _AssignTaskSheetState extends State<AssignTaskSheet>
       'taskTitle': title,
       'description': description,
       'assignerId': auth.currentUser!.id,
-      'doerId': _selectedDoer!.id,
+      'doerId': _selectedDoers.map((u) => u.id).toList(),
       'inLoopIds': _selectedInLoop.map((u) => u.id).toList(),
       'category': _category,
       'priority': _priority,
@@ -1848,50 +1854,103 @@ class _AssignTaskSheetState extends State<AssignTaskSheet>
       scrollDirection: Axis.horizontal,
       physics: const BouncingScrollPhysics(),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildWebChip(
+          _buildLabeledWebChip(
+            heading: 'ASSIGNEE',
             icon: Icons.person_outline,
-            label: _selectedDoer != null ? "ASSIGNEE" : "ASSIGNEE",
-            value: _selectedDoer?.fullName,
+            placeholder: 'Select assignee',
+            value: _selectedAssigneeSummary,
             onTap: () => _showUserPicker(allowedUsers, isInLoop: false),
           ),
-          _buildWebChip(
+          _buildLabeledWebChip(
+            heading: 'DUE DATE',
             icon: Icons.calendar_today_outlined,
-            label: "DUE DATE",
+            placeholder: 'Select due date',
             value: _endDate != null
                 ? DateFormat('MMM dd, hh:mm a').format(_endDate!)
                 : null,
             onTap: () => _pickDate(false),
           ),
-          _buildWebChip(
+          _buildLabeledWebChip(
+            heading: 'PRIORITY',
             icon: Icons.flag_outlined,
-            label: _priority.toUpperCase(),
+            placeholder: 'Select priority',
+            value: _priority.toUpperCase(),
             isFilled: true,
             color: _priorityColor(_priority),
             onTap: () => _showPriorityPicker(),
           ),
-          _buildWebChip(
+          _buildLabeledWebChip(
+            heading: 'CATEGORY',
             icon: Icons.check_box_outlined,
-            label: "CATEGORY",
+            placeholder: 'Select category',
             value: _category.isNotEmpty ? _category : null,
             onTap: () => _showCategoryPicker(),
           ),
-          _buildWebChip(
+          _buildLabeledWebChip(
+            heading: 'IN LOOP',
             icon: Icons.group_outlined,
-            label: "IN LOOP",
+            placeholder: 'Select members',
             value: _selectedInLoop.isNotEmpty
-                ? "${_selectedInLoop.length} Selected"
+                ? '${_selectedInLoop.length} Selected'
                 : null,
             onTap: () => _showUserPicker(allowedUsers, isInLoop: true),
           ),
-          _buildWebChip(
+          _buildLabeledWebChip(
+            heading: 'EVIDENCE',
             icon: _requiresEvidence ? Icons.check_circle : Icons.upload_file,
-            label: "EVIDENCE",
+            placeholder: 'Optional',
+            value: _requiresEvidence ? 'Required' : null,
             isFilled: _requiresEvidence,
             color: const Color(0xFF10B981),
             onTap: () => setState(() => _requiresEvidence = !_requiresEvidence),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildLabeledWebChip({
+    required String heading,
+    required IconData icon,
+    required String placeholder,
+    String? value,
+    bool isFilled = false,
+    Color? color,
+    VoidCallback? onTap,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 12),
+      child: SizedBox(
+        width: 150,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildFieldHeading(heading),
+            const SizedBox(height: 6),
+            _buildWebChip(
+              icon: icon,
+              label: placeholder,
+              value: value,
+              isFilled: isFilled,
+              color: color,
+              onTap: onTap,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFieldHeading(String text) {
+    return Text(
+      text,
+      style: const TextStyle(
+        fontSize: 11,
+        fontWeight: FontWeight.w800,
+        color: Color(0xFF64748B),
+        letterSpacing: 0.8,
       ),
     );
   }
@@ -1915,7 +1974,6 @@ class _AssignTaskSheetState extends State<AssignTaskSheet>
         onTap?.call();
       },
       child: Container(
-        margin: const EdgeInsets.only(right: 8),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
           color: isFilled ? baseColor.withOpacity(0.1) : Colors.white,
@@ -2945,26 +3003,24 @@ class _AssignTaskSheetState extends State<AssignTaskSheet>
                             final user = users[idx];
                             final isSelected = isInLoop
                                 ? _selectedInLoop.contains(user)
-                                : _selectedDoer == user;
+                                : _selectedDoers.contains(user);
                             final color = isInLoop
                                 ? const Color(0xFF6366F1)
                                 : _primary;
                             return ListTile(
                               onTap: () {
-                                if (isInLoop) {
-                                  setModalState(() {
-                                    setState(() {
-                                      if (isSelected) {
-                                        _selectedInLoop.remove(user);
-                                      } else {
-                                        _selectedInLoop.add(user);
-                                      }
-                                    });
+                                setModalState(() {
+                                  setState(() {
+                                    final targetList = isInLoop
+                                        ? _selectedInLoop
+                                        : _selectedDoers;
+                                    if (isSelected) {
+                                      targetList.remove(user);
+                                    } else {
+                                      targetList.add(user);
+                                    }
                                   });
-                                } else {
-                                  setState(() => _selectedDoer = user);
-                                  Navigator.pop(ctx);
-                                }
+                                });
                               },
                               leading: CircleAvatar(
                                 radius: 20,
@@ -3013,7 +3069,7 @@ class _AssignTaskSheetState extends State<AssignTaskSheet>
                           },
                         ),
                       ),
-                      if (isInLoop) ...[
+                      ...[
                         const SizedBox(height: 10),
                         Padding(
                           padding: const EdgeInsets.fromLTRB(20, 0, 20, 4),
@@ -3022,7 +3078,9 @@ class _AssignTaskSheetState extends State<AssignTaskSheet>
                             child: ElevatedButton(
                               onPressed: () => Navigator.pop(ctx),
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFF6366F1),
+                                backgroundColor: isInLoop
+                                    ? const Color(0xFF6366F1)
+                                    : _primary,
                                 padding: const EdgeInsets.symmetric(
                                   vertical: 14,
                                 ),
@@ -3031,7 +3089,7 @@ class _AssignTaskSheetState extends State<AssignTaskSheet>
                                 ),
                               ),
                               child: Text(
-                                'Done (${_selectedInLoop.length} selected)',
+                                'Done (${isInLoop ? _selectedInLoop.length : _selectedDoers.length} selected)',
                                 style: const TextStyle(
                                   color: Colors.white,
                                   fontWeight: FontWeight.bold,
