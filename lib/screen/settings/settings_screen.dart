@@ -8,6 +8,7 @@ import 'holidays_screen.dart';
 import 'notifications_reminders_screen.dart';
 import 'role_permission_screen.dart';
 import 'tag_settings_screen.dart';
+import 'change_password_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -123,9 +124,11 @@ class SettingsScreen extends StatelessWidget {
                 icon: Icons.shield_outlined,
                 title: 'Security',
                 description: 'Password and access controls',
-                onTap: () => _showUnavailableMessage(
+                onTap: () => Navigator.push(
                   context,
-                  'Security controls are handled by your admin in the current backend.',
+                  MaterialPageRoute(
+                    builder: (context) => const ChangePasswordScreen(),
+                  ),
                 ),
               ),
               const SizedBox(height: 40),

@@ -1,4 +1,4 @@
-import { uploadToS3 } from '../utils/s3.js';
+import { uploadToS3, signAllS3Urls } from '../utils/s3.js';
 import { db } from '../db/index.js';
 import { users } from '../db/schema.js';
 import { eq } from 'drizzle-orm';
@@ -32,11 +32,14 @@ export const uploadProfileImage = async (request, reply) => {
             console.log('Database updated for user:', userId);
         }
 
+        const signedUrl = await signAllS3Urls(fileUrl);
+
         return reply.send({ 
             message: 'Image uploaded successfully', 
-            url: fileUrl 
+            url: signedUrl 
         });
     } catch (error) {
+
         console.error('SERVER UPLOAD ERROR:', error);
         request.log.error(error);
         return reply.code(500).send({ 

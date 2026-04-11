@@ -1,4 +1,4 @@
-import { register, bulkRegister, login, getUsers, getMe, updateUser, updateCredentials, deleteAllTasks, deleteUser } from '../controllers/authController.js';
+import { register, bulkRegister, login, getUsers, getMe, updateUser, updateCredentials, updatePassword, deleteAllTasks, deleteUser } from '../controllers/authController.js';
 import { getRoles, createRole } from '../controllers/roleController.js';
 
 export default async function authRoutes(fastify, options) {
@@ -28,6 +28,9 @@ export default async function authRoutes(fastify, options) {
     fastify.put('/users/:userId/credentials', {
         onRequest: [fastify.authenticate]
     }, updateCredentials);
+    fastify.put('/update-password/:userId', {
+        onRequest: [fastify.authenticate]
+    }, updatePassword);
     fastify.delete('/users/:userId/tasks', {
         onRequest: [fastify.authenticate]
     }, deleteAllTasks);

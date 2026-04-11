@@ -4,7 +4,7 @@ import {
     notifications, checklistMaster, categories, groups, groupMembers, roles,
     deletedAccounts
 } from '../db/schema.js';
-import { eq, or, inArray } from 'drizzle-orm';
+import { eq, or, and, inArray, not, ne } from 'drizzle-orm';
 import { hashPassword, comparePassword } from '../utils/auth.js';
 
 export const register = async (request, reply) => {
@@ -165,7 +165,10 @@ export const login = async (request, reply) => {
 
     try {
         const user = await db.query.users.findFirst({
-            where: eq(users.workEmail, workEmail)
+            where: and(
+                eq(users.workEmail, workEmail),
+                ne(users.status, 'Delete')
+            )
         });
 
         if (!user) {
@@ -216,7 +219,7 @@ export const getUsers = async (request, reply) => {
             manager: users.manager,
             reportingManagerId: users.reportingManagerId,
             status: users.status,
-        }).from(users);
+        }).from(users).where(ne(users.status, 'Delete'));
         return reply.send(allUsers);
     } catch (error) {
         request.log.error(error);
@@ -236,7 +239,6 @@ export const getMe = async (request, reply) => {
 
         // Remove sensitive information
         const { password, ...safeUser } = user;
-
         return reply.send(safeUser);
     } catch (error) {
         request.log.error(error);
@@ -246,31 +248,48 @@ export const getMe = async (request, reply) => {
 
 export const updateUser = async (request, reply) => {
     const { userId } = request.params;
-    const {
-        firstName,
-        lastName,
-        mobileNumber,
-        role,
-        designation,
-        department,
-        reportingManagerId,
-        taskAccess,
-        leaveAccess
-    } = request.body;
+    const body = request.body;
+    const performer = request.user;
+
+    // Remove sensitive fields that shouldn't be updated through this endpoint
+    const { password, userId: _ui, workEmail, createdAt, updatedAt, ...updates } = body;
 
     try {
-        await db.update(users).set({
-            firstName,
-            lastName,
-            mobileNumber,
-            role,
-            designation,
-            department,
-            reportingManagerId,
-            taskAccess,
-            leaveAccess,
-            updatedAt: new Date()
-        }).where(eq(users.userId, userId));
+        const [existingUser] = await db.select().from(users).where(eq(users.userId, userId));
+        if (!existingUser) {
+            return reply.code(404).send({ message: 'User not found' });
+        }
+
+        // Security check: Only Admins can update roles
+        if (updates.role && updates.role !== existingUser.role) {
+            const isAdmin = performer && (performer.role === 'ADMIN' || performer.role === 'SUPERADMIN');
+            if (!isAdmin) {
+                delete updates.role; // Prevent silent failure but don't allow role change
+                console.warn(`User ${performer.id} attempted to change role of ${userId} without permission.`);
+            }
+        }
+
+        // Handle date fields to ensure they are properly formatted for Postgres
+        const dateFields = ['dateOfBirth', 'joiningDate', 'anniversaryDate'];
+        dateFields.forEach(field => {
+            if (updates[field]) {
+                const d = new Date(updates[field]);
+                if (!isNaN(d.getTime())) {
+                    updates[field] = d.toISOString().split('T')[0];
+                } else {
+                    delete updates[field]; // Ignore invalid dates
+                }
+            } else if (updates[field] === '') {
+                updates[field] = null;
+            }
+        });
+
+        await db.update(users)
+            .set({
+                ...updates,
+                updatedAt: new Date()
+            })
+            .where(eq(users.userId, userId));
 
         return reply.send({ message: 'User updated successfully' });
     } catch (error) {
@@ -312,6 +331,39 @@ export const updateCredentials = async (request, reply) => {
         if (error.code === '23505') {
             return reply.code(400).send({ message: 'Email already exists' });
         }
+        request.log.error(error);
+        return reply.code(500).send({ message: 'Internal Server Error' });
+    }
+};
+
+export const updatePassword = async (request, reply) => {
+    const { userId } = request.params;
+    const { currentPassword, newPassword } = request.body;
+
+    try {
+        const user = await db.query.users.findFirst({
+            where: eq(users.userId, userId)
+        });
+
+        if (!user) {
+            return reply.code(404).send({ message: 'User not found' });
+        }
+
+        const isMatch = await comparePassword(currentPassword, user.password);
+        if (!isMatch) {
+            return reply.code(401).send({ message: 'Incorrect old password' });
+        }
+
+        const hashedPassword = await hashPassword(newPassword);
+        await db.update(users)
+            .set({
+                password: hashedPassword,
+                updatedAt: new Date()
+            })
+            .where(eq(users.userId, userId));
+
+        return reply.send({ message: 'Password updated successfully' });
+    } catch (error) {
         request.log.error(error);
         return reply.code(500).send({ message: 'Internal Server Error' });
     }
@@ -439,23 +491,28 @@ export const deleteUser = async (request, reply) => {
 
         // 10. Fetch user info before deletion to save to deletedAccounts
         const userToDeleteArr = await db.select().from(users).where(eq(users.userId, userId));
-        if (userToDeleteArr.length > 0) {
-            const userToDelete = userToDeleteArr[0];
-            await db.insert(deletedAccounts).values({
-                originalUserId: userToDelete.userId,
-                firstName: userToDelete.firstName,
-                lastName: userToDelete.lastName,
-                workEmail: userToDelete.workEmail,
-                mobileNumber: userToDelete.mobileNumber,
-                role: userToDelete.role,
-                designation: userToDelete.designation,
-                department: userToDelete.department,
-                deletedBy: performerId
-            });
+        if (userToDeleteArr.length === 0) {
+            return reply.code(404).send({ message: 'User not found' });
         }
 
-        // 11. SOFT DELETE USER (Update status instead of hard delete)
-        await db.update(users).set({ status: 'Delete' }).where(eq(users.userId, userId));
+        const userToDelete = userToDeleteArr[0];
+        await db.insert(deletedAccounts).values({
+            originalUserId: userToDelete.userId,
+            firstName: userToDelete.firstName,
+            lastName: userToDelete.lastName,
+            workEmail: userToDelete.workEmail,
+            mobileNumber: userToDelete.mobileNumber,
+            role: userToDelete.role,
+            designation: userToDelete.designation,
+            department: userToDelete.department,
+            deletedBy: performerId
+        });
+
+        // 11. SOFT DELETE USER (Update status and rename email to allow reuse)
+        await db.update(users).set({
+            status: 'Delete',
+            workEmail: `deleted_${Date.now()}_${userToDelete.workEmail}`
+        }).where(eq(users.userId, userId));
 
         return reply.send({ message: 'User and all associated dependencies handled successfully' });
     } catch (error) {

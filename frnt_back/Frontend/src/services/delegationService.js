@@ -99,6 +99,10 @@ const delegationService = {
     deleteTag: async (id) => {
         const response = await api.delete(`/tags/${id}`);
         return response.data;
+    },
+    deleteGroup: async (groupId) => {
+        const response = await api.delete(`/groups/${groupId}`);
+        return response.data;
     }
 };
 

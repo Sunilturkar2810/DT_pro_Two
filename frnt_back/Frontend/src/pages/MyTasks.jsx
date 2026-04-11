@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import delegationService from '../services/delegationService';
 import teamService from '../services/teamService';
+import { exportToExcel, formatTasksForExport } from '../utils/exportUtils';
 import TaskKanbanView from '../components/delegation/TaskKanbanView';
 import TaskCalendarView from '../components/delegation/TaskCalendarView';
 import TaskDetailsDrawer from '../components/delegation/TaskDetailsDrawer';
@@ -202,6 +203,17 @@ const MyTasks = () => {
 
     const getStatusCount = (status) =>
         status === 'All' ? myTasks.length : myTasks.filter(t => t.status === status).length;
+
+    const handleExport = () => {
+        if (sortedTasks.length === 0) {
+            toast.error('No tasks to export');
+            return;
+        }
+        
+        const exportData = formatTasksForExport(sortedTasks, users);
+        exportToExcel(exportData, `My_Tasks_${new Date().toISOString().split('T')[0]}`, 'My Tasks');
+        toast.success('Tasks exported successfully');
+    };
 
     const formatTimeAgo = (d) => {
         const diff = Math.floor((new Date() - new Date(d)) / 3600000);
@@ -413,7 +425,10 @@ const MyTasks = () => {
                 </button>
 
                 {/* Export */}
-                <button className="flex items-center gap-2 px-4 h-11 bg-[#00d094] hover:bg-[#00ba84] text-white rounded-lg font-bold text-sm transition-all shadow-sm self-end">
+                <button 
+                    onClick={handleExport}
+                    className="flex items-center gap-2 px-4 h-11 bg-[#00d094] hover:bg-[#00ba84] text-white rounded-lg font-bold text-sm transition-all shadow-sm self-end"
+                >
                     <FileUp size={18} />
                     Export
                 </button>

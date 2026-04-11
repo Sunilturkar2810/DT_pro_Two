@@ -3,19 +3,46 @@ import { notificationPreferences, users, notificationTemplates } from '../db/sch
 import { eq, and } from 'drizzle-orm';
 import { sendEmail } from './emailService.js';
 import { sendWhatsAppCampaign } from './whatsappService.js';
+import { signAllS3Urls } from '../utils/s3.js';
 /**
- * Helper to replace placeholders like {taskTitle} with actual data
+ * Helper to replace placeholders like {taskTitle} or {{taskTitle}} with actual data
  */
-const replacePlaceholders = (template, data) => {
+const replacePlaceholders = (template, data, context = 'Unknown') => {
     if (!template) return '';
-    return template.replace(/{([^{}]+)}/g, (match, key) => {
-        const cleanKey = key.trim();
-        const value = data[cleanKey];
-        if (value !== undefined && value !== null && String(value).trim() !== '') {
-            return value;
+    
+    // Create a normalized copy of data for case-insensitive lookup
+    const normalizedData = {};
+    if (data && typeof data === 'object') {
+        Object.keys(data).forEach(key => {
+            normalizedData[key.toLowerCase()] = data[key];
+        });
+    }
+
+    // Improved regex to handle {key}, {{key}}, {key | default}, {{key | default}}
+    // It matches one or more { followed by content followed by one or more }
+    const result = template.replace(/{+([^{}]+)}+/g, (match, key) => {
+        // Support {variable|default} syntax
+        const parts = key.split('|');
+        const cleanKey = parts[0].trim();
+        const defaultValue = parts.length > 1 ? parts.slice(1).join('|').trim() : '';
+        
+        // Try exact match first
+        let value = data[cleanKey];
+        
+        // Try case-insensitive match if not found
+        if (value === undefined || value === null) {
+            value = normalizedData[cleanKey.toLowerCase()];
         }
-        return '';
+
+        // Return value if it exists and is not empty, otherwise return defaultValue or empty string
+        if (value !== undefined && value !== null && String(value).trim() !== '') {
+            return String(value);
+        }
+        
+        return defaultValue;
     });
+
+    return result;
 };
 
 
@@ -27,6 +54,9 @@ const replacePlaceholders = (template, data) => {
  */
 export const notifyUser = async (userId, eventType, data) => {
     try {
+        // 0. Pre-process data to sign S3 URLs
+        data = await signAllS3Urls(data);
+
         // 1. Fetch user and their preferences
         const [user] = await db.select().from(users).where(eq(users.userId, userId));
         if (!user) return;

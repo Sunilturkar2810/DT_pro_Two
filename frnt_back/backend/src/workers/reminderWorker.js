@@ -1,7 +1,7 @@
 import cron from 'node-cron';
 import { db } from '../db/index.js';
 import { taskReminders, delegations, users } from '../db/schema.js';
-import { eq, and, lte, ne } from 'drizzle-orm';
+import { eq, and, lte, ne, gte } from 'drizzle-orm';
 import { notifyUser } from '../services/notifierService.js';
 
 const assignerAlias = users; // we'll do a sub-query approach
@@ -15,6 +15,7 @@ export const initReminderWorker = () => {
             const now = new Date();
             
             // Find unsent reminders where reminderTime <= now
+            // AND the task is NOT completed
             const pendingReminders = await db.select({
                 reminder: taskReminders,
                 delegation: delegations,
@@ -26,7 +27,9 @@ export const initReminderWorker = () => {
             .where(
                 and(
                     eq(taskReminders.isSent, false),
-                    lte(taskReminders.reminderTime, now)
+                    lte(taskReminders.reminderTime, now),
+                    ne(delegations.status, 'Completed'),
+                    gte(delegations.dueDate, now) // Stop reminders after end date
                 )
             );
 

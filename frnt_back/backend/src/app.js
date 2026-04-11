@@ -23,7 +23,7 @@ dotenv.config();
 const buildApp = (options = {}) => {
     const app = Fastify({
         ...options,
-        bodyLimit: 50 * 1024 * 1024 // 50MB default body limit
+        bodyLimit: 100 * 1024 * 1024 // 100MB default body limit
     });
 
     // Register plugins
@@ -34,7 +34,7 @@ const buildApp = (options = {}) => {
 
     app.register(fastifyMultipart, {
         limits: {
-            fileSize: 50 * 1024 * 1024, // 50MB file size limit
+            fileSize: 100 * 1024 * 1024, // 100MB file size limit
         }
     });
 

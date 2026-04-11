@@ -3,7 +3,7 @@ import { db } from '../db/index.js';
 import { checklistMaster, delegations, users, notificationPreferences } from '../db/schema.js';
 import { createNotification } from '../controllers/notification.controller.js';
 import { initReminderWorker } from '../workers/reminderWorker.js';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, gte } from 'drizzle-orm';
 import { notifyUser } from '../services/notifierService.js';
 
 const generateTasksForTomorrow = async () => {
@@ -174,7 +174,8 @@ const sendDailyTaskReports = async () => {
                 .where(
                     and(
                         eq(delegations.doerId, user.userId),
-                        eq(delegations.status, 'Pending')
+                        eq(delegations.status, 'Pending'),
+                        gte(delegations.dueDate, now) // Stop reminders after end date
                     )
                 );
 

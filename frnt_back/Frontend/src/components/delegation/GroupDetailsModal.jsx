@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { X, Search, Check, Save, UserPlus, Users, Pencil, Trash2, ShieldCheck, Mail, MapPin, Briefcase, Upload } from 'lucide-react';
 import toast from 'react-hot-toast';
 import delegationService from '../../services/delegationService';
@@ -11,6 +12,12 @@ const GroupDetailsModal = ({ isOpen, onClose, groupId, onSuccess }) => {
     const [isEditing, setIsEditing] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
+    const [isDeletingGroup, setIsDeletingGroup] = useState(false);
+    const navigate = useNavigate();
+
+    const storedUser = JSON.parse(localStorage.getItem('user'));
+    const currentUserId = storedUser?.user?.userId || storedUser?.userId;
+    const currentUserRole = storedUser?.user?.role || storedUser?.role;
     
     // Edit state
     const [editForm, setEditForm] = useState({
@@ -107,6 +114,28 @@ const GroupDetailsModal = ({ isOpen, onClose, groupId, onSuccess }) => {
         }
     };
 
+    const handleDeleteGroup = async () => {
+        if (!window.confirm(`Are you sure you want to delete "${groupData.name}"? This action cannot be undone.`)) {
+            return;
+        }
+
+        try {
+            setIsDeletingGroup(true);
+            const res = await delegationService.deleteGroup(groupId);
+            if (res.success) {
+                toast.success('Group deleted successfully');
+                onClose();
+                navigate('/groups');
+                if (onSuccess) onSuccess();
+            }
+        } catch (err) {
+            console.error('Failed to delete group:', err);
+            toast.error(err.response?.data?.message || 'Failed to delete group');
+        } finally {
+            setIsDeletingGroup(false);
+        }
+    };
+
     const toggleMember = (userId) => {
         setEditForm(prev => {
             const members = [...prev.members];
@@ -163,12 +192,28 @@ const GroupDetailsModal = ({ isOpen, onClose, groupId, onSuccess }) => {
                     </div>
                     <div className="flex items-center gap-1.5">
                         {!isEditing && (
-                            <button 
-                                onClick={() => setIsEditing(true)}
-                                className="w-7 h-7 rounded-lg flex items-center justify-center bg-slate-800 text-slate-400 hover:text-white hover:bg-[#00d194]/20 transition-all border border-slate-700 hover:border-[#00d194]/50"
-                            >
-                                <Pencil size={14} />
-                            </button>
+                            <>
+                                { (groupData?.createdBy === currentUserId || currentUserRole === 'SUPERADMIN') && (
+                                    <button 
+                                        onClick={handleDeleteGroup}
+                                        disabled={isDeletingGroup}
+                                        className="w-7 h-7 rounded-lg flex items-center justify-center bg-slate-800 text-red-400 hover:text-white hover:bg-red-500/20 transition-all border border-slate-700 hover:border-red-500/50"
+                                        title="Delete Group"
+                                    >
+                                        {isDeletingGroup ? (
+                                            <div className="w-3 h-3 border-2 border-red-400 border-t-transparent rounded-full animate-spin"></div>
+                                        ) : (
+                                            <Trash2 size={14} />
+                                        )}
+                                    </button>
+                                )}
+                                <button 
+                                    onClick={() => setIsEditing(true)}
+                                    className="w-7 h-7 rounded-lg flex items-center justify-center bg-slate-800 text-slate-400 hover:text-white hover:bg-[#00d194]/20 transition-all border border-slate-700 hover:border-[#00d194]/50"
+                                >
+                                    <Pencil size={14} />
+                                </button>
+                            </>
                         )}
                         <button onClick={onClose} className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 transition-all">
                             <X size={16} strokeWidth={2.5} />

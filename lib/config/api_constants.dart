@@ -56,6 +56,7 @@ class ApiConstants {
   // -- Dynamic URL Builders -------
   static String userById(String userId) => '/auth/users/$userId';
   static String userCredentials(String userId) => '/auth/users/$userId/credentials';
+  static String changePassword(String userId) => '/auth/users/$userId/password';
   static String userDeleteTasks(String userId) => '/auth/users/$userId/tasks';
   static String groupById(String groupId) => '/groups/$groupId';
   static String groupMembers(String groupId) => '/groups/$groupId/members';

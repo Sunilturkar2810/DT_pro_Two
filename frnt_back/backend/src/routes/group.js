@@ -1,5 +1,5 @@
 import { db } from '../db/index.js';
-import { groups, groupMembers, users } from '../db/schema.js';
+import { groups, groupMembers, users, delegations, checklistMaster } from '../db/schema.js';
 import { eq, or } from 'drizzle-orm';
 import { logActivity } from '../utils/activityLogger.js';
 
@@ -181,6 +181,60 @@ async function groupRoutes(app, options) {
 
       return { success: true, message: 'Group updated successfully' };
     } catch (error) {
+      reply.status(500).send({ success: false, message: error.message });
+    }
+  });
+
+  // Delete group
+  app.delete('/:id', {
+    onRequest: [app.authenticate]
+  }, async (request, reply) => {
+    try {
+      const { id } = request.params;
+      const userId = request.user.id;
+      const userRole = request.user.role;
+
+      // Check if group exists and who created it
+      const [group] = await db.select().from(groups).where(eq(groups.groupId, id));
+      
+      if (!group) {
+        return reply.status(404).send({ success: false, message: 'Group not found' });
+      }
+
+      // Permission check: Creator or Superadmin
+      if (group.createdBy !== userId && userRole !== 'SUPERADMIN') {
+        return reply.status(403).send({ success: false, message: 'Only the group creator or a superadmin can delete this group' });
+      }
+
+      // 1. Delete group members
+      await db.delete(groupMembers).where(eq(groupMembers.groupId, id));
+
+      // 2. Clear groupId from delegations (tasks) and checklistMaster
+      // We don't delete the tasks, just remove the group association
+      await db.update(delegations)
+        .set({ groupId: null })
+        .where(eq(delegations.groupId, id));
+
+      await db.update(checklistMaster)
+        .set({ groupId: null })
+        .where(eq(checklistMaster.groupId, id));
+
+      // 3. Delete the group
+      await db.delete(groups).where(eq(groups.groupId, id));
+
+      // Log activity
+      await logActivity({
+        type: 'group_deleted',
+        title: group.name,
+        description: `Group "${group.name}" was deleted by ${request.user.firstName}`,
+        userId: userId,
+        relatedId: id,
+        relatedType: 'group'
+      });
+
+      return { success: true, message: 'Group deleted successfully' };
+    } catch (error) {
+      console.error('Error deleting group:', error);
       reply.status(500).send({ success: false, message: error.message });
     }
   });

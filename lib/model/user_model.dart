@@ -27,6 +27,7 @@ class UserModel {
   final String? state;
   final String? nationality;
   final String? joiningDate;
+  final String? anniversaryDate;
   final String? currentSalary;
   final String? createdAt;
   final String? updatedAt;
@@ -58,6 +59,7 @@ class UserModel {
     this.state,
     this.nationality,
     this.joiningDate,
+    this.anniversaryDate,
     this.currentSalary,
     this.createdAt,
     this.updatedAt,
@@ -96,6 +98,7 @@ class UserModel {
       state: json['state'],
       nationality: json['nationality'],
       joiningDate: json['joiningDate']?.toString(),
+      anniversaryDate: json['anniversaryDate']?.toString(),
       currentSalary: json['currentSalary']?.toString(),
       createdAt: json['createdAt']?.toString(),
       updatedAt: json['updatedAt']?.toString(),
@@ -143,6 +146,7 @@ class UserModel {
       'state': state,
       'nationality': nationality,
       'joiningDate': joiningDate,
+      'anniversaryDate': anniversaryDate,
       'currentSalary': currentSalary,
       'createdAt': createdAt,
       'updatedAt': updatedAt,

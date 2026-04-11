@@ -239,6 +239,37 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  // --- CHANGE PASSWORD ---
+  Future<bool> changePassword(String currentPassword, String newPassword) async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final userId =
+          _currentUser?.id ?? Hive.box('settingsBox').get('auth_user_id') ?? '';
+      if (userId.isEmpty) throw 'User ID not found — please login again';
+
+      await _authService.changePassword(
+        userId,
+        {
+          'currentPassword': currentPassword,
+          'newPassword': newPassword,
+        },
+      );
+
+      print("✅ PASSWORD CHANGED SUCCESSFULLY!");
+      return true;
+    } catch (e) {
+      _errorMessage = e.toString().replaceAll('Exception: ', '');
+      print("🛑 PASSWORD CHANGE FAILED! Error: $_errorMessage");
+      return false;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
   // --- UPLOAD PROFILE IMAGE ---
   Future<bool> uploadProfileImage(File file) async {
     _isLoading = true;

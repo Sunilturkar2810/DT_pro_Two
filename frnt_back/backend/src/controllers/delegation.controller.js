@@ -2,7 +2,7 @@ import { db } from '../db/index.js';
 import { delegations, revisionHistory, remarkHistory, checklistMaster, users, taskReminders, groupMembers } from '../db/schema.js';
 import { eq, desc, and, gte, lte, ilike, or, sql, isNull, isNotNull, inArray } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
-import { uploadToS3 } from '../utils/s3.js';
+import { uploadToS3, signAllS3Urls } from '../utils/s3.js';
 import { createNotification } from './notification.controller.js';
 import { logActivity } from '../utils/activityLogger.js';
 import { notifyUser } from '../services/notifierService.js';
@@ -552,10 +552,11 @@ export const getDelegations = async (req, reply) => {
         queryBuilder = queryBuilder.where(and(...conditions));
 
         const allDelegations = await queryBuilder.orderBy(desc(delegations.createdAt));
+        const signedDelegations = await signAllS3Urls(allDelegations);
 
         return reply.status(200).send({
             success: true,
-            data: allDelegations
+            data: signedDelegations
         });
     } catch (error) {
         req.log.error(error);
@@ -583,16 +584,20 @@ export const getDelegationById = async (req, reply) => {
         const revisions = await db.select().from(revisionHistory).where(eq(revisionHistory.delegationId, id)).orderBy(desc(revisionHistory.createdAt));
         const remarks = await db.select().from(remarkHistory).where(eq(remarkHistory.delegationId, id)).orderBy(desc(remarkHistory.createdAt));
 
+        const detailData = {
+            ...delegation,
+            revision_history: revisions,
+            remarks: remarks,
+            checklistItems: delegation.checklistItems || [],
+            reminders: await db.select().from(taskReminders).where(eq(taskReminders.delegationId, id)),
+            subtasks: await db.select().from(delegations).where(eq(delegations.parentId, id)).orderBy(desc(delegations.createdAt))
+        };
+
+        const signedData = await signAllS3Urls(detailData);
+
         return reply.status(200).send({
             success: true,
-            data: {
-                ...delegation,
-                revision_history: revisions,
-                remarks: remarks,
-                checklistItems: delegation.checklistItems || [],
-                reminders: await db.select().from(taskReminders).where(eq(taskReminders.delegationId, id)),
-                subtasks: await db.select().from(delegations).where(eq(delegations.parentId, id)).orderBy(desc(delegations.createdAt))
-            }
+            data: signedData
         });
     } catch (error) {
         req.log.error(error);

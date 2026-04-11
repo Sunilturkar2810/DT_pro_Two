@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import delegationService from '../services/delegationService';
 import teamService from '../services/teamService';
+import { exportToExcel, formatTasksForExport } from '../utils/exportUtils';
 import TaskKanbanView from '../components/delegation/TaskKanbanView';
 import TaskCalendarView from '../components/delegation/TaskCalendarView';
 import TaskDetailsDrawer from '../components/delegation/TaskDetailsDrawer';
@@ -214,88 +215,15 @@ const AllTasks = () => {
         setTagFilter('All');
     };
 
-    // ── CSV Export ──────────────────────────────────────────────────────────────
-    const exportToCSV = (exportTasks = filteredTasks, nameOverrides = {}) => {
+    const handleExport = (exportTasks = filteredTasks) => {
         if (exportTasks.length === 0) {
-            toast.error('No tasks to export with current filters');
+            toast.error('No tasks to export');
             return;
         }
-
-        // Helper: wrap cell value safely (escape double-quotes, wrap in quotes)
-        const cell = (val) => {
-            if (val === null || val === undefined) return '';
-            const str = String(val).replace(/"/g, '""');
-            return `"${str}"`;
-        };
-
-        // CSV headers
-        const headers = [
-            'Task Title', 'Status', 'Priority', 'Category',
-            'Assigned By', 'Assigned To',
-            'Due Date', 'Created At', 'Tags', 'Description'
-        ];
-
-        // CSV rows
-        const rows = filteredTasks.map(t => {
-            // Parse tags
-            let tagStr = '';
-            try {
-                const parsed = typeof t.tags === 'string' ? JSON.parse(t.tags) : (t.tags || []);
-                tagStr = Array.isArray(parsed) ? parsed.map(tag => tag?.text || tag).join(', ') : '';
-            } catch (e) { tagStr = ''; }
-
-            const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '';
-
-            return [
-                cell(t.taskTitle),
-                cell(t.status),
-                cell(t.priority),
-                cell(t.category || ''),
-                cell(`${t.assignerFirstName || ''} ${t.assignerLastName || ''}`.trim()),
-                cell(`${t.doerFirstName || ''} ${t.doerLastName || ''}`.trim()),
-                cell(fmtDate(t.dueDate)),
-                cell(fmtDate(t.createdAt)),
-                cell(tagStr),
-                cell(t.description || ''),
-            ].join(',');
-        });
-
-        // Build filename from active filters or overrides
-        const parts = ['all-tasks'];
-        const {
-            status: oStatus, priority: oPriority,
-            category: oCategory, tag: oTag, dateRange: oRange,
-            taskType: oType
-        } = nameOverrides;
-        const sFilter = oStatus ?? statusFilter;          // reused for repetitive/one-time
-        const pFilter = oPriority ?? priority;
-        const cFilter = oCategory ?? category;
-        const tFilter = oTag ?? tagFilter;
-        const dFilter = oRange ?? dateRange;
-        const typeFilter = oType;
-
-        if (sFilter && sFilter !== 'All') parts.push(sFilter.replace(/\s+/g, '-').toLowerCase());
-        if (pFilter && pFilter !== 'All') parts.push(pFilter.toLowerCase());
-        if (cFilter && cFilter !== 'All') parts.push(cFilter.replace(/\s+/g, '-').toLowerCase());
-        if (typeFilter) parts.push(typeFilter);
-        if (tFilter && tFilter !== 'All') parts.push(`tag-${tFilter.replace(/\s+/g, '-').toLowerCase()}`);
-        if (dFilter && dFilter !== 'All Time') parts.push(dFilter.replace(/\s+/g, '-').toLowerCase());
-        const today = new Date().toLocaleDateString('en-CA'); // yyyy-mm-dd
-        const filename = `${parts.join('_')}_${today}.csv`;
-
-        // Trigger download
-        const csvContent = [headers.join(','), ...rows].join('\n');
-        const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' }); // BOM for Excel
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.setAttribute('download', filename);
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
-
-        toast.success(`Exported ${filteredTasks.length} task${filteredTasks.length !== 1 ? 's' : ''} as ${filename}`);
+        
+        const exportData = formatTasksForExport(exportTasks, users);
+        exportToExcel(exportData, `All_Tasks_${new Date().toISOString().split('T')[0]}`, 'All Tasks');
+        toast.success(`Exported ${exportTasks.length} tasks successfully`);
     };
 
     const filteredTasks = tasks.filter(t => {
@@ -719,12 +647,7 @@ const AllTasks = () => {
                                         cat: exportCategory,
                                         types: exportTaskTypes,
                                     });
-                                    exportToCSV(toExport, {
-                                        dateRange: exportDateRange,
-                                        category: exportCategory,
-                                        taskType: exportTaskTypes.length === 1 ? exportTaskTypes[0] : undefined,
-                                        // assigned filters not needed in filename
-                                    });
+                                    handleExport(toExport);
                                     setShowExportModal(false);
                                 }}
                                 className="px-5 py-2 bg-[#00d094] text-white rounded-lg font-bold hover:bg-[#00ba84] transition-all"

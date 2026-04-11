@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { 
-    Search, Plus, ClipboardList, RotateCcw, 
+    Search, Plus, ClipboardList, RotateCcw, FileUp,
     LayoutGrid, CheckCircle2, Lightbulb, Link2, History as HistoryIcon,
     Filter, ArrowDownAz, List, Layout, Calendar as CalendarIcon,
     Users, Clock, AlertCircle, ChevronDown, Pencil
 } from 'lucide-react';
 import delegationService from '../services/delegationService';
+import teamService from '../services/teamService';
+import { exportToExcel, formatTasksForExport } from '../utils/exportUtils';
 import TaskTable from '../components/delegation/TaskTable';
 import TaskCreationForm from '../components/delegation/TaskCreationForm';
 import TaskKanbanView from '../components/delegation/TaskKanbanView';
@@ -148,6 +150,19 @@ const GroupTasks = () => {
         } finally {
             setLoading(false);
         }
+    };
+
+    const handleExport = () => {
+        if (filteredTasks.length === 0) {
+            toast.error('No tasks to export');
+            return;
+        }
+        
+        // Use groupUsers or fetch all users if groupUsers is empty
+        const exportUsers = groupUsers.length > 0 ? groupUsers : [];
+        const exportData = formatTasksForExport(filteredTasks, exportUsers);
+        exportToExcel(exportData, `${groupName.replace(/\s+/g, '_')}_Tasks_${new Date().toISOString().split('T')[0]}`, `${groupName} Tasks`);
+        toast.success('Tasks exported successfully');
     };
 
     if (!id) {
@@ -507,6 +522,14 @@ const GroupTasks = () => {
                         </div>
                     </>
                 )}
+
+                <button 
+                    onClick={handleExport}
+                    className="flex items-center gap-2 px-4 h-11 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-200 font-bold rounded-lg hover:bg-slate-50 transition-all shadow-sm self-end"
+                >
+                    <FileUp size={18} />
+                    Export
+                </button>
 
                 <button 
                     onClick={fetchGroupData}

@@ -22,6 +22,9 @@ class _GeneralSettingsScreenState extends State<GeneralSettingsScreen> {
   late final TextEditingController _lastNameController;
   late final TextEditingController _workEmailController;
   late final TextEditingController _mobileController;
+  String? _dateOfBirth;
+  String? _joiningDate;
+  String? _anniversaryDate;
 
   bool _taskAccess = true;
   bool _isSaving = false;
@@ -58,6 +61,9 @@ class _GeneralSettingsScreenState extends State<GeneralSettingsScreen> {
     _workEmailController.text = user?.workEmail ?? '';
     _mobileController.text = extractIndianPhoneDigits(user?.mobileNumber);
     _taskAccess = user?.taskAccess ?? true;
+    _dateOfBirth = user?.dateOfBirth;
+    _joiningDate = user?.joiningDate;
+    _anniversaryDate = user?.anniversaryDate;
   }
 
   Future<void> _refreshProfile({bool showLoader = true}) async {
@@ -92,14 +98,36 @@ class _GeneralSettingsScreenState extends State<GeneralSettingsScreen> {
       return;
     }
 
+    final user = context.read<AuthProvider>().currentUser;
+    final Map<String, dynamic> updates = {};
+
+    final currentFirstName = _firstNameController.text.trim();
+    if (user?.firstName != currentFirstName) updates['firstName'] = currentFirstName;
+
+    final currentLastName = _lastNameController.text.trim();
+    if (user?.lastName != currentLastName) updates['lastName'] = currentLastName;
+
+    final currentEmail = _workEmailController.text.trim();
+    if (user?.workEmail != currentEmail) updates['workEmail'] = currentEmail;
+
+    final currentMobile = _mobileController.text.trim();
+    if (extractIndianPhoneDigits(user?.mobileNumber) != currentMobile) {
+      updates['mobileNumber'] = currentMobile;
+    }
+
+    if (user?.taskAccess != _taskAccess) updates['taskAccess'] = _taskAccess;
+
+    if (_dateOfBirth != user?.dateOfBirth) updates['dateOfBirth'] = _dateOfBirth;
+    if (_joiningDate != user?.joiningDate) updates['joiningDate'] = _joiningDate;
+    if (_anniversaryDate != user?.anniversaryDate) updates['anniversaryDate'] = _anniversaryDate;
+
+    if (updates.isEmpty) {
+      _showSnack('No changes to save', false);
+      return;
+    }
+
     setState(() => _isSaving = true);
-    final ok = await context.read<AuthProvider>().updateProfile({
-      'firstName': _firstNameController.text.trim(),
-      'lastName': _lastNameController.text.trim(),
-      'workEmail': _workEmailController.text.trim(),
-      'mobileNumber': _mobileController.text.trim(),
-      'taskAccess': _taskAccess,
-    });
+    final ok = await context.read<AuthProvider>().updateProfile(updates);
     if (!mounted) return;
     setState(() => _isSaving = false);
     _syncFromUser(context.read<AuthProvider>().currentUser);
@@ -411,6 +439,12 @@ class _GeneralSettingsScreenState extends State<GeneralSettingsScreen> {
                                         setState(() => _taskAccess = value),
                             ),
                             const SizedBox(height: 16),
+                            _dateField('DATE OF BIRTH', _dateOfBirth, 'dob'),
+                            const SizedBox(height: 16),
+                            _dateField('JOINING DATE', _joiningDate, 'joining'),
+                            const SizedBox(height: 16),
+                            _dateField('ANNIVERSARY (OPTIONAL)', _anniversaryDate, 'anniversary'),
+                            const SizedBox(height: 24),
                             SizedBox(
                               width: double.infinity,
                               child: ElevatedButton(
@@ -647,6 +681,61 @@ class _GeneralSettingsScreenState extends State<GeneralSettingsScreen> {
               : decoration,
         ),
       ],
+    );
+  }
+
+  Future<void> _pickDateFor(String fieldName, String? currentValue) async {
+    final initialDate = currentValue != null ? DateTime.tryParse(currentValue) ?? DateTime.now() : DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: initialDate,
+      firstDate: DateTime(1900),
+      lastDate: DateTime(2100),
+    );
+    if (picked != null) {
+      final formatted = DateFormat('yyyy-MM-dd').format(picked);
+      setState(() {
+        if (fieldName == 'dob') _dateOfBirth = formatted;
+        else if (fieldName == 'joining') _joiningDate = formatted;
+        else if (fieldName == 'anniversary') _anniversaryDate = formatted;
+      });
+    }
+  }
+
+  Widget _dateField(String label, String? value, String type) {
+    return InkWell(
+      onTap: _isSaving || _isRefreshing ? null : () => _pickDateFor(type, value),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 0),
+        decoration: const BoxDecoration(
+          border: Border(bottom: BorderSide(color: Color(0xFFE2E8F0), width: 2)),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: const TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w900,
+                    color: Color(0xFF94A3B8),
+                    letterSpacing: 1.1,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  value != null ? DateFormat('dd MMM yyyy').format(DateTime.parse(value)) : 'Not Specified',
+                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.normal),
+                ),
+              ],
+            ),
+            const Icon(Icons.calendar_today_outlined, color: Color(0xFFCBD5E1), size: 18),
+          ],
+        ),
+      ),
     );
   }
 

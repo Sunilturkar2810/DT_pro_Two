@@ -168,6 +168,21 @@ class AuthService {
     }
   }
 
+  Future<Map<String, dynamic>> changePassword(
+    String userId,
+    Map<String, String> data,
+  ) async {
+    try {
+      final response = await _dio.put(
+        ApiConstants.changePassword(userId),
+        data: data,
+      );
+      return response.data;
+    } on DioException catch (e) {
+      throw _errorMessageFromDio(e, 'Failed to change password');
+    }
+  }
+
   Future<Map<String, dynamic>> deleteUserTasks(
     String userId,
     String confirmEmail,
